@@ -11,7 +11,7 @@ A battle-tested method for shipping large arcs of work with Claude Code — many
 
 1. **Make a list first.** Create a visible task board (TaskCreate) — one task per round, typically 5–9 rounds per arc. Check tasks off as they land. The user watches progress by the board, not by asking.
 
-2. **Agent army — ONE OWNER PER FILE.** Spawn parallel subagents for independent rounds. Each agent owns EXACTLY the file(s) named in its brief and may never touch anything else, never commit, never push, never restart shared services. Two agents must never own the same file at the same time.
+2. **Agent army — ONE OWNER PER FILE.** Spawn parallel subagents for independent rounds. Each agent owns EXACTLY the file(s) named in its brief and may never touch anything else, never commit, never push, never restart shared services. Two agents must never own the same file at the same time. Ownership is PER-ARC: every grant dissolves when the arc seals — between arcs the lead owns everything, and the next arc's briefs name fresh single owners with no inherited claims.
 
 3. **The lead gates every merge.** Agents report; the lead re-verifies (compile, test suite, lint/parse, live smoke where possible) BEFORE committing their work. Trust but verify — an agent's "done" is a claim, not a fact.
 
