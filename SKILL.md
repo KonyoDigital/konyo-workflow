@@ -1,24 +1,24 @@
 ---
 name: konyo-workflow
 description: >
-  The Konyo Workflow — ultimate shipping method for ANY coding LLM (Claude, Grok, etc.):
+  The Konyo Workflow — ultimate shipping method for ANY coding agent / session LLM:
   agent army with one owner per file, lead gates every merge, third-eye pingpong with the
   SAME stack's agents (or a second model if available — not vendor-locked), ~7-round seal
   for a full version, version per round, autonomous chain with ONE final ping. Invoke for
-  multi-round arcs, night runs, polish sweeps. Not Grok-only; not Claude-only.
+  multi-round arcs, night runs, polish sweeps.
 ---
 
 # THE KONYO WORKFLOW
 
 A battle-tested method for shipping large arcs of work with **whatever coding AI is driving this session**. Named and blessed by its inventor, Konyo.
 
-**Engine rule:** pingpong / third-eye / army all use **this product’s agents and this model family** by default. You do **not** need Grok, SuperGrok, or a second vendor. A second model is a *bonus* for independence, never a requirement.
+**Engine rule:** pingpong / third-eye / army all use **this product’s agents and this model** by default. A second model is a *bonus* for independence, never a requirement.
 
 ---
 
 ## The Laws
 
-1. **Make a list first.** Create a visible task board (TodoWrite / TaskCreate / checklist) — one task per round, typically 5–9 rounds per arc. Check tasks off as they land. The user watches the board, not status spam.
+1. **Make a list first.** Create a visible task board (todos / checklist) — one task per round, typically 5–9 rounds per arc. Check tasks off as they land. The user watches the board, not status spam.
 
 2. **Agent army — ONE OWNER PER FILE.** Spawn parallel subagents for independent rounds. Each agent owns EXACTLY the file(s) named in its brief and may never touch anything else, never commit, never push, never restart shared services. Two agents must never own the same file at the same time. Ownership is PER-ARC: every grant dissolves when the arc seals.
 
@@ -26,11 +26,11 @@ A battle-tested method for shipping large arcs of work with **whatever coding AI
 
 4. **Version per round.** Every round that ships gets a version stamp and its own commit with a story message: what broke, why, the fix. If version lives in multiple files, bump them together (parity test that fails on drift).
 
-5. **Third-eye pingpong (host LLM).** Between build rounds, run an **independent** review leg:
-   - Default: a **fresh subagent** on **this same product** (Claude↔Claude agents, Grok↔Grok agents, etc.) with a terse brief: "MAX N findings, ranked by severity, concrete only, no praise. Read the real code."
+5. **Third-eye pingpong (session LLM).** Between build rounds, run an **independent** review leg:
+   - Default: a **fresh subagent** on **this same product** with a terse brief: "MAX N findings, ranked by severity, concrete only, no praise. Read the real code."
    - Optional upgrade: a **different model/CLI** or a human if available.
    - Gate findings: fix real ones immediately; log deferred ones. Never re-litigate a fixed issue without a new live failure.
-   - **Do not block the arc because SuperGrok/Grok is missing.** The host LLM is enough.
+   - **Do not block the arc waiting for a specific brand of model.** The session LLM is enough.
 
 6. **Seven-round seal (full version).** A full **version** levels up through **at least ~7 pingpong exchanges** on the host stack, for example:
    design → implement → back-pass (third-eye) → fix → re-verify → polish → seal.  
@@ -63,7 +63,7 @@ SCOUT   → read the code, find root causes, write them down
 BOARD   → task list the rounds, dependencies noted
 ARMY    → spawn owners for parallel rounds (law 2)
 GATE    → verify + commit each landing round (laws 3, 4)
-3RD EYE → host-LLM independent review; gate its verdict (laws 5–6)
+3RD EYE → session-LLM independent review; gate its verdict (laws 5–6)
 SEAL    → stamps, full suites, push if appropriate, dossier row, final ping (laws 4, 6, 7)
 ```
 
@@ -85,7 +85,7 @@ Any request shaped like "build/fix/polish X properly" that will take more than ~
 
 ## What this is NOT
 
-- Not Grok-only / not Claude-only  
+- Not locked to any single AI vendor  
 - Not a requirement to buy a second AI brand for pingpong  
 - Not auto-deploy while ON AIR  
 - No project-specific glue — bring your own tests and version scheme; the workflow adapts  
@@ -94,5 +94,5 @@ Any request shaped like "build/fix/polish X properly" that will take more than ~
 
 ## Invoke
 
-- Explicit: `/konyo-workflow`  
+- Explicit skill name: `konyo-workflow`  
 - Natural: “do this Konyo Workflow style” / “ship it with the full ceremony”

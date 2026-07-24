@@ -1,36 +1,30 @@
 #!/usr/bin/env bash
-# Konyo Workflow installer — Claude skill and/or Grok workflows
+# Konyo Workflow — vendor-neutral installer
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
+DEST="${KONYO_WORKFLOW_HOME:-$HOME/.konyo-workflow}"
 
-install_claude() {
-  DEST="$HOME/.claude/skills/konyo-workflow"
-  mkdir -p "$DEST"
-  cp "$ROOT/SKILL.md" "$DEST/SKILL.md"
-  echo "✅ Claude: installed to $DEST — restart Claude Code, then: /konyo-workflow"
-}
+mkdir -p "$DEST/workflows"
 
-install_grok() {
-  DEST="$HOME/.grok/workflows"
-  mkdir -p "$DEST"
-  if [[ -d "$ROOT/grok/.grok/workflows" ]]; then
-    cp "$ROOT/grok/.grok/workflows/"*.rhai "$DEST/"
-  else
-    echo "Missing grok/.grok/workflows — clone the full repo or use curl install in grok/INSTALL.md" >&2
-    exit 1
-  fi
-  echo "✅ Grok: installed workflows to $DEST — run: /workflow konyo-workflow {\"objective\":\"...\",\"target\":\"HEAD\"}"
-}
+cp "$ROOT/SKILL.md" "$DEST/SKILL.md"
+cp "$ROOT/docs/SHIP_LAWS.md" "$DEST/SHIP_LAWS.md" 2>/dev/null || true
 
-case "${1:-all}" in
-  claude) install_claude ;;
-  grok)   install_grok ;;
-  all)
-    install_claude
-    install_grok
-    ;;
-  *)
-    echo "Usage: ./install.sh [all|claude|grok]"
-    exit 1
-    ;;
-esac
+if [[ -d "$ROOT/automation/workflows" ]]; then
+  cp "$ROOT/automation/workflows/"*.rhai "$DEST/workflows/" 2>/dev/null || true
+fi
+
+# Support curl | bash from raw GitHub (ROOT may be a temp dir with only this script)
+if [[ ! -f "$DEST/SKILL.md" ]] || [[ ! -s "$DEST/SKILL.md" ]]; then
+  BASE="https://raw.githubusercontent.com/KonyoDigital/konyo-workflow/main"
+  curl -fsSL "$BASE/SKILL.md" -o "$DEST/SKILL.md"
+  curl -fsSL "$BASE/docs/SHIP_LAWS.md" -o "$DEST/SHIP_LAWS.md" || true
+  mkdir -p "$DEST/workflows"
+  for f in konyo-workflow review-changes security-pass ship-ready find-flaky-tests; do
+    curl -fsSL "$BASE/automation/workflows/${f}.rhai" -o "$DEST/workflows/${f}.rhai" 2>/dev/null || true
+  done
+fi
+
+echo "✅ Konyo Workflow installed to $DEST"
+echo "   Primary:  $DEST/SKILL.md"
+echo "   Optional: $DEST/workflows/"
+echo "   Attach SKILL.md as a skill/rule/instruction in your coding agent."
