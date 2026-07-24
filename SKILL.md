@@ -1,19 +1,22 @@
 ---
 name: konyo-workflow
 description: >
-  The Konyo Workflow — shipping method for any AI/LLM: worker army with one owner
-  per file, lead gates every merge, third-eye pingpong with the same AI (second model
-  optional), ~7-round seal for a full version, version per round, autonomous chain
-  with ONE final ping. Use for multi-round arcs, night runs, polish sweeps.
+  The Konyo Workflow — ultimate shipper for any AI/LLM: plan, build in sealed rounds,
+  prove each round, third-eye back-pass with the same AI, ~7-round seal for a full
+  version, fail-closed ship/draft/blocked, ONE final ping. Use for multi-round arcs,
+  night runs, polish sweeps.
 ---
 
 # THE KONYO WORKFLOW
 
-A battle-tested method for shipping large arcs of work with **the AI/LLM in this session**. Named and blessed by its inventor, Konyo.
+**Ultimate shipper** for large arcs — with **the AI/LLM in this session**. Named and blessed by its inventor, Konyo.
 
-**Engine rule:** pingpong / third-eye / army all use **this AI** by default. A second model is a *bonus*, never a requirement.
+How it ships: plan → build round by round → **gate** (tests/checks/evidence) → **third-eye** back-pass → fix → seal a version → **ONE final ping**.  
+Fail closed (**ship** / **draft** / **blocked**). A full version needs real iteration (~7 exchanges), not one lucky pass.
 
-This is not a brand. It is a **way of working** for AI that ships code (or any multi-step deliverable).
+**Engine rule:** review and helpers use **this AI** by default. A second model is a *bonus*, never a requirement.
+
+This is not a brand. It is **how an AI ships serious work**.
 
 ---
 

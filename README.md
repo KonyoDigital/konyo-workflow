@@ -1,11 +1,14 @@
 # The Konyo Workflow
 
-**A shipping method for AI / LLMs.**
+**The ultimate shipper for AI / LLMs.**
 
-Army of workers (one owner per file) · lead gates every merge · third-eye pingpong with **the same AI** · version per round · fail-closed honesty · **ONE final ping**.
+Not a chatbot vibe. A way an AI **actually ships**: plan → build in sealed rounds → prove each round (tests, checks, eyes on evidence) → independent back-pass → fix until it holds → stamp a version → **ONE final ping** when the arc is done.
 
-Any model. Any chat that can use tools and spawn helpers.  
-**The AI running the session is the engine.** Pingpong is that AI reviewing its own work (a second model is optional).
+Fail closed: **ship**, **draft**, or **blocked** — never “looks fine.”  
+Full version means real iteration (about **seven** design → implement → review → fix → re-verify → polish → seal exchanges), not a single lucky pass.
+
+Any model. Any chat that can use tools and helpers.  
+**The AI running the session is the engine** — it reviews its own work (a second model is optional).
 
 Battle-tested by Konyo across hundreds of shipped versions.
 
@@ -30,18 +33,21 @@ That’s it.
 
 ---
 
-## What it is
+## How it ships
 
-| Piece | Meaning |
-|-------|---------|
-| **Army** | Parallel helpers, **one owner per file** |
-| **Lead gates** | Tests / checks before merge — claims aren’t facts |
-| **Third-eye pingpong** | Independent review rounds by **the same AI** (or another model if you want) |
-| **7-round seal** | Full version ≈ design → implement → back-pass → fix → re-verify → polish → seal |
-| **Version per round** | Each sealed slice gets its own version/commit story |
-| **ONE final ping** | Long runs end with one summary for the human |
+| Stage | What happens |
+|-------|----------------|
+| **Plan** | Clear objective, checklist, success criteria |
+| **Build in rounds** | One coherent deliverable per round — not a mega-dump |
+| **Gate** | Prove it (tests, lint, smoke, evidence) before it counts |
+| **Third-eye** | Independent back-pass by the **same AI** (or another model) |
+| **Seal** | Version stamp + ship log; **draft** if not enough rounds, **blocked** if gates fail |
+| **Final ping** | One summary table for the human when the arc ends |
 
-Not a product. Not a vendor lock. **Just how you make an AI ship serious work.**
+Under the hood the AI may use parallel helpers (one owner per surface) so work doesn’t thrash — that’s mechanics, not the pitch.  
+**The pitch is the ship quality bar.**
+
+Not a product. Not a vendor. **How an AI ships serious work.**
 
 ---
 
