@@ -1,27 +1,22 @@
-# Install Konyo Workflow for Grok Build
+# Install Konyo Workflow for Grok Build (optional)
 
-## Super simple (sister / family)
+**You do not need this for the Konyo Workflow method.**  
+Family / Claude-only users: install **`SKILL.md`** from the root README (one curl line). No Grok account required.
+
+This folder is only if you use **Grok Build** and want the automated gate runner.  
+Pingpong still means **host-LLM third-eye agents** (Grok agents reviewing Grok work) — not a second brand.
+
+## If you use Grok Build
 
 ### 1) Download
-- Go to https://github.com/KonyoDigital/konyo-workflow  
-- Green **Code** → **Download ZIP**  
-- Unzip to Desktop  
+- https://github.com/KonyoDigital/konyo-workflow → **Code** → **Download ZIP** → unzip  
 
-### 2) Copy workflows (Mac Terminal)
-
-If the folder is `konyo-workflow-main`:
+### 2) Copy workflows (Mac)
 
 ```bash
 mkdir -p ~/.grok/workflows
 cp ~/Desktop/konyo-workflow-main/grok/.grok/workflows/*.rhai ~/.grok/workflows/
 ls ~/.grok/workflows/
-```
-
-If the folder is `konyo-workflow`:
-
-```bash
-mkdir -p ~/.grok/workflows
-cp ~/Desktop/konyo-workflow/grok/.grok/workflows/*.rhai ~/.grok/workflows/
 ```
 
 ### Windows PowerShell
@@ -31,7 +26,7 @@ New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.grok\workflows"
 Copy-Item "$env:USERPROFILE\Desktop\konyo-workflow-main\grok\.grok\workflows\*.rhai" "$env:USERPROFILE\.grok\workflows\"
 ```
 
-### 3) Run in Grok
+### 3) Run
 
 ```text
 /workflow konyo-workflow {"objective":"My first ship check","target":"HEAD"}

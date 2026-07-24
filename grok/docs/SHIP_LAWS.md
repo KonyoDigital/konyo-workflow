@@ -10,7 +10,7 @@ Each law is **PASS**, **FAIL**, or **N/A** (N/A requires evidence).
 | OR1 | Burst orders | Fold every part of the objective into the plan |
 | OR2 | Army of agents | Parallel work; **one owner per file** |
 | OR3 | Gate owner | Suites + syntax + eyes on evidence before merge |
-| OR4 | SuperGrok third-eye | Adversarial back-pass on findings |
+| OR4 | Third-eye (host LLM agents) | Adversarial back-pass on findings |
 | OR5 | Versioned ships | Prefer one sealed version per arc |
 
 ## Ceremony laws (audited in parallel)

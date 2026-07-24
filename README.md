@@ -1,126 +1,96 @@
 # 🏆 The Konyo Workflow
 
-**Ultimate shipping method** — agent army (one owner per file) · gates every merge · SuperGrok third-eye · version per round · **7-round seal** · fail-closed **ship / draft / blocked**.
+**Ultimate shipping method for any coding AI** — agent army (one owner per file) · lead gates every merge · **third-eye pingpong with whatever LLM is running** · version per round · fail-closed honesty · **ONE final ping**.
 
-Works on **any project**. Strict by default. Easy for family to download.
+Not locked to Grok. Not locked to Claude.  
+**Whoever is driving the session is the engine.** Pingpong / third-eye uses that stack’s agents (or a second model if you have one).
 
 Battle-tested by Konyo across hundreds of shipped versions.
 
 ---
 
-## For my sister (and anyone non-technical) — easiest path
+## For family (e.g. sister in the States) — no Grok needed
 
-1. Open: **https://github.com/KonyoDigital/konyo-workflow**
-2. Click green **Code** → **Download ZIP**
-3. Unzip to Desktop
-4. Pick your tool below and follow the 3 steps
+She only needs **Claude Code** (or Claude with skills). **No Grok account.**
 
-### Install for **Grok Build** (Mac)
-
-Open **Terminal**, paste (adjust folder name if ZIP extracted differently):
+### Easiest: one Terminal line (Mac)
 
 ```bash
-mkdir -p ~/.grok/workflows
-cp ~/Desktop/konyo-workflow-main/grok/.grok/workflows/*.rhai ~/.grok/workflows/
-echo "✅ Grok: Konyo Workflow installed"
+mkdir -p ~/.claude/skills/konyo-workflow && curl -fsSL https://raw.githubusercontent.com/KonyoDigital/konyo-workflow/main/SKILL.md -o ~/.claude/skills/konyo-workflow/SKILL.md && echo "✅ Konyo Workflow installed — restart Claude Code, then type: /konyo-workflow"
 ```
 
-Then in Grok Build:
+### Or: Download ZIP
+
+1. Open **https://github.com/KonyoDigital/konyo-workflow**
+2. Green **Code** → **Download ZIP** → unzip  
+3. Terminal:
+
+```bash
+mkdir -p ~/.claude/skills/konyo-workflow
+cp ~/Desktop/konyo-workflow-main/SKILL.md ~/.claude/skills/konyo-workflow/
+```
+
+4. Restart Claude Code → type **`/konyo-workflow`**  
+   Or say: *“do this the Konyo Workflow way.”*
+
+That’s the whole product for most people: **one file, `SKILL.md`.**
+
+---
+
+## The idea (LLM-agnostic)
+
+| Piece | Meaning |
+|-------|---------|
+| **Army** | Parallel specialists, **one owner per file** |
+| **Lead gates** | Tests / lint / smoke before merge — claims aren’t facts |
+| **Third-eye pingpong** | Independent review rounds using **the same product’s agents**, or another model if available — **not** “must be SuperGrok” |
+| **7-round seal** | Full version = at least ~7 design → implement → back-pass → fix → re-verify → polish → seal exchanges (with the LLM you have) |
+| **Version per round** | Each sealed slice is its own version/commit story |
+| **ONE final ping** | Autonomous chain ends with one summary table for the human |
+
+If you’re on **Claude** → Claude reviews Claude.  
+If you’re on **Grok** → Grok reviews Grok.  
+If you have two models → even better for third-eye. **Optional, not required.**
+
+---
+
+## Install matrix
+
+| Tool | Needs Grok? | Install |
+|------|-------------|---------|
+| **Claude Code** | No | Curl one-liner above / ZIP `SKILL.md` |
+| **Grok Build** (optional) | Yes | See [grok/INSTALL.md](./grok/INSTALL.md) — automated gate runner |
+
+```bash
+./install.sh claude   # sister / default
+./install.sh grok     # only if you use Grok Build
+./install.sh all      # both
+```
+
+---
+
+## Claude — use
+
+- **`/konyo-workflow`**
+- or *“ship this Konyo Workflow style”*
+
+Claude will: task board → army → gate each merge → third-eye rounds (with Claude agents) → version stamps → one final ping.
+
+Full laws: **[SKILL.md](./SKILL.md)**
+
+---
+
+## Grok Build — optional automation
+
+If *you* have Grok Build, the same doctrine runs as a workflow script:
 
 ```text
-/workflow konyo-workflow {"objective":"My first ship check","target":"HEAD"}
+/workflow konyo-workflow {"objective":"What you are shipping","target":"HEAD"}
 ```
 
-Full Grok guide: **[grok/INSTALL.md](./grok/INSTALL.md)**
+Details: **[grok/INSTALL.md](./grok/INSTALL.md)** · laws: **[grok/docs/SHIP_LAWS.md](./grok/docs/SHIP_LAWS.md)**
 
-### Install for **Claude Code** (one liner)
-
-```bash
-mkdir -p ~/.claude/skills/konyo-workflow && curl -fsSL https://raw.githubusercontent.com/KonyoDigital/konyo-workflow/main/SKILL.md -o ~/.claude/skills/konyo-workflow/SKILL.md && echo "✅ Claude: Konyo Workflow installed — restart Claude Code, then type: /konyo-workflow"
-```
-
-Or run:
-
-```bash
-./install.sh
-```
-
----
-
-## What’s in this repo
-
-| Path | What |
-|------|------|
-| `SKILL.md` | Claude Code skill (instruction method) |
-| `install.sh` | One-click Claude install |
-| `grok/.grok/workflows/konyo-workflow.rhai` | **Grok ultimate shipper** (16 laws, automated gate run) |
-| `grok/.grok/workflows/*.rhai` | Bonus: review, security, ship-ready, flaky-tests |
-| `grok/docs/SHIP_LAWS.md` | Human-readable law list |
-| `grok/INSTALL.md` | Grok install detail |
-
----
-
-## Grok — run the ultimate shipper
-
-```text
-/workflow konyo-workflow {"objective":"Add rate limits to the API","target":"HEAD"}
-
-/workflow konyo-workflow {"objective":"v770 theatre polish","version":"v770","target":"HEAD"}
-
-/workflow konyo-workflow {"objective":"Hotfix","target":"HEAD","strict":false}
-
-/workflow konyo-workflow {"objective":"Prod ready","target":"HEAD","human_approve":true}
-```
-
-Watch: `/workflows`
-
-### Args (Grok)
-
-| Arg | Default | Meaning |
-|-----|---------|---------|
-| `objective` | required | What you are shipping |
-| `target` | `HEAD` | Diff / branch / path |
-| `version` | — | Version label |
-| `strict` | `true` | Full bar + 7-round for ship |
-| `rounds_min` | `7` | Min pingpong rounds when strict |
-| `human_approve` | `false` | Pause when verdict is ship |
-| `mode` | `audit` | or `plan-only` |
-
----
-
-## General + strict (how it fits every project)
-
-Gates return **PASS / FAIL / N/A(+evidence)**:
-
-- Web app → full UX, visual, deploy heat  
-- Python library → UI laws **N/A** with proof, still tests/security/review/7-round  
-
-Same ceremony. Adaptive surfaces. No silent skips.
-
-### 16 ship laws (short)
-
-1. TDD/tests for this change · 2. Review · 3. Security · 4. Docs/ops · 5. Rollback  
-6. Patch discipline · 7. Syntax gates · 8. UX polish · 9. RINSE-class interaction · 10. Visual eyes  
-11. Version stamps · 12. Ledger · 13. Deploy/live safety · 14. Self-enforcing CI  
-15. Army zero-overlap · 16. **Seven-round SuperGrok pingpong**
-
-Verdicts: **ship** | **draft** | **blocked** (fail closed).
-
----
-
-## Claude Code — use
-
-- Type **`/konyo-workflow`**, or  
-- Say **“do this Konyo Workflow style”**
-
-Claude: task board → one agent per file → gate merges → third-eye rounds → version per round → one final ping.
-
----
-
-## What this is NOT
-
-- Not auto-deploy to production (gates protect; humans/tools still ship when ON AIR is clear)  
-- Not project-specific glue — bring your own tests and version scheme  
+Sister does **not** need this.
 
 ---
 
@@ -132,12 +102,10 @@ Claude: task board → one agent per file → gate merges → third-eye rounds �
 rm -rf ~/.claude/skills/konyo-workflow
 ```
 
-**Grok:**
+**Grok (optional):**
 
 ```bash
 rm -f ~/.grok/workflows/konyo-workflow.rhai
-# optional extras:
-# rm -f ~/.grok/workflows/{review-changes,security-pass,ship-ready,find-flaky-tests}.rhai
 ```
 
 ---
@@ -148,4 +116,4 @@ MIT
 
 ---
 
-**Konyo Workflow** — one doctrine, Claude skill + Grok ultimate shipper, ready for the whole family.
+**Konyo Workflow** — one doctrine, any LLM that can run agents. Pingpong with the model you already paid for.
