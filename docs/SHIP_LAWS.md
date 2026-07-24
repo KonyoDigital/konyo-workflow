@@ -8,9 +8,9 @@ Each law is **PASS**, **FAIL**, or **N/A** (N/A requires evidence).
 | ID | Law | Notes |
 |----|-----|--------|
 | OR1 | Burst orders | Fold every part of the objective into the plan |
-| OR2 | Army of agents | Parallel work; **one owner per file** |
+| OR2 | Army | Parallel workers; **one owner per file** |
 | OR3 | Gate owner | Suites + syntax + eyes on evidence before merge |
-| OR4 | Third-eye | Adversarial back-pass with session agents (or a second model if available) |
+| OR4 | Third-eye | Adversarial back-pass with the **same AI** (or a second model if available) |
 | OR5 | Versioned ships | Prefer one sealed version per arc |
 
 ## Ceremony laws
@@ -32,7 +32,7 @@ Each law is **PASS**, **FAIL**, or **N/A** (N/A requires evidence).
 | LAW13 | Deploy / live safety | Preflight; no reckless restart while live |
 | LAW14 | Self-enforcing | CI/hooks so gates are hard to skip |
 | LAW15 | Army / overlap | Zero path overlap; full objective coverage |
-| LAW16 | Seven-round pingpong | ≥7 design→seal exchanges for full **ship** when strict (using the session LLM) |
+| LAW16 | Seven-round pingpong | ≥7 design→seal exchanges for full **ship** when strict (same AI/LLM) |
 
 ## Verdict rules
 

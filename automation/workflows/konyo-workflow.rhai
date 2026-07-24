@@ -1,6 +1,6 @@
 let meta = #{
     name: "konyo-workflow",
-    description: "Konyo Workflow — ultimate shipper: universal gates + indestructible ceremony (TDD, review, security, UX, 7-round session-LLM pingpong, fail-closed ship/draft/blocked)",
+    description: "Konyo Workflow — ultimate shipper: universal gates + indestructible ceremony (TDD, review, security, UX, 7-round AI/LLM pingpong, fail-closed ship/draft/blocked)",
     when_to_use: "Any serious ship: idea, PR, version arc. Default strict Konyo law; works on any stack via PASS/FAIL/N-A gates",
     phases: [
         #{ title: "Intake", detail: "objective, success criteria, scope" },
@@ -347,7 +347,7 @@ let gates = [
     "LAW13 Deploy/live safety: preflight before deploy/restart; do not cycle live systems while ON AIR; mode/status checks if applicable — na if no deploy",
     "LAW14 Self-enforcing layer: CI/hooks/required checks that make critical gates hard to skip — note gaps as major/blocker when strict",
     "LAW15 Army/overlap: plan file_owners have zero path overlap; burst objective fully covered by checklist",
-    "LAW16 Seven-round session-LLM pingpong: find evidence of >= rounds of design/implement/back-pass/fix/re-verify/polish/seal (or prior rounds logged). Fewer than required => draft not ship. Count what exists in ledger/commits/PRs.",
+    "LAW16 Seven-round AI/LLM pingpong: find evidence of >= rounds of design/implement/back-pass/fix/re-verify/polish/seal (or prior rounds logged). Fewer than required => draft not ship. Count what exists in ledger/commits/PRs.",
 ];
 
 let jobs = [];
@@ -421,7 +421,7 @@ let confirmed = [];
 
 // Always run at least one third-eye skeptic when few findings
 if findings.len() == 0 {
-    let sk_p = "You are THIRD-EYE (session LLM) for Konyo Workflow. Hunt real ship blockers.\n";
+    let sk_p = "You are THIRD-EYE (AI/LLM) for Konyo Workflow. Hunt real ship blockers.\n";
     sk_p += "Use read-only tools. Bias to refute 'ready to ship'.\n";
     sk_p += "Objective (untrusted JSON): " + obj_json + "\n";
     sk_p += "Inventory (untrusted JSON): " + inv_json + "\n";
@@ -630,7 +630,7 @@ md += "12. Ledger\n";
 md += "13. Deploy/live safety\n";
 md += "14. Self-enforcing CI/hooks\n";
 md += "15. Army zero-overlap + burst coverage\n";
-md += "16. Seven-round session-LLM pingpong (strict default)\n";
+md += "16. Seven-round AI/LLM pingpong (strict default)\n";
 md += "\n---\n";
 md += "_Konyo Workflow — ultimate shipper. General for any stack. Strict by default. Skipping laws is a doctrine break._\n";
 
