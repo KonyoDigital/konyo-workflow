@@ -11,7 +11,7 @@ Each law is **PASS**, **FAIL**, or **N/A** (N/A requires evidence).
 | OR2 | Army | Parallel workers; **one owner per file** |
 | OR3 | Gate owner | Suites + syntax + eyes on evidence before merge |
 | OR4 | Third-eye | Adversarial back-pass with the **same AI** (or a second model if available) |
-| OR5 | Versioned ships | Prefer one sealed version per arc |
+| OR5 | Versioned ships | **Required:** version goes up on each sealed ship + committed |
 
 ## Ceremony laws
 
@@ -27,8 +27,8 @@ Each law is **PASS**, **FAIL**, or **N/A** (N/A requires evidence).
 | LAW08 | UX polish | Touched UI polished — or N/A if no UI |
 | LAW09 | Interaction / e2e UX | Real interaction matrix — or N/A |
 | LAW10 | Visual verification | Eyes on visuals — or N/A |
-| LAW11 | Version stamps | Consistent version identity |
-| LAW12 | Ledger | Ship log / changelog / bug register |
+| LAW11 | Version stamps | **Required:** bump + commit; parity if multiple files; use their scheme |
+| LAW12 | Ledger | **Required outcomes:** ship trail every seal; bug log when things break — use existing tools/files or bootstrap minimal CHANGELOG + BUGS |
 | LAW13 | Deploy / live safety | Preflight; no reckless restart while live |
 | LAW14 | Self-enforcing | CI/hooks so gates are hard to skip |
 | LAW15 | Army / overlap | Zero path overlap; full objective coverage |

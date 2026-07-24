@@ -49,7 +49,15 @@ Under the hood the AI may use parallel helpers (one owner per surface) so work d
 
 Not a product. Not a vendor. **How an AI ships serious work.**
 
-**Does not rewrite other people’s projects.** Same quality bar; **their** names for versions, tests, logs, tickets, and UI. No forced foreign jargon in commits or docs.
+**Does not rewrite other people’s projects’ lingo** — but it **does** require a real ship system:
+
+| Required outcome | Meaning |
+|------------------|---------|
+| **Versions go up** | Each sealed ship bumps version and commits (their scheme, or a minimal one if missing) |
+| **Ship trail** | Durable “what shipped” record (their changelog/log, or a simple CHANGELOG) |
+| **Bug log** | Breakages remembered (their issues/tracker, or a simple BUGS file) |
+
+Not required: Obsidian, a new GitHub org, or foreign names. **Same spirit as a perfected house system — adaptive form.**
 
 ---
 

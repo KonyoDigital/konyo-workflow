@@ -18,7 +18,44 @@ Fail closed (**ship** / **draft** / **blocked**). A full version needs real iter
 
 This is not a brand. It is **how an AI ships serious work**.
 
-**Project language rule:** Do **not** rename or rebrand someone else’s repo. Keep their existing words for versions, tests, logs, tickets, and tools. Map Konyo ideas onto *their* terms (e.g. their CHANGELOG, their issue tracker, their CI job names). Never force foreign jargon into commits, UI copy, file names, or docs unless the human asked for that.
+**Project language rule:** Do **not** rename or rebrand someone else’s repo. Keep their existing words for versions, tests, logs, tickets, and tools. Map Konyo ideas onto *their* terms. Never force foreign jargon into commits, UI copy, or renames unless the human asked.
+
+**We did not strip the perfected system — only forced foreign filenames.**  
+Outcomes below are **required**. Medium is **adaptive**.
+
+---
+
+## Required durable system (the bar that must stay)
+
+These three tracks are **mandatory for a sealed ship**. They are *what* must exist, not *which brand of file*.
+
+### 1) Versions go up (required — smart, committed)
+- Every **sealed** round / version **bumps** the project’s version identity and **commits** it.
+- Use whatever they already use: `package.json`, `VERSION`, `pyproject.toml`, git tags, app build number, multi-file stamps — **all kept in parity** if several exist.
+- If they have **no** version system: add the **smallest** clear one (e.g. `VERSION` file or package field + tag) and use it going forward. Do **not** invent five different version schemes.
+- Commits for seals should tell the story (what / why / fix), not empty “wip”.
+
+### 2) Ship trail (required — what moved forward)
+- Each sealed ship leaves a **durable record**: what version, what changed, how to verify.
+- Prefer existing: CHANGELOG, release notes, Releases, existing ship log, good conventional commits + tags.
+- If **nothing** exists: create a single simple **`CHANGELOG.md`** (or `SHIP_LOG.md` if they prefer that name) and append one entry per seal. That’s enough. Not Obsidian-only, not a second brain required.
+
+### 3) Bug / regression log (required when things break — additive)
+- Real breakages and post-ship bugs get logged **durably** so the next arc doesn’t forget: symptom → cause → fix → verify (or open ticket with those fields).
+- Prefer existing: GitHub/GitLab Issues, Linear, Jira, existing `BUGS.md`, their tracker.
+- If **nothing** exists and a bug is found: create a simple **`BUGS.md`** (or open issues if they already use a host) and append. Optional ID style (`BUG-001`) is fine; **don’t** force a foreign ID scheme if they have one.
+- **Not required:** Obsidian vault, external memory product, or spinning up GitHub if the repo isn’t on GitHub — use what they have; only bootstrap a minimal in-repo log when the world is empty.
+
+| Track | Required? | If project already has it | If project has nothing |
+|-------|-----------|---------------------------|-------------------------|
+| Version bumps on seal | **Yes** | Bump *their* scheme + commit | Add minimal VERSION / package version |
+| Ship trail | **Yes** | Append to *their* changelog/log | Add `CHANGELOG.md` (or one ship log) |
+| Bug log | **Yes when bugs** | Use *their* tracker/file | Add `BUGS.md` or host issues |
+| Obsidian / special memory app | No | — | Don’t invent |
+| Forced “RINSE / REG-NNN / PINGPONG_*” names | No | Only if already theirs | Never force |
+
+**Like yours in spirit** (versions climb, ships leave a trail, bugs are remembered).  
+**Not a clone of your filenames** unless this is your house repo that already uses them.
 
 ---
 
@@ -30,7 +67,7 @@ This is not a brand. It is **how an AI ships serious work**.
 
 3. **The lead gates every merge.** Workers report; the lead re-verifies (compile, tests, lint/parse, live smoke when possible) BEFORE accepting the work. Trust but verify — “done” is a claim, not a fact.
 
-4. **Version per round.** Every round that ships gets a version stamp and its own commit with a story: what broke, why, the fix. If version lives in multiple files, bump them together (parity check that fails on drift).
+4. **Version per round (required).** Every sealed round **bumps version** and **commits** with a story message: what broke, why, the fix. Keep multi-file version stamps in parity. See “Required durable system” above.
 
 5. **Third-eye pingpong (same AI).** Between build rounds, run an **independent** review:
    - Default: a **fresh helper** on **this same AI** — brief: "MAX N findings, ranked by severity, concrete only, no praise. Read the real work."
@@ -40,7 +77,8 @@ This is not a brand. It is **how an AI ships serious work**.
 
 6. **Seven-round seal (full version).** A full **version** needs **at least ~7** exchanges, e.g.  
    design → implement → back-pass → fix → re-verify → polish → seal.  
-   Fewer = **draft**, not a sealed version (unless the human asked for a hotfix/spike). Log rounds when the project has a ship log.
+   Fewer = **draft**, not a sealed version (unless the human asked for a hotfix/spike).  
+   On seal: version bump + ship-trail entry (required).
 
 7. **Autonomous chain → ONE final ping.** Once the arc starts, run reversible steps without asking. Brief status is fine; the deliverable is **ONE final ping**: table of rounds, what shipped, how to verify each claim.
 
@@ -81,7 +119,8 @@ SEAL    → stamps, full checks, dossier, ONE final ping (laws 4, 6, 7)
 
 - A round = one coherent deliverable.
 - Pre-verify: parses/builds + project tests green + a real probe when feasible.
-- Post-ship breakages → the project’s usual regression / bug log format (create one only if none exists and the human wants it).
+- On seal: **version up + commit** + **ship-trail line**.
+- Post-ship / real bugs: append to **bug log** (existing tracker or minimal `BUGS.md`) — always move forward, never “fixed it in chat only.”
 
 ---
 
