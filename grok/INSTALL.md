@@ -1,7 +1,7 @@
 # Install Konyo Workflow for Grok Build (optional)
 
 **You do not need this for the Konyo Workflow method.**  
-Family / Claude-only users: install **`SKILL.md`** from the root README (one curl line). No Grok account required.
+Claude-only users: install **`SKILL.md`** from the root README (one curl line). No Grok account required.
 
 This folder is only if you use **Grok Build** and want the automated gate runner.  
 Pingpong still means **host-LLM third-eye agents** (Grok agents reviewing Grok work) — not a second brand.

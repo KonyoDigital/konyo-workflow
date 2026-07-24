@@ -9,9 +9,9 @@ Battle-tested by Konyo across hundreds of shipped versions.
 
 ---
 
-## For family (e.g. sister in the States) — no Grok needed
+## Quick start (Claude Code — no Grok needed)
 
-She only needs **Claude Code** (or Claude with skills). **No Grok account.**
+Works with **Claude Code** (or Claude with skills). **No Grok account required.**
 
 ### Easiest: one Terminal line (Mac)
 
@@ -62,7 +62,7 @@ If you have two models → even better for third-eye. **Optional, not required.*
 | **Grok Build** (optional) | Yes | See [grok/INSTALL.md](./grok/INSTALL.md) — automated gate runner |
 
 ```bash
-./install.sh claude   # sister / default
+./install.sh claude   # default (Claude skill)
 ./install.sh grok     # only if you use Grok Build
 ./install.sh all      # both
 ```
@@ -90,8 +90,6 @@ If *you* have Grok Build, the same doctrine runs as a workflow script:
 
 Details: **[grok/INSTALL.md](./grok/INSTALL.md)** · laws: **[grok/docs/SHIP_LAWS.md](./grok/docs/SHIP_LAWS.md)**
 
-Sister does **not** need this.
-
 ---
 
 ## Uninstall
@@ -116,4 +114,4 @@ MIT
 
 ---
 
-**Konyo Workflow** — one doctrine, any LLM that can run agents. Pingpong with the model you already paid for.
+**Konyo Workflow** — one doctrine, any LLM that can run agents. Pingpong with the host model.
