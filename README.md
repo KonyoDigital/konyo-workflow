@@ -49,6 +49,8 @@ Under the hood the AI may use parallel helpers (one owner per surface) so work d
 
 Not a product. Not a vendor. **How an AI ships serious work.**
 
+**Does not rewrite other people’s projects.** Same quality bar; **their** names for versions, tests, logs, tickets, and UI. No forced foreign jargon in commits or docs.
+
 ---
 
 ## Repo layout

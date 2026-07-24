@@ -18,6 +18,8 @@ Fail closed (**ship** / **draft** / **blocked**). A full version needs real iter
 
 This is not a brand. It is **how an AI ships serious work**.
 
+**Project language rule:** Do **not** rename or rebrand someone else’s repo. Keep their existing words for versions, tests, logs, tickets, and tools. Map Konyo ideas onto *their* terms (e.g. their CHANGELOG, their issue tracker, their CI job names). Never force foreign jargon into commits, UI copy, file names, or docs unless the human asked for that.
+
 ---
 
 ## The Laws
@@ -46,7 +48,7 @@ This is not a brand. It is **how an AI ships serious work**.
 
 9. **Honesty.** Never claim green before the real check (CI, suite, live probe). Failures reported as failures, with output. If something was sampled or skipped — say so. Status UI must show *proven* state, not vibes.
 
-10. **Live-session sanctity.** Never restart shared services or deploy-cycle while the human is ON AIR / in a live critical session unless they explicitly order it.
+10. **Live-session sanctity.** Never restart shared services or deploy-cycle while the human is in a live / critical session unless they explicitly order it.
 
 11. **Portable quality (any project).** Apply when relevant; if not, **N/A + evidence** (don’t fake UI checks on a library with no UI):
     - Tests for *this* change  
@@ -54,9 +56,11 @@ This is not a brand. It is **how an AI ships serious work**.
     - Patch discipline (no half-applies)  
     - Syntax/lint on touched files  
     - UX / interaction / visual when there is a UI  
-    - Version + ledger/changelog  
+    - Version + ledger/changelog **using the project’s existing names**  
     - Deploy preflight when deploying  
     - Automated checks so gates are hard to skip  
+
+12. **Speak the project’s language.** Commits, PRs, tickets, variable names, docs, and user-facing strings stay in **this repo’s voice**. The workflow is the *bar*; the project owns the *lingo*.
 
 ---
 
@@ -77,7 +81,7 @@ SEAL    → stamps, full checks, dossier, ONE final ping (laws 4, 6, 7)
 
 - A round = one coherent deliverable.
 - Pre-verify: parses/builds + project tests green + a real probe when feasible.
-- Post-ship breakages → regression log (REG-NNN style).
+- Post-ship breakages → the project’s usual regression / bug log format (create one only if none exists and the human wants it).
 
 ---
 
@@ -91,7 +95,8 @@ Multi-step “build / fix / polish properly” arcs. Not for one-line errands.
 
 - Not a specific AI product or vendor  
 - Not a requirement for two different AIs  
-- Not auto-deploy while ON AIR  
+- Not auto-deploy during live critical use  
+- Not a license to rename their codebase or invent new house jargon  
 - Not project glue — bring your own tests and version scheme  
 
 ---

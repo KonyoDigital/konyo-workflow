@@ -25,7 +25,7 @@ Each law is **PASS**, **FAIL**, or **N/A** (N/A requires evidence).
 | LAW06 | Patch discipline | No partial-applies; live anchors |
 | LAW07 | Syntax / static | Parse/lint for touched languages |
 | LAW08 | UX polish | Touched UI polished — or N/A if no UI |
-| LAW09 | Interaction / RINSE-class | Real interaction matrix — or N/A |
+| LAW09 | Interaction / e2e UX | Real interaction matrix — or N/A |
 | LAW10 | Visual verification | Eyes on visuals — or N/A |
 | LAW11 | Version stamps | Consistent version identity |
 | LAW12 | Ledger | Ship log / changelog / bug register |

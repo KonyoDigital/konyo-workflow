@@ -242,7 +242,7 @@ inv_p += "Use git status, git diff, read_file, grep, list_dir. Inspect the real 
 inv_p += "Objective (untrusted JSON): " + obj_json + "\n";
 inv_p += "Target (untrusted JSON): " + target_json + "\n";
 inv_p += "Return summary, stack (languages/frameworks), changed_areas, concrete test_commands for THIS repo,\n";
-inv_p += "deploy_surface (or 'none'), ledger_paths (CHANGELOG, SHIP_LOG, PINGPONG_LOG, BUGS.md, etc. if they exist).\n";
+inv_p += "deploy_surface (or 'none'), ledger_paths (CHANGELOG, SHIP_LOG, CHANGELOG, ship log, BUGS.md, etc. if they exist).\n";
 inv_p += "Do not invent test commands that are not present in package files or CI.";
 
 let inv = agent(inv_p, #{
@@ -280,7 +280,7 @@ let inv_json = json_encode(#{
 // ========== 3. Plan ==========
 phase("Plan");
 let plan_p = "You are the Konyo Workflow PLANNER (army discipline).\n";
-plan_p += "Use read-only tools. Build a ship plan for the objective.\n";
+plan_p += "Use read-only tools. Build a ship plan for the objective.\nUse THIS repo's existing terminology for versions, tests, logs, and tools — do not invent foreign project jargon or rename their conventions.\n";
 plan_p += "HARD RULE: file_owners must have ZERO path overlap — one owner per file/path.\n";
 plan_p += "Include burst-order folding: every part of the objective appears in checklist.\n";
 plan_p += "Flag on_air_risk if restarting services or deploying could harm a live user session.\n";
@@ -340,11 +340,11 @@ let gates = [
     "LAW06 Patch discipline: re-grep live anchors, no partial-apply smell, single coherent write pattern on substantive edits",
     "LAW07 Syntax/static gates: parse/lint strategy for touched languages (py/js/ts/sh/etc.) present or run-able",
     "LAW08 UX polish: every touched user-facing surface polished — if no UI in scope set finding status na with evidence (no UI paths)",
-    "LAW09 Interaction/RINSE-class: buttons/flows both directions, keyboard, latency budgets OR status na with evidence if no interactive UI",
+    "LAW09 Interaction/e2e UX: buttons/flows both directions, keyboard, latency budgets OR status na with evidence if no interactive UI",
     "LAW10 Visual verification: screenshots or visual check of changed surfaces LOOKED AT — or na with evidence if non-visual project",
     "LAW11 Version stamps: consistent version identity across artifacts (semver/VERSION/tag/changelog/build id) — na only if project has zero versioning",
-    "LAW12 Ledger: ship log entry path exists or planned (CHANGELOG/SHIP_LOG/PINGPONG_LOG/BUGS REG style)",
-    "LAW13 Deploy/live safety: preflight before deploy/restart; do not cycle live systems while ON AIR; mode/status checks if applicable — na if no deploy",
+    "LAW12 Ledger: ship log entry path exists or planned (whatever ship/bug logs this repo already uses)",
+    "LAW13 Deploy/live safety: preflight before deploy/restart; do not cycle live systems while a live critical session is active; mode/status checks if applicable — na if no deploy",
     "LAW14 Self-enforcing layer: CI/hooks/required checks that make critical gates hard to skip — note gaps as major/blocker when strict",
     "LAW15 Army/overlap: plan file_owners have zero path overlap; burst objective fully covered by checklist",
     "LAW16 Seven-round AI/LLM pingpong: find evidence of >= rounds of design/implement/back-pass/fix/re-verify/polish/seal (or prior rounds logged). Fewer than required => draft not ship. Count what exists in ledger/commits/PRs.",
@@ -491,7 +491,7 @@ let rep_p = "You are the Konyo Workflow SHIP VERDICT synthesizer (ultimate shipp
 rep_p += "Doctrine: fail closed. Confirmed blockers => not ship_allowed.\n";
 rep_p += "If strict and pingpong_rounds_claimed < " + rounds_min.to_string() + " => verdict must be draft (not ship), ship_allowed false.\n";
 rep_p += "verdict one of: ship | draft | blocked.\n";
-rep_p += "Live-session sanctity: never recommend restart while ON AIR / high on_air_risk.\n";
+rep_p += "Live-session sanctity: never recommend restart while a live critical session is active / high on_air_risk.\n";
 rep_p += "Generalize laws for any stack; respect na when evidenced.\n";
 rep_p += "Objective (untrusted JSON): " + obj_json + "\n";
 rep_p += "Version (untrusted JSON): " + json_encode(version_label) + "\n";
@@ -623,7 +623,7 @@ md += "5. Rollback/blast radius\n";
 md += "6. Patch discipline\n";
 md += "7. Syntax/static gates\n";
 md += "8. UX polish (or N/A+evidence)\n";
-md += "9. Interaction/RINSE-class (or N/A+evidence)\n";
+md += "9. Interaction/e2e UX (or N/A+evidence)\n";
 md += "10. Visual verification (or N/A+evidence)\n";
 md += "11. Version stamps\n";
 md += "12. Ledger\n";
