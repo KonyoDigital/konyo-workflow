@@ -170,6 +170,16 @@ async function buildAndGate(items, phaseLabel) {
   return results
 }
 
+// HARD RULE (learned on a real run): a DRY-RUN must never be given a FILE-SHAPED deliverable.
+// apply:false means agents may write NOTHING. If the task also demands files, no agent can satisfy
+// its brief, every item fails its gate, and each failure escalates with three fresh skeptics — the
+// agent counter climbs instead of falling. It cost ~106 agents and 2h30m once. One line stops it.
+if (!APPLY && /\b(write|create|save|author|produce)\b[^.]{0,40}\b(file|document|\.md|report to disk)\b/i.test(TASK)) {
+  log('⚠ REFUSED: DRY-RUN (apply:false) with a file-shaped deliverable — nothing could satisfy it.');
+  log('  Re-run with apply:true, or ask for the content in the RESULT instead of on disk.');
+  return { refused: 'dry-run with a file-shaped deliverable', fix: 'apply:true, or drop the file deliverable' }
+}
+
 // ================= RUN =================
 log(`KONYO WORKFLOW — MAX · ${mode} · ${DRYROUNDS} dry-rounds · floor ${Math.round(FLOOR / 1000)}k`)
 

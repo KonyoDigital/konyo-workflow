@@ -1,8 +1,9 @@
 export const meta = {
   name: 'konyo-workflow',
   description: 'KONYO WORKFLOW, cost-scaled: Opus architects, Haiku/Sonnet build one-owner-per-file, Fable gates every merge, failed items escalate up the ladder, Opus synthesizes ONE final report.',
-  whenToUse: 'Big-arc feature/refactor work where you want the cheapest capable model on each job and a Fable quality gate on everything. Pass the task as args (string) or {task, apply, maxRounds, budgetFloor, grok}.',
+  whenToUse: 'ANY multi-step task you want orchestrated. It TRIAGES itself first — serial diagnosis is sent back to be done directly instead of spawning a fleet, and skeptics are only bought when being wrong is expensive. Pass {task, apply, maxRounds, budgetFloor, grok, force, skeptics}.',
   phases: [
+    { title: 'Triage',      detail: 'right-size the run BEFORE spending: shape · parallelism · cost-of-wrong', model: 'opus' },
     { title: 'Architect',   detail: 'Opus decomposes the task into one-owner-per-file work items + tier',   model: 'opus' },
     { title: 'Third-eye',   detail: 'optional Grok consult on the plan' },
     { title: 'Build+Gate',  detail: 'Haiku/Sonnet build each item; Fable gates it immediately (no barrier)' },
@@ -21,6 +22,8 @@ const APPLY     = !!(A && A.apply)                 // false = dry-run (propose d
 const MAXROUNDS = (A && A.maxRounds) || 3
 const FLOOR     = (A && A.budgetFloor) || 60_000   // stop opening new rounds under this many tokens remaining
 const USE_GROK  = !(A && A.grok === false)
+const FORCE     = !!(A && A.force)                 // run the fleet even if triage says do it directly
+const SKEPTICS_OVERRIDE = (A && typeof A.skeptics === 'number') ? A.skeptics : null
 
 if (!TASK) { log('No task given. Pass a task string or {task:"..."} as args.'); return { error: 'no task' } }
 
@@ -31,6 +34,29 @@ const budgetOK = () => !budget.total || budget.remaining() > FLOOR
 const mode = APPLY ? 'APPLY (agents edit files)' : 'DRY-RUN (agents propose diffs, nothing written)'
 
 // ---------- schemas ----------
+// TRIAGE — one cheap call that decides how much machinery this task actually deserves, BEFORE any
+// of it is bought. Written after a run that spent ~106 agents and 2.5 hours producing one planning
+// document, while the same night's hardest work — finding why CI had been red for 30 versions —
+// was solved by one process reading logs. Fan-out does not make a root cause appear faster; it
+// produces N opinions about it that still have to be checked one at a time.
+const TRIAGE_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['shape', 'parallelism', 'cost_of_wrong', 'tier', 'est_agents', 'skeptics', 'why'],
+  properties: {
+    shape: { type: 'string', enum: ['diagnosis', 'build', 'audit', 'document', 'migration', 'chore'],
+      description: 'diagnosis = find ONE root cause (serial). build = implement across files. audit/migration = sweep many places. document = write prose. chore = mechanical.' },
+    parallelism: { type: 'string', enum: ['serial', 'parallel'],
+      description: 'serial = the work is one thread of reasoning, or the work-list is not known yet. parallel = there is already a list of independent items.' },
+    cost_of_wrong: { type: 'string', enum: ['low', 'medium', 'high'],
+      description: 'high = data loss, money, security, arithmetic that could silently lie, anything touching live user data. low = cosmetics, docs, tests.' },
+    tier: { type: 'string', enum: ['direct', 'light', 'standard', 'max'],
+      description: 'direct = tell the caller to just do it, spawn nothing. light = 1-3 agents. standard = one agent per item + gate. max = plus 3 skeptics per item.' },
+    est_agents: { type: 'integer', minimum: 0, maximum: 200 },
+    skeptics: { type: 'integer', minimum: 0, maximum: 3, description: '0 unless cost_of_wrong is high' },
+    work_list_known: { type: 'boolean', description: 'false = scout first with 1-2 agents, THEN fan out over what they found' },
+    why: { type: 'string', description: 'one sentence Konyo can read' },
+  },
+}
 const PLAN_SCHEMA = {
   type: 'object', additionalProperties: false,
   required: ['version_label', 'summary', 'items'],
@@ -113,13 +139,64 @@ function gateAgent(built) {
 // ================= RUN =================
 log(`KONYO WORKFLOW · ${mode} · budget floor ${Math.round(FLOOR/1000)}k · max ${MAXROUNDS} rounds`)
 
+// 0) TRIAGE — decide the size of the run before buying any of it.
+//
+// HARD RULE, learned the expensive way: a DRY-RUN must never be given a FILE-SHAPED deliverable.
+// A run was once launched with apply:false while every agent was told to write draft files and a
+// final document. No agent could produce its deliverable, so every item failed its gate, and every
+// failure escalated with three fresh skeptics — the agent counter climbed 97 → 101 → 108 instead of
+// falling. The contradiction is detectable here in one line, so it is caught here instead of being
+// paid for over two and a half hours.
+phase('Triage')
+if (!APPLY && /\b(write|create|save|author|produce)\b[^.]{0,40}\b(file|document|\.md|report to disk)\b/i.test(TASK)) {
+  log('⚠ TRIAGE REFUSED: this is a DRY-RUN (apply:false) but the task asks agents to WRITE A FILE.')
+  log('  Nothing can satisfy that, so every item would fail its gate and rework would multiply.')
+  log('  Re-run with apply:true, or ask for the content in the RESULT instead of on disk.')
+  return { refused: 'dry-run with a file-shaped deliverable', fix: 'apply:true, or drop the file deliverable' }
+}
+
+const triage = await agent(
+  `You are TRIAGE for the KONYO WORKFLOW. Decide how much machinery this task deserves — the point ` +
+  `is to NOT spend a fleet on work that one process does better.\n\n` +
+  `Rules of thumb, from real runs:\n` +
+  `- Finding ONE root cause (a red test, a bug, "why is X broken") is SERIAL. Instrument, measure, fix. ` +
+  `Fan-out gives N opinions that must each be checked — it is slower AND dearer. tier=direct.\n` +
+  `- A sweep with a KNOWN list (audit 100 files, migrate 40 call sites) is genuinely parallel. tier=standard.\n` +
+  `- Writing a document is serial thinking plus ONE adversarial read. tier=light. Never one skeptic per section.\n` +
+  `- Skeptics are bought ONLY when being wrong is expensive: data loss, money, security, or arithmetic ` +
+  `that could silently lie. Cosmetics and docs get none.\n` +
+  `- If the work-list is not known yet, say work_list_known:false — scout with 1-2 agents first, then fan out.\n\n` +
+  `Be honest and stingy. Recommending "direct" is a SUCCESS, not a failure.\n\nTASK: ${TASK}`,
+  { model: 'opus', effort: 'medium', phase: 'Triage', label: 'triage', schema: TRIAGE_SCHEMA }
+).catch(() => null)
+
+if (triage) {
+  const sk = SKEPTICS_OVERRIDE != null ? SKEPTICS_OVERRIDE : triage.skeptics
+  log(`TRIAGE → ${triage.tier.toUpperCase()} · ${triage.shape} · ${triage.parallelism} · cost-of-wrong ${triage.cost_of_wrong}`)
+  log(`  ≈${triage.est_agents} agents, ${sk} skeptic(s) per item — ${triage.why}`)
+  if (triage.work_list_known === false) log('  (work-list unknown — scout first, then fan out over what is found)')
+  if (triage.tier === 'direct' && !FORCE) {
+    log('⛔ TRIAGE SAYS DO THIS DIRECTLY — spawning nothing.')
+    log(`  ${triage.why}`)
+    log('  If you disagree, re-run with force:true.')
+    return { refused: 'triage says direct', triage, advice: 'do it in the main loop; a fleet would be slower and dearer here' }
+  }
+  globalThis.__triage = { ...triage, skeptics: sk }
+}
+
 // 1) ARCHITECT (Opus, once)
 phase('Architect')
 const plan = await agent(
   `You are the ARCHITECT for the KONYO WORKFLOW. Decompose this task into independent work items, ` +
   `ONE OWNER PER FILE (no two items may name the same file). For each item pick the cheapest capable tier: ` +
   `bulk/mechanical→haiku, real implementation→sonnet, cross-cutting/architectural→opus. ` +
-  `Read the repo as needed to ground file paths.\n\nTASK: ${TASK}`,
+  `Read the repo as needed to ground file paths.\n` +
+  (globalThis.__triage
+    ? `\nTRIAGE SIZED THIS RUN: ${globalThis.__triage.tier} · ${globalThis.__triage.shape} · about ` +
+      `${globalThis.__triage.est_agents} agents. Produce AT MOST ${Math.max(1, Math.min(24, globalThis.__triage.est_agents))} items. ` +
+      `Fewer, larger items beat many thin ones — every extra item costs a build AND its gate.\n`
+    : '') +
+  `\nTASK: ${TASK}`,
   { model: 'opus', effort: 'high', phase: 'Architect', schema: PLAN_SCHEMA }
 )
 if (!plan || !plan.items) { log('Architect produced no plan.'); return { error: 'no plan' } }
@@ -127,6 +204,15 @@ if (!plan || !plan.items) { log('Architect produced no plan.'); return { error: 
 // one-owner-per-file guarantee
 const seen = new Set()
 let items = plan.items.filter(it => { const k = it.file; if (seen.has(k)) return false; seen.add(k); return it })
+// Triage's number is a CEILING, not a suggestion — an architect that returns 23 items for a job
+// triaged at 6 is how a planning doc turns into a hundred agents. Trim, and say so out loud.
+if (globalThis.__triage && globalThis.__triage.est_agents) {
+  const cap = Math.max(1, Math.min(24, globalThis.__triage.est_agents))
+  if (items.length > cap) {
+    log(`TRIAGE CAP: architect returned ${items.length} items, triage sized this at ${cap} — trimming to ${cap}.`)
+    items = items.slice(0, cap)
+  }
+}
 log(`Plan "${plan.version_label}": ${items.length} items — ` +
     `${items.filter(i=>i.tier==='haiku').length} haiku / ${items.filter(i=>i.tier==='sonnet').length} sonnet / ${items.filter(i=>i.tier==='opus').length} opus`)
 
@@ -144,8 +230,36 @@ if (USE_GROK) {
 }
 
 // 3) BUILD + GATE (pipeline, no barrier — each item gates the moment its build lands)
+// Skeptics ride along ONLY when triage judged the cost of being wrong high. On the run that found
+// two real counting bugs in a time-tracker they earned their keep; on a CSS fix they are pure spend.
+const SKEPTICS = (globalThis.__triage && globalThis.__triage.skeptics) || 0
 phase('Build+Gate')
-let results = await pipeline(items, it => buildAgent(it), built => gateAgent(built))
+if (SKEPTICS > 0) log(`Cost-of-wrong is high → ${SKEPTICS} skeptic(s) will try to REFUTE each passing item.`)
+let results = await pipeline(
+  items,
+  it => buildAgent(it),
+  built => gateAgent(built),
+  gated => {
+    if (SKEPTICS < 1 || !gated || !gated.gate || gated.gate.verdict !== 'pass') return gated
+    return parallel(Array.from({ length: SKEPTICS }, (_, i) => () => agent(
+      `You are SKEPTIC ${i + 1} of ${SKEPTICS}. Try HARD to REFUTE this change — find the input that ` +
+      `breaks it, the case it silently mishandles, or the claim it cannot back. Default to refuted:true ` +
+      `if you are unsure.\n\nFILE: ${gated.item.file}\nWHAT IT CLAIMS: ${gated.build && gated.build.summary}\n` +
+      `SELF-CHECK IT OFFERS: ${gated.build && gated.build.self_check}`,
+      { model: 'opus', effort: 'high', phase: 'Build+Gate', label: `skeptic${i + 1}:${gated.item.file}`,
+        schema: { type: 'object', additionalProperties: false, required: ['refuted', 'why'],
+          properties: { refuted: { type: 'boolean' }, why: { type: 'string' } } } }
+    ).catch(() => ({ refuted: false, why: 'skeptic errored' })))
+    ).then(votes => {
+      const kills = votes.filter(Boolean).filter(v => v.refuted)
+      if (kills.length > SKEPTICS / 2) {
+        log(`SKEPTICS KILLED ${gated.item.file}: ${kills[0].why.slice(0, 140)}`)
+        return { ...gated, gate: { verdict: 'rework', severity: 'major', reason: `majority of skeptics refuted it: ${kills[0].why}` } }
+      }
+      return gated
+    })
+  }
+)
 results = results.filter(Boolean)
 
 // 4) REWORK loop — escalate failures one tier up, re-gate. version-per-round, budget-aware.
@@ -183,6 +297,7 @@ const final = await agent(
 return {
   version: plan.version_label,
   mode,
+  triage: globalThis.__triage || null,   // what this run was sized at, and why — visible after the fact
   rounds: round,
   tokens_spent: budget.total ? budget.spent() : null,
   passed: passed.length,
