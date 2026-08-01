@@ -167,8 +167,21 @@ log(`KONYO WORKFLOW · ${mode} · budget floor ${Math.round(FLOOR/1000)}k · max
 // failure escalated with three fresh skeptics — the agent counter climbed 97 → 101 → 108 instead of
 // falling. The contradiction is detectable here in one line, so it is caught here instead of being
 // paid for over two and a half hours.
+// 2026-08-01 — THE GUARD FIRED ON A NEGATION. Konyo's Predicter audit said "Do NOT edit, create or
+// delete any file" — a careful dry-run instruction — and the regex matched "create ... file" and
+// refused the whole run. A guard that punishes people for being explicit trains them to be vague.
+// So: strip the NEGATED clauses first, then look for a genuine file-shaped demand in what is left.
+function wantsAFile(task) {
+  const t = String(task || "")
+    // drop everything from a negation up to the end of that clause
+    .replace(/\b(do not|don't|never|no need to|without)\b[^.;\n]*/gi, " ")
+  // [^.] could never cross a period, so ".md" — the most literal file-shaped ask there is — was
+  // unmatchable in the original guard. Same line, minus that blind spot.
+  return /\b(write|create|save|author|produce)\b[^\n]{0,60}?\b(file|document|\.md|report to disk)\b/i.test(t)
+}
+
 phase('Triage')
-if (!APPLY && /\b(write|create|save|author|produce)\b[^.]{0,40}\b(file|document|\.md|report to disk)\b/i.test(TASK)) {
+if (!APPLY && wantsAFile(TASK)) {
   log('⚠ TRIAGE REFUSED: this is a DRY-RUN (apply:false) but the task asks agents to WRITE A FILE.')
   log('  Nothing can satisfy that, so every item would fail its gate and rework would multiply.')
   log('  Re-run with apply:true, or ask for the content in the RESULT instead of on disk.')
@@ -219,6 +232,7 @@ const plan = await spawn(
   `\nTASK: ${TASK}`,
   { model: 'opus', effort: 'high', phase: 'Architect', schema: PLAN_SCHEMA }
 )
+if (plan === null) { log('CEILING: no budget for the plan.'); return { error: 'ceiling', ceiling: { cap: MAX_AGENTS, spent: SPENT, hit: CEILING_HIT } } }
 if (!plan || !plan.items) { log('Architect produced no plan.'); return { error: 'no plan' } }
 
 // one-owner-per-file guarantee

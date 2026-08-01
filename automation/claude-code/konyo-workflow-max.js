@@ -41,11 +41,15 @@ const MAX_AGENTS = (A && A.maxAgents) || 24
 // of spending, which is the only place a ceiling can honestly hold.
 let SPENT = 0
 let CEILING_HIT = false
-function spawn(prompt, opts) {
-  if (SPENT >= MAX_AGENTS) {
+function spawn(prompt, opts, reserved) {
+  // v4 — RESERVED spawns may use the last agents. A capped run that cannot afford its own synthesis
+  // spends everything and reports NOTHING, which is the worst of both: the Predicter audit burned
+  // all 24 and returned final:null, so 23 agents of findings existed only in the journal.
+  const cap = reserved ? MAX_AGENTS : Math.max(1, MAX_AGENTS - 2)
+  if (SPENT >= cap) {
     if (!CEILING_HIT) {
       CEILING_HIT = true
-      log(`⛔ CEILING: ${SPENT}/${MAX_AGENTS} agents spent — refusing every further spawn. ` +
+      log(`⛔ CEILING: ${SPENT}/${MAX_AGENTS} agents spent (2 held back for the report) — refusing further work. ` +
           `What is already done is reported; what is not is listed as unfinished.`)
     }
     return Promise.resolve(null)      // callers already treat null as "this one produced nothing"
@@ -173,15 +177,27 @@ function buildAgent(item, reworkNote) {
     `Be rigorous: trace the exact failure you are fixing, handle edge cases, match surrounding style, ` +
     `and in self_check state what you verified (compile/syntax/logic-trace). Return the structured result.`,
     { model: 'opus', effort: 'high', label: `build:${item.file}`, phase: 'Build', schema: BUILD_SCHEMA }
-  ).then(b => ({ item, build: b })).catch(() => ({ item, build: null }))
+  ).then(b => ({ item, build: b || null })).catch(() => ({ item, build: null }))
 }
 
 // 3 independent skeptics, one per lens, run in parallel. Majority-refute (>=2) kills the change.
+// v4 — TRIAGE ASKED FOR 1 SKEPTIC AND THIS BOUGHT 3, EVERY TIME. The Predicter audit's triage said
+// skeptics:1 with a clear reason ("nothing is applied or deployed here, the human ships") and the
+// gate ignored it and ran the full lens panel — 3x the cost of what was asked for, on every item.
+// A triage whose decision is overridden is a triage that is only ever theatre.
+function activeLenses() {
+  const want = (globalThis.__triage && typeof globalThis.__triage.skeptics === 'number')
+    ? globalThis.__triage.skeptics : LENSES.length
+  return LENSES.slice(0, Math.max(0, Math.min(LENSES.length, want)))
+}
+
 function adversarialGate(built) {
   if (!built || !built.build) {
     return Promise.resolve({ ...built, gate: { verdict: 'rework', reasons: ['build produced no output'] } })
   }
-  return parallel(LENSES.map((lens, i) => () =>
+  const lenses = activeLenses()
+  if (!lenses.length) return Promise.resolve({ ...built, gate: { verdict: 'pass', reasons: ['triage bought no skeptics'] } })
+  return parallel(lenses.map((lens, i) => () =>
     spawn(
       `ADVERSARIAL SKEPTIC — lens: ${lens}\nTask: ${TASK}\nFile: ${built.item.file}\n` +
       `Instruction it was meant to satisfy: ${built.item.instruction}\n` +
@@ -222,10 +238,23 @@ async function buildAndGate(items, phaseLabel) {
 }
 
 // HARD RULE (learned on a real run): a DRY-RUN must never be given a FILE-SHAPED deliverable.
+// 2026-08-01 — THE GUARD FIRED ON A NEGATION. Konyo's Predicter audit said "Do NOT edit, create or
+// delete any file" — a careful dry-run instruction — and the regex matched "create ... file" and
+// refused the whole run. A guard that punishes people for being explicit trains them to be vague.
+// So: strip the NEGATED clauses first, then look for a genuine file-shaped demand in what is left.
+function wantsAFile(task) {
+  const t = String(task || "")
+    // drop everything from a negation up to the end of that clause
+    .replace(/\b(do not|don't|never|no need to|without)\b[^.;\n]*/gi, " ")
+  // [^.] could never cross a period, so ".md" — the most literal file-shaped ask there is — was
+  // unmatchable in the original guard. Same line, minus that blind spot.
+  return /\b(write|create|save|author|produce)\b[^\n]{0,60}?\b(file|document|\.md|report to disk)\b/i.test(t)
+}
+
 // apply:false means agents may write NOTHING. If the task also demands files, no agent can satisfy
 // its brief, every item fails its gate, and each failure escalates with three fresh skeptics — the
 // agent counter climbs instead of falling. It cost ~106 agents and 2h30m once. One line stops it.
-if (!APPLY && /\b(write|create|save|author|produce)\b[^.]{0,40}\b(file|document|\.md|report to disk)\b/i.test(TASK)) {
+if (!APPLY && wantsAFile(TASK)) {
   log('⚠ REFUSED: DRY-RUN (apply:false) with a file-shaped deliverable — nothing could satisfy it.');
   log('  Re-run with apply:true, or ask for the content in the RESULT instead of on disk.');
   return { refused: 'dry-run with a file-shaped deliverable', fix: 'apply:true, or drop the file deliverable' }
@@ -236,7 +265,7 @@ log(`KONYO WORKFLOW — MAX · ${mode} · ${DRYROUNDS} dry-rounds · floor ${Mat
 
 // 1) ARCHITECT PANEL — 3 diverse lenses in parallel, then an Opus judge merges the best plan.
 phase('Triage')
-if (!APPLY && /\b(write|create|save|author|produce)\b[^.]{0,40}\b(file|document|\.md|report to disk)\b/i.test(TASK)) {
+if (!APPLY && wantsAFile(TASK)) {
   log('⚠ TRIAGE REFUSED: this is a DRY-RUN (apply:false) but the task asks agents to WRITE A FILE.')
   log('  Nothing can satisfy that, so every item would fail its gate and rework would multiply.')
   log('  Re-run with apply:true, or ask for the content in the RESULT instead of on disk.')
@@ -303,7 +332,7 @@ const plan = await spawn(
     p.items.map(it => `- [${it.risk || '?'}] ${it.file}: ${it.instruction}`).join('\n')).join('\n\n')}`,
   { model: 'opus', effort: 'high', phase: 'Architect panel', schema: JUDGE_SCHEMA }
 )
-if (!plan || !plan.items) { log('Judge produced no plan.'); return { error: 'no plan' } }
+if (!plan || !plan.items) { log(plan === null ? 'CEILING: no budget for the judge.' : 'Judge produced no plan.'); return { error: 'no plan', ceiling: { cap: MAX_AGENTS, spent: SPENT, hit: CEILING_HIT } } }
 
 // one owner per file
 const seen = new Set()
@@ -312,10 +341,15 @@ let items = plan.items.filter(it => { if (seen.has(it.file)) return false; seen.
 // THE CEILING, ENFORCED. A number that does not bind is decoration. Each item costs 1 builder +
 // SKEPTICS skeptics, so the fleet size is knowable BEFORE it is bought — and trimming here, at the
 // plan, is honest in a way that dying halfway through the build is not.
-// an item costs a builder + the skeptic panel, and up to MAXROUNDS of BOTH when it is refuted.
-// Sizing on the best case is what let 34 become 119.
-const perItem = MAXROUNDS * (1 + LENSES.length)
-const roomForItems = Math.max(1, Math.floor((MAX_AGENTS - SPENT - 2) / Math.max(1, perItem)))
+// v4 — SIZE ON THE TYPICAL COST, NOT THE WORST CASE. v3 sized every item at MAXROUNDS x (1+3
+// lenses) = 8 agents, so a 24-cap fit TWO lanes and trimmed 19 of 22 files off a 30-module audit,
+// then returned final:null. That is not a ceiling, it is a muzzle. Most items pass first time and
+// buy no rework at all — and the runtime counter in spawn() is the REAL bound, so the planner does
+// not need to double-protect. Size on one builder + the skeptics triage actually asked for, and
+// keep RESERVE back so the run can always afford to REPORT what it did.
+const RESERVE = 2                                   // synthesis + one spare
+const perItem = 1 + activeLenses().length
+const roomForItems = Math.max(1, Math.floor((MAX_AGENTS - SPENT - RESERVE) / Math.max(1, perItem)))
 if (items.length > roomForItems) {
   log(`CEILING: plan had ${items.length} items; ${roomForItems} fit under the ${MAX_AGENTS}-agent cap — the rest are REPORTED, not silently dropped.`)
   globalThis.__trimmed = items.slice(roomForItems).map(i => i.file)
@@ -356,6 +390,7 @@ while (dry < DRYROUNDS && critRound < 6 && budgetOK()) {
     `If nothing material is missing, done=true with empty missing[]. Only list REAL, actionable gaps (one owner per file).`,
     { model: 'opus', effort: 'high', phase: 'Completeness', schema: CRITIC_SCHEMA }
   ).catch(() => ({ done: true, missing: [] }))
+  if (!crit) { log('CEILING: no budget left for the completeness critic — stopping.'); break }
   const fresh = (crit.missing || []).filter(m => !seen.has(m.file))
   if (crit.done || !fresh.length) { dry++; log(`Completeness: dry round ${dry}/${DRYROUNDS}`); continue }
   dry = 0
@@ -375,7 +410,7 @@ const final = await spawn(
   `\nSTILL FAILING (${failed.length}):\n` + failed.map(r => `- ${r.item.file}: ${(r.gate && r.gate.reasons || []).join('; ')}`).join('\n') +
   `\nWrite the single final report. headline = the ONE-line ping for Konyo.`,
   { model: 'opus', effort: 'high', phase: 'Synthesize', schema: FINAL_SCHEMA }
-)
+, true)
 
 return {
   version: plan.version_label,
