@@ -56,13 +56,24 @@ function spawn(prompt, opts, reserved) {
   }
   SPENT++
   if (SPENT === Math.floor(MAX_AGENTS * 0.75)) log(`CEILING: ${SPENT}/${MAX_AGENTS} agents spent (75%).`)
-  return agent(prompt, opts)
+  return agent(String(prompt || '') + PACE, opts)
 }
 
 if (!TASK) { log('No task. Pass {task:"..."} as args.'); return { error: 'no task' } }
 
 const budgetOK = () => !budget.total || budget.remaining() > FLOOR
 const mode = APPLY ? 'APPLY (agents edit files)' : 'DRY-RUN (propose diffs, nothing written)'
+// v5 (Konyo: "so it doesnt get stuck hours by default too") — THE PACE CLAUSE.
+// v4 bounded how MANY agents run; nothing bounded how long each one takes, and that is where the
+// hours actually went: an Opus agent told to be exhaustive on a 38k-line file will happily spend
+// forty tool calls on it. Agents honour an explicit budget when given one, so every prompt carries
+// the same sentence — attached inside spawn(), so no call site can forget it.
+const PACE = '\n\nWORK BRISKLY — this run is budgeted. Prefer targeted grep/sed over reading whole '
+  + 'files; stop at the FIRST solid answer rather than the exhaustive one; aim for roughly 12-18 tool '
+  + 'calls. A good answer now beats a perfect one in twenty minutes. If you genuinely cannot settle a '
+  + 'point inside that budget, SAY SO in your result instead of spending more — an honest "not '
+  + 'established" is worth more than a slow guess.'
+
 const LENSES = [
   'CORRECTNESS — does it actually work? walk the logic, hit edge cases, off-by-ones, nulls, races. Assume it is broken and try to prove it.',
   'SAFETY & SCOPE — did it touch anything it should NOT? any regression, broken invariant, security/secret leak, or scope-creep beyond the instruction?',
@@ -376,19 +387,19 @@ let results = await buildAndGate(items, 'Build')
 // 6) COMPLETENESS CRITIC — loop until DRYROUNDS consecutive "nothing missing"
 phase('Completeness')
 let dry = 0, critRound = 0
-while (dry < DRYROUNDS && critRound < 6 && budgetOK()) {
+while (dry < DRYROUNDS && critRound < 3 && budgetOK()) {   // v5 — 6 rounds was hours of tail for diminishing finds
   // the critic can always find one more thing, and each gap costs a builder plus its skeptics —
   // so the loop asks the REAL counter, not an estimate of it
   if (SPENT >= MAX_AGENTS) { log(`CEILING: stopping the completeness loop at ${SPENT}/${MAX_AGENTS}.`); break }
   critRound++
-  const passed = results.filter(r => r.gate && r.gate.verdict === 'pass')
+  const passed = results.filter(r => r && r.item && r.gate && r.gate.verdict === 'pass')
   const crit = await spawn(
     `COMPLETENESS CRITIC (Opus). Task: ${TASK}\nChanges made so far (passed the skeptic panel):\n` +
     passed.map(r => `- ${r.item.file}: ${r.build && r.build.summary}`).join('\n') +
     `\nWhat is MISSING to fully and correctly satisfy the task? Look for: an untouched file that also needs the fix, ` +
     `an edge case no item covered, a claim not yet verified, a follow-on the changes now require. ` +
     `If nothing material is missing, done=true with empty missing[]. Only list REAL, actionable gaps (one owner per file).`,
-    { model: 'opus', effort: 'high', phase: 'Completeness', schema: CRITIC_SCHEMA }
+    { model: 'opus', effort: 'medium', phase: 'Completeness', schema: CRITIC_SCHEMA }   // v5 — it hunts GAPS, not proofs
   ).catch(() => ({ done: true, missing: [] }))
   if (!crit) { log('CEILING: no budget left for the completeness critic — stopping.'); break }
   const fresh = (crit.missing || []).filter(m => !seen.has(m.file))
@@ -402,6 +413,7 @@ while (dry < DRYROUNDS && critRound < 6 && budgetOK()) {
 
 // 7) SYNTHESIZE
 phase('Synthesize')
+results = results.filter(Boolean).filter(r => r && r.item)   // v5 — a ceiling-refused item is not a failure to report on
 const passed = results.filter(r => r.gate && r.gate.verdict === 'pass')
 const failed = results.filter(r => !r.gate || r.gate.verdict !== 'pass')
 const final = await spawn(

@@ -42,10 +42,21 @@ function spawn(prompt, opts) {
     return Promise.resolve(null)
   }
   SPENT++
-  return agent(prompt, opts)
+  return agent(String(prompt || '') + PACE, opts)
 }
 
 if (!TASK) { log('No task given. Pass a task string or {task:"..."} as args.'); return { error: 'no task' } }
+
+// v5 (Konyo: "so it doesnt get stuck hours by default too") — THE PACE CLAUSE.
+// v4 bounded how MANY agents run; nothing bounded how long each one takes, and that is where the
+// hours actually went: an Opus agent told to be exhaustive on a 38k-line file will happily spend
+// forty tool calls on it. Agents honour an explicit budget when given one, so every prompt carries
+// the same sentence — attached inside spawn(), so no call site can forget it.
+const PACE = '\n\nWORK BRISKLY — this run is budgeted. Prefer targeted grep/sed over reading whole '
+  + 'files; stop at the FIRST solid answer rather than the exhaustive one; aim for roughly 12-18 tool '
+  + 'calls. A good answer now beats a perfect one in twenty minutes. If you genuinely cannot settle a '
+  + 'point inside that budget, SAY SO in your result instead of spending more — an honest "not '
+  + 'established" is worth more than a slow guess.'
 
 const LADDER = ['haiku', 'sonnet', 'opus']               // the cost-scaling ladder
 const bump = (tier) => LADDER[Math.min(LADDER.indexOf(tier) + 1, LADDER.length - 1)] || 'sonnet'
