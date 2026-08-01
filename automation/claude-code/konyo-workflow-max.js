@@ -1,8 +1,9 @@
 export const meta = {
   name: 'konyo-workflow-max',
   description: 'KONYO WORKFLOW — MAX QUALITY. Opus everywhere · 3-architect judge panel · one-owner-per-file Opus build · 3-skeptic diverse-lens adversarial gate (majority-refute kills a change) · loop-until-dry completeness critic · Opus synthesis. ~10-15x the cost of the cost-scaled workflow — use ONLY for high-stakes / correctness-critical work.',
-  whenToUse: 'When being WRONG costs more than tokens: trading-system code (Kai), security audits, production ships you can\'t easily roll back. For routine work use the cost-scaled konyo-workflow instead. Pass {task, apply, maxRounds, dryRounds, budgetFloor, grok}.',
+  whenToUse: 'When being WRONG costs more than tokens: trading-system code (Kai), security audits, production ships you can\'t easily roll back. For routine work use the cost-scaled konyo-workflow instead. It TRIAGES ITSELF FIRST and hard-caps the fleet, so a max run cannot quietly become an all-night one. Pass {task, apply, maxRounds, dryRounds, budgetFloor, grok, force, maxAgents}.',
   phases: [
+    { title: 'Triage',          detail: 'right-size the run BEFORE spending a single Opus agent; hard-caps the fleet', model: 'opus' },
     { title: 'Architect panel', detail: '3 Opus architects (risk / correctness / simplest lenses) + Opus judge → one plan', model: 'opus' },
     { title: 'Third-eye',       detail: 'optional Grok consult on the winning plan' },
     { title: 'Build',           detail: 'Opus builds each item, one owner per file', model: 'opus' },
@@ -18,10 +19,41 @@ let A = args
 if (typeof A === 'string') { try { A = JSON.parse(A) } catch { A = { task: A } } }
 const TASK      = typeof A === 'string' ? A : (A && A.task) || ''
 const APPLY     = !!(A && A.apply)                    // false = dry-run (propose diffs only)
-const MAXROUNDS = (A && A.maxRounds) || 3             // rework rounds for a refuted item
-const DRYROUNDS = (A && A.dryRounds) || 2             // consecutive "nothing new" critic rounds to stop
+const MAXROUNDS = (A && A.maxRounds) || 2   // v3 — a third rework round has never once rescued an item the second did not             // rework rounds for a refuted item
+const DRYROUNDS = (A && A.dryRounds) || 1   // v3 — one clean critic round is the signal; the second was a tax             // consecutive "nothing new" critic rounds to stop
 const FLOOR     = (A && A.budgetFloor) || 120_000     // higher floor — max stages are expensive
 const USE_GROK  = !(A && A.grok === false)
+const FORCE     = !!(A && A.force)                    // run the panel even if triage says do it directly
+// v2 (Konyo, 2026-08-01: "with triage updated so its not randomly going all night"). A CEILING, not a
+// suggestion: max previously had no upper bound at all — the completeness critic could keep finding
+// work and the loop kept buying Opus agents to do it. This is the number the run may never exceed,
+// whatever triage or the critic wants.
+const MAX_AGENTS = (A && A.maxAgents) || 24
+
+// ── v3 — THE CEILING THAT ACTUALLY BINDS ────────────────────────────────────────────────────────
+// v2 estimated the spend as `6 + items * (1 + skeptics)` and checked it only BETWEEN completeness
+// rounds. It was wrong twice over: rework re-spawns a builder AND its whole skeptic panel per round
+// (so an item costs up to MAXROUNDS x 4, not 4), and nothing checked DURING a build at all. Konyo
+// capped a run at 34 and it spent 119 agents over 4.1 hours — "cant have this going 4 hour for
+// nothing spending so much."
+//
+// So: stop estimating. COUNT. Every spawn goes through spawn() and the cap is checked at the moment
+// of spending, which is the only place a ceiling can honestly hold.
+let SPENT = 0
+let CEILING_HIT = false
+function spawn(prompt, opts) {
+  if (SPENT >= MAX_AGENTS) {
+    if (!CEILING_HIT) {
+      CEILING_HIT = true
+      log(`⛔ CEILING: ${SPENT}/${MAX_AGENTS} agents spent — refusing every further spawn. ` +
+          `What is already done is reported; what is not is listed as unfinished.`)
+    }
+    return Promise.resolve(null)      // callers already treat null as "this one produced nothing"
+  }
+  SPENT++
+  if (SPENT === Math.floor(MAX_AGENTS * 0.75)) log(`CEILING: ${SPENT}/${MAX_AGENTS} agents spent (75%).`)
+  return agent(prompt, opts)
+}
 
 if (!TASK) { log('No task. Pass {task:"..."} as args.'); return { error: 'no task' } }
 
@@ -32,6 +64,25 @@ const LENSES = [
   'SAFETY & SCOPE — did it touch anything it should NOT? any regression, broken invariant, security/secret leak, or scope-creep beyond the instruction?',
   'REPRODUCE — trace the SPECIFIC failure this change claims to fix; confirm the change truly addresses that failure and not just its symptom.',
 ]
+
+const TRIAGE_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['shape', 'parallelism', 'cost_of_wrong', 'tier', 'est_agents', 'skeptics', 'why'],
+  properties: {
+    shape: { type: 'string', enum: ['diagnosis', 'build', 'audit', 'document', 'migration', 'chore'],
+      description: 'diagnosis = find ONE root cause (serial). build = implement across files. audit/migration = sweep many places. document = write prose. chore = mechanical.' },
+    parallelism: { type: 'string', enum: ['serial', 'parallel'],
+      description: 'serial = the work is one thread of reasoning, or the work-list is not known yet. parallel = there is already a list of independent items.' },
+    cost_of_wrong: { type: 'string', enum: ['low', 'medium', 'high'],
+      description: 'high = data loss, money, security, arithmetic that could silently lie, anything touching live user data. low = cosmetics, docs, tests.' },
+    tier: { type: 'string', enum: ['direct', 'light', 'standard', 'max'],
+      description: 'direct = tell the caller to just do it, spawn nothing. light = 1-3 agents. standard = one agent per item + gate. max = plus 3 skeptics per item.' },
+    est_agents: { type: 'integer', minimum: 0, maximum: 200 },
+    skeptics: { type: 'integer', minimum: 0, maximum: 3, description: '0 unless cost_of_wrong is high' },
+    work_list_known: { type: 'boolean', description: 'false = scout first with 1-2 agents, THEN fan out over what they found' },
+    why: { type: 'string', description: 'one sentence Konyo can read' },
+  },
+}
 
 // ---------- schemas ----------
 const PLAN_SCHEMA = {
@@ -116,7 +167,7 @@ function buildAgent(item, reworkNote) {
     ? `Make the edit directly to ${item.file}. Touch NO other file — you own this one.`
     : `Do NOT write anything. Return the change as a unified diff in "changes".`
   const rw = reworkNote ? `\n\nSKEPTICS REFUTED THE LAST ATTEMPT — address ALL of this: ${reworkNote}` : ''
-  return agent(
+  return spawn(
     `MAX-QUALITY build agent (Opus). Task context: ${TASK}\n` +
     `You own exactly ONE file: ${item.file}. Instruction: ${item.instruction}\n${act}${rw}\n` +
     `Be rigorous: trace the exact failure you are fixing, handle edge cases, match surrounding style, ` +
@@ -131,7 +182,7 @@ function adversarialGate(built) {
     return Promise.resolve({ ...built, gate: { verdict: 'rework', reasons: ['build produced no output'] } })
   }
   return parallel(LENSES.map((lens, i) => () =>
-    agent(
+    spawn(
       `ADVERSARIAL SKEPTIC — lens: ${lens}\nTask: ${TASK}\nFile: ${built.item.file}\n` +
       `Instruction it was meant to satisfy: ${built.item.instruction}\n` +
       `Proposed change:\n${built.build.changes}\nBuilder's self-check: ${built.build.self_check}\n` +
@@ -184,6 +235,50 @@ if (!APPLY && /\b(write|create|save|author|produce)\b[^.]{0,40}\b(file|document|
 log(`KONYO WORKFLOW — MAX · ${mode} · ${DRYROUNDS} dry-rounds · floor ${Math.round(FLOOR / 1000)}k`)
 
 // 1) ARCHITECT PANEL — 3 diverse lenses in parallel, then an Opus judge merges the best plan.
+phase('Triage')
+if (!APPLY && /\b(write|create|save|author|produce)\b[^.]{0,40}\b(file|document|\.md|report to disk)\b/i.test(TASK)) {
+  log('⚠ TRIAGE REFUSED: this is a DRY-RUN (apply:false) but the task asks agents to WRITE A FILE.')
+  log('  Nothing can satisfy that, so every item would fail its gate and rework would multiply.')
+  log('  Re-run with apply:true, or ask for the content in the RESULT instead of on disk.')
+  return { refused: 'dry-run with a file-shaped deliverable', fix: 'apply:true, or drop the file deliverable' }
+}
+
+const triage = await spawn(
+  `You are TRIAGE for the KONYO WORKFLOW — MAX. Decide how much machinery this task deserves — the point ` +
+  `is to NOT spend a fleet on work that one process does better.\n\n` +
+  `Rules of thumb, from real runs:\n` +
+  `- Finding ONE root cause (a red test, a bug, "why is X broken") is SERIAL. Instrument, measure, fix. ` +
+  `Fan-out gives N opinions that must each be checked — it is slower AND dearer. tier=direct.\n` +
+  `- A sweep with a KNOWN list (audit 100 files, migrate 40 call sites) is genuinely parallel. tier=standard. Reserve tier=max for work where being wrong is expensive.\n` +
+  `- Writing a document is serial thinking plus ONE adversarial read. tier=light. Never one skeptic per section.\n` +
+  `- Skeptics are bought ONLY when being wrong is expensive: data loss, money, security, or arithmetic ` +
+  `that could silently lie. Cosmetics and docs get none.\n` +
+  `- If the work-list is not known yet, say work_list_known:false — scout with 1-2 agents first, then fan out.\n\n` +
+  `Be honest and stingy. Recommending "direct" is a SUCCESS, not a failure.\n\nTASK: ${TASK}`,
+  { model: 'opus', effort: 'medium', phase: 'Triage', label: 'triage', schema: TRIAGE_SCHEMA }
+).catch(() => null)
+
+if (triage) {
+  const sk = triage.skeptics
+  log(`TRIAGE → ${triage.tier.toUpperCase()} · ${triage.shape} · ${triage.parallelism} · cost-of-wrong ${triage.cost_of_wrong}`)
+  log(`  ≈${triage.est_agents} agents, ${sk} skeptic(s) per item — ${triage.why}`)
+  if (triage.work_list_known === false) log('  (work-list unknown — scout first, then fan out over what is found)')
+  if (triage.tier === 'direct' && !FORCE) {
+    log('⛔ TRIAGE SAYS DO THIS DIRECTLY — spawning nothing.')
+    log(`  ${triage.why}`)
+    log('  If you disagree, re-run with force:true.')
+    return { refused: 'triage says direct', triage, advice: 'do it in the main loop; a fleet would be slower and dearer here' }
+  }
+  globalThis.__triage = { ...triage, skeptics: sk }
+}
+
+// THE CEILING. Whatever triage asked for, this run may not exceed MAX_AGENTS — the completeness
+// critic loops until dry, and "until dry" with no bound is exactly how a max run becomes an
+// all-night one. Announced, so the number is never a surprise in the morning.
+globalThis.__maxAgents = MAX_AGENTS
+globalThis.__spent = 0
+log(`CEILING → this run may spend at most ${MAX_AGENTS} agents, whatever triage or the critic wants.`)
+
 phase('Architect panel')
 const ANGLES = [
   'RISK-FIRST: order items by blast radius; isolate the highest-risk change and make it the most defensively specified.',
@@ -191,7 +286,7 @@ const ANGLES = [
   'SIMPLEST-ROBUST: the smallest set of one-owner-per-file changes that fully solves it with no scope creep.',
 ]
 const candidatePlans = (await parallel(ANGLES.map((angle, i) => () =>
-  agent(
+  spawn(
     `ARCHITECT (${angle}) for a MAX-QUALITY fix run. Decompose this task into independent work items, ` +
     `ONE OWNER PER FILE (no file appears twice). Read the repo to ground paths. Tag each item's risk.\n\nTASK: ${TASK}`,
     { model: 'opus', effort: 'high', label: `architect:${i + 1}`, phase: 'Architect panel', schema: PLAN_SCHEMA }
@@ -200,7 +295,7 @@ const candidatePlans = (await parallel(ANGLES.map((angle, i) => () =>
 
 if (!candidatePlans.length) { log('No architect produced a plan.'); return { error: 'no plan' } }
 
-const plan = await agent(
+const plan = await spawn(
   `JUDGE + MERGE. You are given ${candidatePlans.length} candidate decomposition plans for the same task. ` +
   `Produce the single BEST one-owner-per-file plan: take the sharpest decomposition, graft the best items from the others, ` +
   `drop redundancy, ensure NO file is owned twice, and every item is a self-contained fix. Explain why in "why".\n\n` +
@@ -213,12 +308,25 @@ if (!plan || !plan.items) { log('Judge produced no plan.'); return { error: 'no 
 // one owner per file
 const seen = new Set()
 let items = plan.items.filter(it => { if (seen.has(it.file)) return false; seen.add(it.file); return true })
+
+// THE CEILING, ENFORCED. A number that does not bind is decoration. Each item costs 1 builder +
+// SKEPTICS skeptics, so the fleet size is knowable BEFORE it is bought — and trimming here, at the
+// plan, is honest in a way that dying halfway through the build is not.
+// an item costs a builder + the skeptic panel, and up to MAXROUNDS of BOTH when it is refuted.
+// Sizing on the best case is what let 34 become 119.
+const perItem = MAXROUNDS * (1 + LENSES.length)
+const roomForItems = Math.max(1, Math.floor((MAX_AGENTS - SPENT - 2) / Math.max(1, perItem)))
+if (items.length > roomForItems) {
+  log(`CEILING: plan had ${items.length} items; ${roomForItems} fit under the ${MAX_AGENTS}-agent cap — the rest are REPORTED, not silently dropped.`)
+  globalThis.__trimmed = items.slice(roomForItems).map(i => i.file)
+  items = items.slice(0, roomForItems)
+}
 log(`Winning plan "${plan.version_label}": ${items.length} items — ${plan.why || ''}`)
 
 // 2) THIRD-EYE
 if (USE_GROK) {
   phase('Third-eye')
-  const eye = await agent(
+  const eye = await spawn(
     `Use the Grok MCP tool (find it via ToolSearch, e.g. mcp__grok-mcp__chat) for an independent second opinion ` +
     `on this MAX-QUALITY plan for "${TASK}":\n` + items.map(i => `- ${i.file}: ${i.instruction}`).join('\n') +
     `\nReturn Grok's top concerns or "no concerns"; "grok unavailable" if it can't be reached.`,
@@ -235,9 +343,12 @@ let results = await buildAndGate(items, 'Build')
 phase('Completeness')
 let dry = 0, critRound = 0
 while (dry < DRYROUNDS && critRound < 6 && budgetOK()) {
+  // the critic can always find one more thing, and each gap costs a builder plus its skeptics —
+  // so the loop asks the REAL counter, not an estimate of it
+  if (SPENT >= MAX_AGENTS) { log(`CEILING: stopping the completeness loop at ${SPENT}/${MAX_AGENTS}.`); break }
   critRound++
   const passed = results.filter(r => r.gate && r.gate.verdict === 'pass')
-  const crit = await agent(
+  const crit = await spawn(
     `COMPLETENESS CRITIC (Opus). Task: ${TASK}\nChanges made so far (passed the skeptic panel):\n` +
     passed.map(r => `- ${r.item.file}: ${r.build && r.build.summary}`).join('\n') +
     `\nWhat is MISSING to fully and correctly satisfy the task? Look for: an untouched file that also needs the fix, ` +
@@ -258,7 +369,7 @@ while (dry < DRYROUNDS && critRound < 6 && budgetOK()) {
 phase('Synthesize')
 const passed = results.filter(r => r.gate && r.gate.verdict === 'pass')
 const failed = results.filter(r => !r.gate || r.gate.verdict !== 'pass')
-const final = await agent(
+const final = await spawn(
   `SYNTHESIZER (Opus), MAX-QUALITY run, mode=${mode}. Task: ${TASK}\nVersion: ${plan.version_label}.\n` +
   `PASSED the 3-skeptic panel (${passed.length}):\n` + passed.map(r => `- ${r.item.file}: ${r.build && r.build.summary}`).join('\n') +
   `\nSTILL FAILING (${failed.length}):\n` + failed.map(r => `- ${r.item.file}: ${(r.gate && r.gate.reasons || []).join('; ')}`).join('\n') +
@@ -273,5 +384,16 @@ return {
   tokens_spent: budget.total ? budget.spent() : null,
   passed: passed.length,
   failed: failed.length,
+  // ★ a capped run must never READ as a complete one. If the ceiling trimmed the plan or stopped the
+  // completeness loop, that is the first thing the report says — the alternative is a green summary
+  // over work nobody did.
+  ceiling: {
+    cap: MAX_AGENTS,
+    spent: SPENT,
+    hitDuringCompleteness: CEILING_HIT,
+    trimmedFromPlan: globalThis.__trimmed || [],
+    complete: !CEILING_HIT && !(globalThis.__trimmed || []).length,
+  },
+  triage: globalThis.__triage || null,
   final,
 }

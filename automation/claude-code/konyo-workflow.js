@@ -24,6 +24,26 @@ const FLOOR     = (A && A.budgetFloor) || 60_000   // stop opening new rounds un
 const USE_GROK  = !(A && A.grok === false)
 const FORCE     = !!(A && A.force)                 // run the fleet even if triage says do it directly
 const SKEPTICS_OVERRIDE = (A && typeof A.skeptics === 'number') ? A.skeptics : null
+const MAX_AGENTS = (A && A.maxAgents) || 24
+
+// ── THE CEILING (2026-08-01, ported from max after it blew a 34-cap into 119 agents / 4.1 hours) ──
+// This workflow's only bound was a SENTENCE IN A PROMPT — "Produce AT MOST N items" — which asks the
+// model rather than binding anything, and bounds items rather than agents. Rework rounds and skeptic
+// panels multiply per item, so the item count was never the number that mattered.
+// COUNT THE SPAWNS. Check at the moment of spending, which is the only place a ceiling can hold.
+let SPENT = 0
+let CEILING_HIT = false
+function spawn(prompt, opts) {
+  if (SPENT >= MAX_AGENTS) {
+    if (!CEILING_HIT) {
+      CEILING_HIT = true
+      log(`⛔ CEILING: ${SPENT}/${MAX_AGENTS} agents spent — refusing every further spawn.`)
+    }
+    return Promise.resolve(null)
+  }
+  SPENT++
+  return agent(prompt, opts)
+}
 
 if (!TASK) { log('No task given. Pass a task string or {task:"..."} as args.'); return { error: 'no task' } }
 
@@ -116,7 +136,7 @@ function buildAgent(item, reworkNote) {
   const act = APPLY
     ? `Make the edit directly to ${item.file}. Touch NO other file — you are the sole owner of this one.`
     : `Do NOT write anything. Return the change as a unified diff in "changes".`
-  return agent(
+  return spawn(
     `KONYO WORKFLOW build agent (tier=${tier}). Task context: ${TASK}\n` +
     `You own exactly ONE file: ${item.file} (kind=${item.kind}).\n` +
     `Instruction: ${item.instruction}\n${act}${rw}\n` +
@@ -127,7 +147,7 @@ function buildAgent(item, reworkNote) {
 
 function gateAgent(built) {
   if (!built || !built.build) return Promise.resolve({ ...built, gate: { verdict: 'rework', severity: 'blocking', reason: 'build agent produced no output' } })
-  return agent(
+  return spawn(
     `FABLE MERGE GATE. Task: ${TASK}\nFile: ${built.item.file}\n` +
     `Proposed change summary: ${built.build.summary}\nChanges:\n${built.build.changes}\n` +
     `Judge ONLY this file's change: correctness, scope-creep (did it touch anything it shouldn't?), ` +
@@ -155,7 +175,7 @@ if (!APPLY && /\b(write|create|save|author|produce)\b[^.]{0,40}\b(file|document|
   return { refused: 'dry-run with a file-shaped deliverable', fix: 'apply:true, or drop the file deliverable' }
 }
 
-const triage = await agent(
+const triage = await spawn(
   `You are TRIAGE for the KONYO WORKFLOW. Decide how much machinery this task deserves — the point ` +
   `is to NOT spend a fleet on work that one process does better.\n\n` +
   `Rules of thumb, from real runs:\n` +
@@ -186,7 +206,7 @@ if (triage) {
 
 // 1) ARCHITECT (Opus, once)
 phase('Architect')
-const plan = await agent(
+const plan = await spawn(
   `You are the ARCHITECT for the KONYO WORKFLOW. Decompose this task into independent work items, ` +
   `ONE OWNER PER FILE (no two items may name the same file). For each item pick the cheapest capable tier: ` +
   `bulk/mechanical→haiku, real implementation→sonnet, cross-cutting/architectural→opus. ` +
@@ -219,7 +239,7 @@ log(`Plan "${plan.version_label}": ${items.length} items — ` +
 // 2) THIRD-EYE (optional Grok consult on the plan)
 if (USE_GROK) {
   phase('Third-eye')
-  const eye = await agent(
+  const eye = await spawn(
     `Use the Grok MCP tool (search ToolSearch for a grok chat/web tool, e.g. mcp__grok-mcp__chat) to get a ` +
     `SECOND OPINION on this implementation plan for the task "${TASK}". Plan items:\n` +
     items.map(i => `- [${i.tier}] ${i.file}: ${i.instruction}`).join('\n') +
@@ -241,7 +261,7 @@ let results = await pipeline(
   built => gateAgent(built),
   gated => {
     if (SKEPTICS < 1 || !gated || !gated.gate || gated.gate.verdict !== 'pass') return gated
-    return parallel(Array.from({ length: SKEPTICS }, (_, i) => () => agent(
+    return parallel(Array.from({ length: SKEPTICS }, (_, i) => () => spawn(
       `You are SKEPTIC ${i + 1} of ${SKEPTICS}. Try HARD to REFUTE this change — find the input that ` +
       `breaks it, the case it silently mishandles, or the claim it cannot back. Default to refuted:true ` +
       `if you are unsure.\n\nFILE: ${gated.item.file}\nWHAT IT CLAIMS: ${gated.build && gated.build.summary}\n` +
@@ -285,7 +305,7 @@ while (round < MAXROUNDS && budgetOK()) {
 phase('Synthesize')
 const passed = results.filter(r => r.gate && r.gate.verdict === 'pass')
 const failed = results.filter(r => !r.gate || r.gate.verdict !== 'pass')
-const final = await agent(
+const final = await spawn(
   `You are the SYNTHESIZER for the KONYO WORKFLOW, mode=${mode}. Task: ${TASK}\n` +
   `Version: ${plan.version_label} (after ${round} round(s)).\n` +
   `PASSED gate (${passed.length}):\n` + passed.map(r => `- ${r.item.file}: ${r.build && r.build.summary}`).join('\n') +
@@ -300,6 +320,7 @@ return {
   triage: globalThis.__triage || null,   // what this run was sized at, and why — visible after the fact
   rounds: round,
   tokens_spent: budget.total ? budget.spent() : null,
+  ceiling: { cap: MAX_AGENTS, spent: SPENT, hit: CEILING_HIT, complete: !CEILING_HIT },
   passed: passed.length,
   failed: failed.length,
   final,
