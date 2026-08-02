@@ -12,6 +12,7 @@ export const meta = {
     { title: 'Completeness',    detail: 'Opus critic hunts for missed work; loop until N dry rounds', model: 'opus' },
     { title: 'Render gate',    detail: 'drives the REAL UI — hit-testable controls, no raw placeholders, page still responds; failure BLOCKS the ship', model: 'opus' },
     { title: 'Fat version bar', detail: 'LAW17 — >=3 user-visible outcomes in one theme OR one structural bug with root cause+verify+prevention; a thin ship BLOCKS', model: 'opus' },
+    { title: 'Reachability',   detail: 'LAW19 — every symbol the change added has a caller AND a writer; added tests proven to have RUN; failure BLOCKS', model: 'opus' },
     { title: 'Synthesize',      detail: 'Opus integrates all passing work into ONE final report', model: 'opus' },
   ],
 }
@@ -202,6 +203,38 @@ const FINAL_SCHEMA = {
 }
 
 // ---------- agents ----------
+/* ── v7 — THE FOUR CRAFT RULES ────────────────────────────────────────────────────────────────
+   These cost nothing (they are words in a prompt, not an agent) and each one is a ship this
+   project has already paid for. They live in one constant so both shippers say the same thing.
+
+   NON-VACUOUS PROOF — a run once "proved" nothing was lost by measuring a quantity that was
+   already zero. Nothing can be lost from zero. A proof has to move a real number.
+   CLASS SWEEP — the same defect shipped three times in two days because each fix was applied to
+   the site in front of the builder and not to the one that mattered next.
+   STALE CLAIM — three separate incidents in one session where a comment, a doc or a line of UI
+   copy still described behaviour the code had abandoned. A wrong explanation outlives wrong code,
+   because nothing ever contradicts a comment.
+   SURFACE AGREEMENT — two screens of the same app disagreed about the same fact for fourteen
+   versions. The bug was not that one was wrong; it is that nothing compared them.            */
+const CRAFT_RULES =
+  `\n\nFOUR RULES, each one a ship this project has already paid for:\n` +
+  `1. PROVE IT NON-VACUOUSLY. A proof measuring a quantity that was ALREADY zero or empty proves ` +
+  `nothing. State what you measured, before and after, with real numbers. Restating the code is ` +
+  `not a proof.\n` +
+  `2. SWEEP THE CLASS. When you fix a bug, grep for the SAME SHAPE across the repo and fix every ` +
+  `instance — or list the ones you deliberately left, and why. Fixing only the site in front of ` +
+  `you is how one bug ships three times.\n` +
+  `3. KILL THE STALE CLAIM. If you change behaviour, grep for PROSE describing the old behaviour ` +
+  `(comments, docstrings, UI copy, README) and correct it in the same change.\n` +
+  `4. MAKE THE SURFACES AGREE. If the fact you changed appears in more than one place, update ` +
+  `every one and say they now agree. Two screens with different answers is worse than one wrong ` +
+  `answer, because nothing catches it unless something compares them.`
+
+/* v7 — REWORK GOT ITS OWN GROUP BACK. meta.phases has declared 'Rework' since the panel was
+   written, and nothing was ever assigned to it: the rebuild agents inherited phase 'Build', so the
+   progress display promised a group that could never fill. Pre-existing (identical in HEAD), and
+   exactly the orphaned-route class LAW19 now blocks — found while adding LAW19, which is the point
+   of having it. A rebuild is a genuinely different thing to watch than a first build. */
 function buildAgent(item, reworkNote) {
   const act = APPLY
     ? `Make the edit directly to ${item.file}. Touch NO other file — you own this one.`
@@ -211,8 +244,9 @@ function buildAgent(item, reworkNote) {
     `MAX-QUALITY build agent (Opus). Task context: ${TASK}\n` +
     `You own exactly ONE file: ${item.file}. Instruction: ${item.instruction}\n${act}${rw}\n` +
     `Be rigorous: trace the exact failure you are fixing, handle edge cases, match surrounding style, ` +
-    `and in self_check state what you verified (compile/syntax/logic-trace). Return the structured result.`,
-    { model: 'opus', effort: 'high', label: `build:${item.file}`, phase: 'Build', schema: BUILD_SCHEMA }
+    `and in self_check state what you verified (compile/syntax/logic-trace). Return the structured result.` + CRAFT_RULES,
+    { model: 'opus', effort: 'high', label: `${reworkNote ? 'rework' : 'build'}:${item.file}`,
+      phase: reworkNote ? 'Rework' : 'Build', schema: BUILD_SCHEMA }
   ).then(b => ({ item, build: b || null })).catch(() => ({ item, build: null }))
 }
 
@@ -542,6 +576,64 @@ if (APPLY) {
     log(`✅ Fat version bar passed (${(fatBar.outcomes || []).length} outcomes).`)
     ;(fatBar.outcomes || []).slice(0, 8).forEach(o => log(`   · ${o}`))
   }
+}
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// 6.7) THE REACHABILITY GATE — LAW19 (added after two dead features shipped in one night)
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// The render gate proves the UI PAINTS. This proves the code you just added is REACHED.
+//
+// Twice in one session a change was declared, read, cleared, and described in its own commit
+// message as a working feature — while NOTHING ever called it and NOTHING ever wrote it. A redo
+// button whose slot no undo ever filled. A faster poll that re-read a flag no scheduler ever
+// re-armed. Both passed every gate that existed: they parsed, they were reviewed, the tests were
+// green. A seam with no tap is invisible to all of them, because there is nothing wrong with the
+// code — there is just no path to it.
+//
+// The same shape hides dead TESTS, which is why one gate covers both: three tests were appended to
+// a suite below its `unittest.main()`, the suite reported OK, and the count was 82 before and 82
+// after. A test that never runs is an unreachable seam that also lies about coverage.
+//
+// This is a BLOCKER, not a note. A feature that does nothing is worse than a missing feature: the
+// commit message says it exists, so nobody looks again.
+phase('Reachability')
+const reach = await spawn(
+  `REACHABILITY GATE (Opus). The build phase has finished. Task: ${TASK}\n\n` +
+  `YOUR JOB: prove that what was just added is actually REACHED at runtime. Not that it parses — ` +
+  `that something calls it, something writes it, and any test added actually ran.\n` +
+  `1. From the changed files, list every SYMBOL the change introduced: functions, exported names, ` +
+  `handlers, state slots, config keys, routes, CSS classes referenced by code.\n` +
+  `2. For each, find its CALLER and its WRITER. A slot that is read and cleared but never written ` +
+  `is dead. A handler defined but wired to no element is dead. A route with no requester is dead. ` +
+  `A guard on a name that is declared NOWHERE is permanently false — grep the whole repo for a ` +
+  `declaration before concluding a name is missing, because a name can be declared far from its use.\n` +
+  `3. PREFER EXECUTION TO GREP. Run the thing if you can: call the function, drive the path, print ` +
+  `the before/after. Grep alone cannot tell a live cross-file reference from a dead one.\n` +
+  `4. IF TESTS WERE ADDED: prove they RAN. Show the suite's test COUNT before and after, or name ` +
+  `the new tests in verbose output. "The suite is green" is not evidence that your tests are in it.\n` +
+  `5. Report only seams you actually verified as dead, with the evidence. A false positive here ` +
+  `sends someone deleting live code, so if you cannot prove it is dead, do not list it.\n` +
+  `Do NOT fix anything. Report.`,
+  { model: 'opus', effort: 'high', phase: 'Reachability', schema: {
+      type: 'object', additionalProperties: false,
+      required: ['checked', 'dead', 'tests_added', 'tests_proven_run', 'notes'],
+      properties: {
+        checked:          { type: 'number', description: 'symbols traced to a caller AND a writer' },
+        dead:             { type: 'array', maxItems: 20, items: { type: 'string' },
+                            description: 'one line each: symbol, file, and the evidence it is unreachable' },
+        tests_added:      { type: 'boolean' },
+        tests_proven_run: { type: 'boolean', description: 'false if tests were added and not proven to run' },
+        notes:            { type: 'string' },
+      },
+    } }
+).catch(() => null)
+if (reach && (reach.dead || []).length) {
+  log(`⛔ REACHABILITY FAILED — ${reach.dead.length} dead seam(s). This is a SHIP BLOCKER.`)
+  reach.dead.slice(0, 8).forEach(d => log(`   · ${d}`))
+} else if (reach && reach.tests_added && !reach.tests_proven_run) {
+  log(`⛔ REACHABILITY FAILED — tests were added and NOT proven to run. SHIP BLOCKER.`)
+} else if (reach) {
+  log(`✅ Reachability: ${reach.checked} symbol(s) traced to a caller and a writer.`)
 }
 
 // 7) SYNTHESIZE

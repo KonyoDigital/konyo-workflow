@@ -280,6 +280,16 @@ for it in work {
     } else {
         bp += "DRY-RUN: propose the exact diff/patch in summary; DO NOT write files.\n";
     }
+    // v7 — THE FOUR CRAFT RULES, the same words the Claude Code shippers use. Each is a ship this
+    // project has already paid for: a proof that measured an already-zero quantity; one defect
+    // fixed at three separate sites across two days because each fix stopped at the site in front
+    // of the builder; three comments/docs/UI lines still describing behaviour the code had dropped;
+    // and two screens of one app disagreeing about the same fact for fourteen versions.
+    bp += "FOUR RULES, each one a ship this project has already paid for:\n";
+    bp += "1. PROVE IT NON-VACUOUSLY. A proof measuring a quantity that was ALREADY zero or empty proves nothing. State what you measured, before and after, with real numbers. Restating the code is not a proof.\n";
+    bp += "2. SWEEP THE CLASS. When you fix a bug, grep for the SAME SHAPE across the repo and fix every instance, or list the ones you deliberately left and why. Fixing only the site in front of you is how one bug ships three times.\n";
+    bp += "3. KILL THE STALE CLAIM. If you change behaviour, grep for PROSE describing the old behaviour (comments, docstrings, UI copy, README) and correct it in the same change.\n";
+    bp += "4. MAKE THE SURFACES AGREE. If the fact you changed appears in more than one place, update every one and say they now agree. Two screens with different answers is worse than one wrong answer.\n";
     bp += "WORK BRISKLY — prefer targeted grep/read over whole-file dumps. ~12-18 tool calls max.\n";
     bp += "Return file, done (bool), summary, verify, blocked (if any).";
     let cap = if apply { "read-write" } else { "read-only" };

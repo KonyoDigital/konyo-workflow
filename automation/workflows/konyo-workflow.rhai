@@ -381,6 +381,7 @@ let gates = [
     "LAW15 Army/overlap: plan file_owners have zero path overlap; burst objective fully covered by checklist",
     "LAW16 Seven-round AI/LLM pingpong: find evidence of >= rounds of design/implement/back-pass/fix/re-verify/polish/seal (or prior rounds logged). Fewer than required => draft not ship. Count what exists in ledger/commits/PRs.",
     "LAW17 Fat version bar: ONE version integer must package real work — (A) ≥3 user-visible outcomes in one theme, OR (B) one structural bug with root cause+verify+prevention. FAIL as blocker if the planned ship is only one toast/label/i18n key/CSS one-liner/docs fluff. FAIL as major if changelog would be a single thin line. Maximize outcomes inside the version; never recommend a micro-version climb for one theme.",
+    "LAW19 Reachability: every symbol this change ADDED must have a caller AND a writer — a slot read and cleared but never written, a handler wired to no element, a route with no requester, or a guard on a name declared NOWHERE, are all DEAD and count as blockers. Prefer execution to grep: grep cannot tell a live cross-file reference from a dead one, and a name may be declared far from its use. If TESTS were added, prove they RAN (suite count before/after, or the new names in verbose output) — \"the suite is green\" is not evidence your tests are in it. FAIL as blocker on any verified dead seam or unproven test; na only for a change that adds no new symbol.",
 ];
 
 let jobs = [];
@@ -393,6 +394,13 @@ for g in gates {
     p += "If the law applies and is broken, severity blocker or major with evidence + fix.\n";
     p += "If fully satisfied after inspection, findings may be empty ONLY if you cite what you checked in a single info finding with status pass OR return findings: [] after real tool use.\n";
     p += "Prefer at least one status-bearing finding per law.\n";
+    // v7 — the four craft rules, as EVIDENCE STANDARDS. This shipper audits rather than builds, so
+    // they are stated as what makes a finding credible, not as instructions to a builder.
+    p += "FOUR EVIDENCE STANDARDS (each one a ship this project has already paid for):\n";
+    p += "1. NON-VACUOUS PROOF — a claim backed by a measurement of a quantity that was ALREADY zero or empty proves nothing; reject it and say so.\n";
+    p += "2. CLASS SWEEP — when the diff fixes a bug, check whether the SAME SHAPE exists elsewhere and was left; an unswept class is a major finding.\n";
+    p += "3. STALE CLAIM — check that comments, docs and UI copy describing the OLD behaviour were corrected in the same change; a wrong explanation outlives wrong code.\n";
+    p += "4. SURFACE AGREEMENT — if a changed fact renders in more than one place, verify every surface now says the same thing.\n";
     p += "LAW: " + g + "\n";
     p += "strict_mode (untrusted JSON): " + strict_json + "\n";
     p += "rounds_min required for full ship: " + rounds_min.to_string() + "\n";
