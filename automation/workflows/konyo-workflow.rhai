@@ -156,7 +156,7 @@ let report_schema = #{
 
 let render_schema = #{
     "type": "object",
-    "required": ["available", "ran", "passed", "failures", "notes"],
+    "required": ["available", "ran", "passed", "failures", "notes", "screenshots"],
     "properties": #{
         "available": #{ "type": "boolean" },
         "ran": #{ "type": "string" },
@@ -167,6 +167,8 @@ let render_schema = #{
             "items": #{ "type": "string" },
         },
         "notes": #{ "type": "string" },
+        "screenshots": #{ "type": "array", "maxItems": 12, "items": #{ "type": "string" } },
+        "visual": #{ "type": "array", "maxItems": 16, "items": #{ "type": "string" } },
     },
 };
 
@@ -548,6 +550,24 @@ if has_ui == false {
     rg_p += "2. If NONE exists: set available=false and list the specific missing checks plainly in failures/notes. That is the ONLY escape hatch and it is NOT a pass — set passed=false.\n";
     rg_p += "3. Minimum checks wherever tooling exists: app boots without console errors; every visible control is actually hit-testable (elementFromPoint after scrolling it into view); no unfilled {placeholder} and no raw i18n key rendered as text; the page STILL RESPONDS after ~1s idle (an infinite observer/timer loop shows up as an UNRESPONSIVE page, not as an error — that is the exact failure that shipped).\n";
     rg_p += "4. NEVER bind a port the user's own app already uses; kill anything you start.\n";
+    rg_p += "5. VISUAL LAYER — DOM QUERIES ARE NOT ENOUGH, and this is NOT optional when a UI changed.\n";
+    rg_p += "   Take an ACTUAL SCREENSHOT and assert on RENDERED GEOMETRY:\n";
+    rg_p += "   (a) every key element boundingBox() has width>0 AND height>0;\n";
+    rg_p += "   (b) no text clipped — scrollWidth <= clientWidth+1;\n";
+    rg_p += "   (c) no horizontal overflow — scrollingElement.scrollWidth <= innerWidth+1;\n";
+    rg_p += "   (d) computed text colour differs from its resolved background (catches white-on-white);\n";
+    rg_p += "   (e) no two sibling panels overlap (rect intersection area === 0).\n";
+    rg_p += "   This ADDS to the hit-testing above — it does NOT replace it. A panel can satisfy every\n";
+    rg_p += "   selector assertion and still be visually broken; that shipped once and only a screenshot\n";
+    rg_p += "   caught it (a lane rendering [object Object] past a fully green spec).\n";
+    rg_p += "6. SAVE THE SCREENSHOT TO A FILE and report every ABSOLUTE path in screenshots[]. A gate whose\n";
+    rg_p += "   evidence nobody can open is a gate you have to take on faith. Empty screenshots[] with\n";
+    rg_p += "   passed=true is a DOM-only pass wearing a badge — do not report one.\n";
+    rg_p += "7. SCREENSHOT TRAP: page.screenshot() WAITS ON FONTS. A route handler that route.abort()s\n";
+    rg_p += "   non-API requests means fonts NEVER resolve — the capture hangs for the whole timeout and\n";
+    rg_p += "   writes nothing. Fulfil with {status:200, body:''} instead of aborting, and pass\n";
+    rg_p += "   animations:'disabled' (an infinite CSS animation stalls a fullPage capture the same way).\n";
+    rg_p += "   If a capture times out, report it as a FAILURE — never as 'visual checks skipped'.\n";
     rg_p += "passed=false if ANY check failed or nothing could be run.\n";
     rg_p += "Objective (untrusted JSON): " + obj_json + "\n";
     rg_p += "Target (untrusted JSON): " + target_json + "\n";

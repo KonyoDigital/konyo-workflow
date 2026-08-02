@@ -12,6 +12,15 @@ if [[ -f "$ROOT/SKILL.md" ]]; then
   [[ -f "$ROOT/docs/SHIP_LAWS.md" ]] && cp "$ROOT/docs/SHIP_LAWS.md" "$DEST/SHIP_LAWS.md" || true
   if [[ -d "$ROOT/automation/workflows" ]]; then
     cp "$ROOT/automation/workflows/"*.rhai "$DEST/workflows/" 2>/dev/null || true
+    # The Grok CLI loads from ~/.grok/workflows, and until now ONLY grok/*.rhai was copied
+    # there — so ~/.grok/workflows/konyo-workflow.rhai (the standard shipper) had no update
+    # path at all and silently rotted. Found it 145 lines behind the repo, missing LAW17,
+    # LAW18 and LAW19 entirely: /konyo-workflow on Grok was running a shipper with three
+    # fewer blocking gates than the same-named one on Claude Code, which is exactly the
+    # cross-host drift the law table was written to stop.
+    if [[ -d "${HOME}/.grok/workflows" ]]; then
+      cp "$ROOT/automation/workflows/"*.rhai "${HOME}/.grok/workflows/" 2>/dev/null || true
+    fi
   fi
   # Grok Build MAX (third-eye = Claude CLI)
   if [[ -d "$ROOT/grok" ]]; then

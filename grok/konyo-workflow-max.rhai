@@ -69,13 +69,15 @@ let build_schema = #{
 
 let render_schema = #{
     "type": "object",
-    "required": ["available", "ran", "passed", "failures", "notes"],
+    "required": ["available", "ran", "passed", "failures", "notes", "screenshots"],
     "properties": #{
         "available": #{ "type": "boolean" },
         "ran": #{ "type": "string" },
         "passed": #{ "type": "boolean" },
         "failures": #{ "type": "array", "maxItems": 16, "items": #{ "type": "string" } },
         "notes": #{ "type": "string" },
+        "screenshots": #{ "type": "array", "maxItems": 12, "items": #{ "type": "string" } },
+        "visual": #{ "type": "array", "maxItems": 16, "items": #{ "type": "string" } },
     },
 };
 
@@ -351,6 +353,24 @@ if apply {
     rg_p += "   · a SECOND open of a modal keeps its controls.\n";
     rg_p += "   `notes` MUST name what a human should eyeball that no test covers.\n";
     rg_p += "4. NEVER bind a port the user's own app uses; kill anything you start.\n";
+    rg_p += "5. VISUAL LAYER — DOM QUERIES ARE NOT ENOUGH, and this is NOT optional when a UI changed.\n";
+    rg_p += "   Take an ACTUAL SCREENSHOT and assert on RENDERED GEOMETRY:\n";
+    rg_p += "   (a) every key element boundingBox() has width>0 AND height>0;\n";
+    rg_p += "   (b) no text clipped — scrollWidth <= clientWidth+1;\n";
+    rg_p += "   (c) no horizontal overflow — scrollingElement.scrollWidth <= innerWidth+1;\n";
+    rg_p += "   (d) computed text colour differs from its resolved background (catches white-on-white);\n";
+    rg_p += "   (e) no two sibling panels overlap (rect intersection area === 0).\n";
+    rg_p += "   This ADDS to the hit-testing above — it does NOT replace it. A panel can satisfy every\n";
+    rg_p += "   selector assertion and still be visually broken; that shipped once and only a screenshot\n";
+    rg_p += "   caught it (a lane rendering [object Object] past a fully green spec).\n";
+    rg_p += "6. SAVE THE SCREENSHOT TO A FILE and report every ABSOLUTE path in screenshots[]. A gate whose\n";
+    rg_p += "   evidence nobody can open is a gate you have to take on faith. Empty screenshots[] with\n";
+    rg_p += "   passed=true is a DOM-only pass wearing a badge — do not report one.\n";
+    rg_p += "7. SCREENSHOT TRAP: page.screenshot() WAITS ON FONTS. A route handler that route.abort()s\n";
+    rg_p += "   non-API requests means fonts NEVER resolve — the capture hangs for the whole timeout and\n";
+    rg_p += "   writes nothing. Fulfil with {status:200, body:''} instead of aborting, and pass\n";
+    rg_p += "   animations:'disabled' (an infinite CSS animation stalls a fullPage capture the same way).\n";
+    rg_p += "   If a capture times out, report it as a FAILURE — never as 'visual checks skipped'.\n";
     rg_p += "A green report you did not actually run is the WORST possible outcome. passed=false if ANY check\n";
     rg_p += "failed or nothing could run.\n";
     rg_p += "WORK BRISKLY — read the CI verdict or run the one command; do not go exploring.\n";
@@ -437,6 +457,18 @@ eye_p += "Bias to REFUTE 'ready to ship'. Use Read/Grep/Glob/Bash only. No file 
 eye_p += "Hunt: wrong logic, silent wrong numbers, missing tests, security, UX lies, version/changelog drift,\n";
 eye_p += "one-owner violations, false green, live-session danger, MICRO-VERSION inflation (toast-only or single-label\n";
 eye_p += "ships claiming a full version stamp — fat bar requires ≥3 outcomes or 1 structural bug).\n";
+// LAW19 — REACHABILITY. The other three shippers block on this; the Grok MAX one did not check it
+// at all (no phase, no prompt line, not even the word "caller"), so a commit claiming the law was
+// live "in all four shippers" was true of three. Folded into the third-eye brief rather than added
+// as a new phase: this file cannot be parsed or dry-run from here, and a string appended to an
+// existing prompt cannot break control flow the way a new stage can.
+eye_p += "REACHABILITY (LAW19) — check this explicitly, it is a BLOCKER not a nit: every symbol the\n";
+eye_p += "change ADDED must have a CALLER and a WRITER. A slot read and cleared but never written, a\n";
+eye_p += "handler wired to no element, a route with no requester, a guard on a name declared NOWHERE —\n";
+eye_p += "all dead. Dead code that the commit message calls a feature is WORSE than a missing feature,\n";
+eye_p += "because nobody looks again. PREFER EXECUTION TO GREP: grep cannot tell a live cross-file\n";
+eye_p += "reference from a dead one. If tests were added, prove they RAN — suite count before/after, or\n";
+eye_p += "the new test names in verbose output. 'The suite is green' is NOT evidence your tests are in it.\n";
 eye_p += "Objective: " + obj_json + "\n";
 eye_p += "Plan: " + plan_json + "\n";
 eye_p += "Build reports: " + built_json + "\n";
