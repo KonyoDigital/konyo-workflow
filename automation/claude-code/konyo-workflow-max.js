@@ -11,7 +11,7 @@ export const meta = {
     { title: 'Rework',          detail: 'refuted items rebuilt with the skeptics\' reasons + re-gated', model: 'opus' },
     { title: 'Merge',          detail: 'isolate mode only — applies each worktree patch to the REAL repo, one at a time, git apply --check first', model: 'opus' },
     { title: 'Completeness',    detail: 'Opus critic hunts for missed work; loop until N dry rounds', model: 'opus' },
-    { title: 'Render gate',    detail: 'drives the REAL UI — hit-testable controls, no raw placeholders, page still responds; failure BLOCKS the ship', model: 'opus' },
+    { title: 'Render gate',    detail: 'drives the REAL UI — hit-testable controls + SCREENSHOT-BACKED geometry (non-zero boxes, no clipping/overflow, text vs background, no overlap); failure BLOCKS the ship', model: 'opus' },
     { title: 'Fat version bar', detail: 'LAW17 — >=3 user-visible outcomes in one theme OR one structural bug with root cause+verify+prevention; a thin ship BLOCKS', model: 'opus' },
     { title: 'Reachability',   detail: 'LAW19 — every symbol the change added has a caller AND a writer; added tests proven to have RUN; failure BLOCKS', model: 'opus' },
     { title: 'Synthesize',      detail: 'Opus integrates all passing work into ONE final report', model: 'opus' },
@@ -616,17 +616,43 @@ if (APPLY) {
     `does any unfilled {placeholder} or raw i18n key render as text; does the page still respond ` +
     `after ~1s of idle (an infinite observer/timer loop shows up as an unresponsive page, NOT as an ` +
     `error); does a second open of a modal keep its controls.\n` +
+    // ── VISUAL LAYER (Konyo, 2026-08-02: "isnt part of the konyo workflow max to verify it through
+    // dom queries..? add it as a render to the workflow! i want the system perfected.")
+    // DOM queries are necessary and NOT sufficient. A panel can satisfy every selector assertion and
+    // still be visually broken: zero-height container, white-on-white text, overlapping siblings, a
+    // chart with every bar at 0px, content shoved off-screen. So the gate has to LOOK, not just ask.
+    // HARD-WON, THIS SESSION: page.screenshot() WAITS ON FONT LOADING. A route handler that
+    // route.abort()s non-API requests makes fonts never resolve, so the capture hangs for the entire
+    // timeout and writes no file at all. Fulfil unwanted requests with an empty 200 instead of
+    // aborting, and pass animations:'disabled' — infinite CSS animations stall a fullPage capture
+    // exactly the same way. This comment exists so nobody has to re-learn it.
+    `5. VISUAL LAYER — DOM QUERIES ARE NOT ENOUGH, and this step is NOT optional when a UI changed. ` +
+    `Take an ACTUAL SCREENSHOT and assert on RENDERED GEOMETRY: (a) every key element's ` +
+    `boundingBox() has width>0 AND height>0; (b) no text is clipped (scrollWidth <= clientWidth+1); ` +
+    `(c) nothing overflows the viewport horizontally (scrollingElement.scrollWidth <= innerWidth+1); ` +
+    `(d) computed text colour differs from its own resolved background (catches white-on-white); ` +
+    `(e) no two sibling panels overlap (rect intersection area === 0). This ADDS to the hit-testing ` +
+    `above — it does not replace it.\n` +
+    `6. SAVE THE SCREENSHOT TO A FILE and report every absolute path in screenshots[]. A gate whose ` +
+    `evidence nobody can open is a gate you have to take on faith.\n` +
+    `7. SCREENSHOT TRAP — page.screenshot() WAITS ON FONTS. A route handler that route.abort()s ` +
+    `non-API requests means fonts NEVER resolve: the capture hangs for the full timeout and produces ` +
+    `nothing. Fulfil with route.fulfill({status:200, body:''}) instead of aborting, and pass ` +
+    `{ animations: 'disabled' } (infinite CSS animations stall a fullPage capture the same way). If ` +
+    `a capture times out, report it as a FAILURE — never as "visual checks skipped".\n` +
     `NEVER start a long-lived server on a port the user's own app uses; kill anything you start.\n` +
     `Report failures as failures. A green report you did not actually run is the worst outcome here.`,
     { model: 'opus', effort: 'high', phase: 'Render gate', schema: {
         type: 'object', additionalProperties: false,
-        required: ['available', 'ran', 'passed', 'failures', 'notes'],
+        required: ['available', 'ran', 'passed', 'failures', 'notes', 'screenshots', 'visual'],
         properties: {
           available: { type: 'boolean', description: 'does the project have UI verification tooling at all' },
           ran:       { type: 'string',  description: 'the exact command run, or why none was' },
           passed:    { type: 'boolean', description: 'false if ANY check failed or none could run' },
           failures:  { type: 'array', items: { type: 'string' }, description: 'one line per real failure' },
           notes:     { type: 'string', description: 'what a human should eyeball that no test covers' },
+          screenshots: { type: 'array', items: { type: 'string' }, description: 'ABSOLUTE paths of screenshots this gate actually captured — a human must be able to open them. Empty means nothing was seen.' },
+          visual:      { type: 'array', items: { type: 'string' }, description: 'geometry assertions actually run (boundingBox / clipping / horizontal overflow / text-vs-background contrast / sibling overlap), one line each with the measured numbers' },
         },
       } }
   ).catch(() => null)
@@ -637,6 +663,18 @@ if (APPLY) {
     log(`⚠ RENDER GATE: the project has no UI verification. Nothing here has been seen painted.`)
   } else if (renderGate) {
     log(`✅ Render gate passed (${renderGate.ran}).`)
+  }
+  // The screenshot is the gate's EVIDENCE — print the paths whatever the verdict, and say so loudly
+  // when there are none, because "passed with no pixels captured" is a DOM-only pass wearing a badge.
+  if (renderGate && renderGate.available) {
+    const shots = renderGate.screenshots || []
+    if (shots.length) {
+      log(`   📸 ${shots.length} screenshot(s) — open them:`)
+      shots.slice(0, 6).forEach(s => log(`      ${s}`))
+      ;(renderGate.visual || []).slice(0, 6).forEach(v => log(`      · ${v}`))
+    } else {
+      log(`   ⚠ NO SCREENSHOT CAPTURED — this pass is DOM-only; nothing was seen painted.`)
+    }
   }
 }
 
@@ -758,6 +796,9 @@ const final = await spawn(
   (renderGate ? `\nRENDER GATE: available=${renderGate.available} ran=${renderGate.ran} passed=${renderGate.passed}` +
     (renderGate.failures.length ? `\n  FAILURES:\n` + renderGate.failures.map(f => '  - ' + f).join('\n') : '') +
     (renderGate.notes ? `\n  eyeball: ${renderGate.notes}` : '') +
+    `\n  SCREENSHOTS (${(renderGate.screenshots||[]).length}): ` + ((renderGate.screenshots||[]).join(', ') || 'NONE — nothing was captured, so this was a DOM-only pass') +
+    ((renderGate.visual||[]).length ? `\n  VISUAL GEOMETRY:\n` + renderGate.visual.map(v => '  - ' + v).join('\n') : '\n  VISUAL GEOMETRY: none reported') +
+    `\nIf screenshots is empty the headline must NOT claim the UI was seen — DOM queries alone cannot see a painted page. ` +
     `\nIf the render gate FAILED, the headline must say the ship is BLOCKED and why — do not report success over a broken screen. ` +
     `If it was unavailable, the headline must say nothing was seen painted.` : '\nRENDER GATE: not run (dry-run).') +
   (fatBar ? `\nFAT VERSION BAR: applicable=${fatBar.applicable} passes=${fatBar.passes} kind=${fatBar.kind}` +
