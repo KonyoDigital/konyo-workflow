@@ -115,12 +115,16 @@ const PLAN_SCHEMA = {
 }
 const BUILD_SCHEMA = {
   type: 'object', additionalProperties: false,
-  required: ['file', 'summary', 'changes', 'self_check'],
+  required: ['file', 'summary', 'changes', 'self_check', 'files_touched'],
   properties: {
     file:       { type: 'string' },
     summary:    { type: 'string' },
     changes:    { type: 'string', description: 'unified diff (dry-run) or description of edits applied' },
     self_check: { type: 'string', description: 'what you verified before handing off' },
+    /* v8 — one owner per file was instructed everywhere and verified nowhere. The gate checks the
+       declaration against git now; see the MAX shipper for the full reasoning. */
+    files_touched: { type: 'array', items: { type: 'string' }, maxItems: 40,
+                     description: 'EVERY file you created, edited or deleted — relative paths. Do not omit files.' },
   },
 }
 const GATE_SCHEMA = {
@@ -191,8 +195,15 @@ function gateAgent(built) {
   return spawn(
     `FABLE MERGE GATE. Task: ${TASK}\nFile: ${built.item.file}\n` +
     `Proposed change summary: ${built.build.summary}\nChanges:\n${built.build.changes}\n` +
-    `Judge ONLY this file's change: correctness, scope-creep (did it touch anything it shouldn't?), ` +
-    `does it satisfy the instruction "${built.item.instruction}". verdict=pass only if merge-ready.`,
+    `Judge ONLY this file's change: correctness, and whether it satisfies the instruction ` +
+    `"${built.item.instruction}". verdict=pass only if merge-ready.\n` +
+    `OWNERSHIP — CHECK IT, DO NOT ASSUME IT. This builder owned exactly ONE file: ${built.item.file}. ` +
+    `It declared it touched: ${JSON.stringify((built.build && built.build.files_touched) || [])}. ` +
+    `Run \`git status --porcelain\` and compare. verdict=rework if it created, edited or deleted ` +
+    `anything outside its brief, or if the declaration does not match git. Other agents share this ` +
+    `tree, so ignore changes that clearly belong to another item — judge only whether THIS builder ` +
+    `went outside ${built.item.file}. "Scope creep" used to be judged from the diff the builder ` +
+    `chose to show you; now it is judged from what the repo actually says.`,
     { model: 'fable', effort: 'medium', label: `gate:${built.item.file}`, phase: 'Build+Gate', schema: GATE_SCHEMA }
   ).then(g => ({ ...built, gate: g })).catch(() => ({ ...built, gate: { verdict: 'rework', severity: 'major', reason: 'gate errored' } }))
 }

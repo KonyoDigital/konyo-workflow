@@ -136,12 +136,22 @@ const JUDGE_SCHEMA = {
 }
 const BUILD_SCHEMA = {
   type: 'object', additionalProperties: false,
-  required: ['file', 'summary', 'changes', 'self_check'],
+  required: ['file', 'summary', 'changes', 'self_check', 'files_touched'],
   properties: {
     file:       { type: 'string' },
     summary:    { type: 'string' },
     changes:    { type: 'string', description: 'unified diff (dry-run) or description of edits applied' },
     self_check: { type: 'string', description: 'what you verified (compiled? traced the fix?)' },
+    /* v8 — ONE OWNER PER FILE WAS INSTRUCTED EVERYWHERE AND VERIFIED NOWHERE. Every build prompt
+       says "Touch NO other file"; nothing ever checked. A rule enforced by asking nicely is a
+       convention, not an invariant — and the failure it guards against is the expensive kind: this
+       project once lost 25,000 lines to a single bad edit in one 38k-line file, and the reason the
+       fleet is capped at ~14 agents is fear of exactly that, not any real ceiling.
+       The builder must now DECLARE what it wrote, and the skeptic panel checks the declaration
+       against `git status --porcelain` — which costs no extra agent, because the skeptics already
+       run and already have tools. */
+    files_touched: { type: 'array', items: { type: 'string' }, maxItems: 40,
+                     description: 'EVERY file you created, edited or deleted — relative paths. If you only wrote the one file you own, that is a single-element list. Do not omit files.' },
   },
 }
 const SKEPTIC_SCHEMA = {
@@ -273,6 +283,14 @@ function adversarialGate(built) {
       `Instruction it was meant to satisfy: ${built.item.instruction}\n` +
       `Proposed change:\n${built.build.changes}\nBuilder's self-check: ${built.build.self_check}\n` +
       `Through YOUR lens only, try to REFUTE this change. Default to refuted=true if you are not convinced it is correct AND safe AND complete.\n` +
+      `OWNERSHIP — CHECK IT, DO NOT ASSUME IT. This builder owned exactly ONE file: ${built.item.file}. ` +
+      `It declared it touched: ${JSON.stringify((built.build && built.build.files_touched) || [])}. ` +
+      `Run \`git status --porcelain\` (and \`git diff --name-only\` for tracked edits) in the repo and ` +
+      `compare. REFUTE as a BLOCKER if any file outside its brief was created, edited or deleted, or if ` +
+      `the declaration does not match what git shows — a builder that quietly edits a neighbour's file is ` +
+      `how a parallel fleet corrupts a shared tree, and it is the single reason this run has to stay small. ` +
+      `Other agents are working in the same tree, so ignore changes that clearly belong to another item; ` +
+      `judge only whether THIS builder went outside ${built.item.file}.\n` +
       `Also refute micro-version inflation: if the shipped package is only one toast / one label / one i18n key / one CSS one-liner claiming a full version stamp, that is a BLOCKER under LAW17 (fat version bar), not a nit.`,
       { model: 'opus', effort: 'high', label: `skeptic:${i + 1}:${built.item.file}`, phase: 'Adversarial gate', schema: SKEPTIC_SCHEMA }
     ).catch(() => ({ refuted: true, severity: 'major', reason: 'skeptic errored' }))
