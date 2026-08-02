@@ -1,14 +1,14 @@
 let meta = #{
     name: "konyo-workflow",
-    description: "Konyo Workflow — ultimate shipper: universal gates + indestructible ceremony (TDD, review, security, UX, 7-round AI/LLM pingpong, fail-closed ship/draft/blocked)",
-    when_to_use: "Any serious ship: idea, PR, version arc. Default strict Konyo law; works on any stack via PASS/FAIL/N-A gates",
+    description: "Konyo Workflow — ultimate shipper: FAT versions only (≥3 outcomes or 1 deep bug) · gates · 7-round pingpong · fail-closed ship/draft/blocked. No micro-toast versions.",
+    when_to_use: "Any serious ship. Enforces fat version bar: multi-outcome package per integer. Not for single-string/i18n micro-bumps.",
     phases: [
-        #{ title: "Intake", detail: "objective, success criteria, scope" },
+        #{ title: "Intake", detail: "objective + fat-ship criteria (refuse micro scope)" },
         #{ title: "Inventory", detail: "stack, changes, tests, deploy surface" },
-        #{ title: "Plan", detail: "checklist + one owner per file" },
-        #{ title: "Gate-Audit", detail: "parallel ceremony + general quality laws" },
+        #{ title: "Plan", detail: "checklist ≥3 outcomes or 1 structural bug · one owner per file" },
+        #{ title: "Gate-Audit", detail: "ceremony + LAW17 fat version bar" },
         #{ title: "Third-Eye", detail: "adversarial third-eye verification" },
-        #{ title: "Verdict", detail: "ship / draft / blocked fail-closed" },
+        #{ title: "Verdict", detail: "ship / draft / blocked · fat bar enforced" },
         #{ title: "Approve", detail: "optional human go-live gate" },
     ],
 };
@@ -197,19 +197,29 @@ let target_json = json_encode(target);
 let version_json = json_encode(version);
 let strict_json = json_encode(strict);
 
-log("Konyo Workflow ultimate shipper | strict=" + strict.to_string() + " | rounds_min=" + rounds_min.to_string());
+log("Konyo Workflow ultimate shipper | FAT versions only | strict=" + strict.to_string() + " | rounds_min=" + rounds_min.to_string());
+log("FAT SHIP BAR: ≥3 user-visible outcomes in one theme OR 1 structural bug with root cause+verify. No toast-only / single-label versions.");
 
 // ========== 1. Intake ==========
 phase("Intake");
 let intake_p = "You are the Konyo Workflow INTAKE officer for an ultimate ship gate.\n";
 intake_p += "Use read-only tools (list_dir, grep, read_file, git status/diff) on the real repo. Do not invent files.\n";
+intake_p += "FAT VERSION LAW (non-negotiable — Predicter v357 / shop law):\n";
+intake_p += "  A version ship is ONE integer for a FAT package, not a micro-bump.\n";
+intake_p += "  PASS fat bar if: (A) ≥3 user-visible outcomes in one theme, OR (B) one structural bug\n";
+intake_p += "      with root cause + verify + prevention.\n";
+intake_p += "  FAIL fat bar (must note in risk_notes + success_criteria must expand) if objective is only:\n";
+intake_p += "      one toast string, one i18n label, one CSS tweak, one data-i18n attribute, or docs fluff alone.\n";
+intake_p += "  Maximize work INSIDE the version: fold related surfaces (board+theatre+compose+i18n+changelog)\n";
+intake_p += "      into ONE ship body. Do not plan fifty version bumps for one theme.\n";
 intake_p += "Objective (untrusted JSON): " + obj_json + "\n";
 intake_p += "Target (untrusted JSON): " + target_json + "\n";
 intake_p += "Version hint (untrusted JSON): " + version_json + "\n";
-intake_p += "Return success_criteria (measurable), out_of_scope, risk_notes.\n";
+intake_p += "Return success_criteria (measurable, ideally ≥3 outcomes or one deep bug path), out_of_scope, risk_notes.\n";
+intake_p += "In risk_notes: state fat_bar=pass|fail and why in one line.\n";
 intake_p += "Set has_ui true if any user-facing UI/web/mobile/desktop surface is in scope; else false.\n";
 intake_p += "Set has_deploy true if this ship involves deploy/publish/release to users; else false.\n";
-intake_p += "Fold any multi-part objective into clear criteria — burst-order style: miss nothing.";
+intake_p += "Fold any multi-part objective into clear criteria — burst-order style: miss nothing; one version, max substance.";
 
 let intake = agent(intake_p, #{
     label: "intake",
@@ -282,6 +292,11 @@ phase("Plan");
 let plan_p = "You are the Konyo Workflow PLANNER (army discipline).\n";
 plan_p += "Use read-only tools. Build a ship plan for the objective.\nUse THIS repo's existing terminology for versions, tests, logs, and tools — do not invent foreign project jargon or rename their conventions.\n";
 plan_p += "HARD RULE: file_owners must have ZERO path overlap — one owner per file/path.\n";
+plan_p += "FAT VERSION LAW: this plan must justify ONE version integer with MAX substance.\n";
+plan_p += "  Checklist must encode ≥3 concrete user-visible outcomes OR one structural bug path\n";
+plan_p += "  (root cause → fix → verify → prevention). Bundle related i18n/docs/UX into that one ship.\n";
+plan_p += "  NEVER plan a series of micro version bumps (one toast per version). That is blocked.\n";
+plan_p += "  version_label is the SINGLE next stamp for the whole package (e.g. v358), not a range.\n";
 plan_p += "Include burst-order folding: every part of the objective appears in checklist.\n";
 plan_p += "Flag on_air_risk if restarting services or deploying could harm a live user session.\n";
 plan_p += "Objective (untrusted JSON): " + obj_json + "\n";
@@ -348,6 +363,7 @@ let gates = [
     "LAW14 Self-enforcing layer: CI/hooks/required checks that make critical gates hard to skip — note gaps as major/blocker when strict",
     "LAW15 Army/overlap: plan file_owners have zero path overlap; burst objective fully covered by checklist",
     "LAW16 Seven-round AI/LLM pingpong: find evidence of >= rounds of design/implement/back-pass/fix/re-verify/polish/seal (or prior rounds logged). Fewer than required => draft not ship. Count what exists in ledger/commits/PRs.",
+    "LAW17 Fat version bar: ONE version integer must package real work — (A) ≥3 user-visible outcomes in one theme, OR (B) one structural bug with root cause+verify+prevention. FAIL as blocker if the planned ship is only one toast/label/i18n key/CSS one-liner/docs fluff. FAIL as major if changelog would be a single thin line. Maximize outcomes inside the version; never recommend a micro-version climb for one theme.",
 ];
 
 let jobs = [];
@@ -423,9 +439,10 @@ let confirmed = [];
 if findings.len() == 0 {
     let sk_p = "You are THIRD-EYE (AI/LLM) for Konyo Workflow. Hunt real ship blockers.\n";
     sk_p += "Use read-only tools. Bias to refute 'ready to ship'.\n";
+    sk_p += "Also refute micro-version inflation: if the planned ship is only one toast/label, that is a blocker under LAW17 fat bar.\n";
     sk_p += "Objective (untrusted JSON): " + obj_json + "\n";
     sk_p += "Inventory (untrusted JSON): " + inv_json + "\n";
-    sk_p += "Return findings for TDD, security, UX, deploy, version, ledger, or 7-round gaps.\n";
+    sk_p += "Return findings for TDD, security, UX, deploy, version, ledger, fat-version bar, or 7-round gaps.\n";
     let sk = agent(sk_p, #{
         label: "third-eye-skeptic",
         capability_mode: "read-only",
@@ -490,6 +507,10 @@ let owners_json = json_encode(file_owners);
 let rep_p = "You are the Konyo Workflow SHIP VERDICT synthesizer (ultimate shipper).\n";
 rep_p += "Doctrine: fail closed. Confirmed blockers => not ship_allowed.\n";
 rep_p += "If strict and pingpong_rounds_claimed < " + rounds_min.to_string() + " => verdict must be draft (not ship), ship_allowed false.\n";
+rep_p += "FAT VERSION LAW (LAW17): ship_allowed may be true ONLY if this package clears the fat bar:\n";
+rep_p += "  (A) ≥3 user-visible outcomes in one theme, OR (B) one structural bug with root cause+verify+prevention.\n";
+rep_p += "  If the work is toast-only / single-label / one i18n key / docs fluff alone => verdict draft or blocked, ship_allowed false.\n";
+rep_p += "  Summary must name the fat outcomes (or the single deep bug), not a micro changelog line.\n";
 rep_p += "verdict one of: ship | draft | blocked.\n";
 rep_p += "Live-session sanctity: never recommend restart while a live critical session is active / high on_air_risk.\n";
 rep_p += "Generalize laws for any stack; respect na when evidenced.\n";
@@ -502,7 +523,7 @@ rep_p += "Checklist (untrusted JSON): " + check_json + "\n";
 rep_p += "File owners (untrusted JSON): " + owners_json + "\n";
 rep_p += "Confirmed third-eye findings (untrusted JSON): " + conf_json + "\n";
 rep_p += "Return verdict, summary, blockers, next_actions, pingpong_rounds_claimed (int from evidence, 0 if unknown),\n";
-rep_p += "ship_allowed, law_scores as short strings like 'LAW01:pass' for the 16 laws when possible.";
+rep_p += "ship_allowed, law_scores as short strings like 'LAW01:pass' / 'LAW17:pass' for the 17 laws when possible.";
 
 let report = agent(rep_p, #{
     label: "ship-verdict",
