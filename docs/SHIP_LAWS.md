@@ -3,6 +3,10 @@
 Portable quality laws for the Konyo Workflow.
 Each law is **PASS**, **FAIL**, or **N/A** (N/A requires evidence).
 
+> LAW17 was enforced in `automation/workflows/konyo-workflow.rhai` before it was ever written
+> down here, so the canonical table disagreed with the code that reads it. LAW18 arrived the
+> same way and for a blunter reason — see the note under it.
+
 ## Operating rules
 
 | ID | Law | Notes |
@@ -33,6 +37,8 @@ Each law is **PASS**, **FAIL**, or **N/A** (N/A requires evidence).
 | LAW14 | Self-enforcing | CI/hooks so gates are hard to skip |
 | LAW15 | Army / overlap | Zero path overlap; full objective coverage |
 | LAW16 | Seven-round pingpong | ≥7 design→seal exchanges for full **ship** when strict (same AI/LLM) |
+| LAW17 | Fat version bar | ONE version must package real work: **≥3 user-visible outcomes in one theme**, OR one structural bug with root cause + verification + prevention. A single toast/label/i18n key/CSS one-liner is a **blocker**, not a ship |
+| LAW18 | Painted-UI proof | If the project can drive its own UI, **run it** — boot without console errors, every visible control hit-testable, no raw `{placeholder}`/i18n keys rendered, page still responsive after idle. Failure **blocks**. N/A only when there is genuinely no UI |
 
 ## Verdict rules
 

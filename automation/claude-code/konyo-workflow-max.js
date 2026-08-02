@@ -10,6 +10,7 @@ export const meta = {
     { title: 'Adversarial gate',detail: '3 Opus skeptics per change (correctness / safety / reproduce); majority-refute → rework', model: 'opus' },
     { title: 'Rework',          detail: 'refuted items rebuilt with the skeptics\' reasons + re-gated', model: 'opus' },
     { title: 'Completeness',    detail: 'Opus critic hunts for missed work; loop until N dry rounds', model: 'opus' },
+    { title: 'Render gate',    detail: 'drives the REAL UI — hit-testable controls, no raw placeholders, page still responds; failure BLOCKS the ship', model: 'opus' },
     { title: 'Synthesize',      detail: 'Opus integrates all passing work into ONE final report', model: 'opus' },
   ],
 }
@@ -411,6 +412,62 @@ while (dry < DRYROUNDS && critRound < 3 && budgetOK()) {   // v5 — 6 rounds wa
   results = results.concat(more)
 }
 
+// 6.5) THE RENDER GATE — v6 (Konyo, 2026-08-02: "why is the no rendered-UI check?")
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// Because there wasn't one. A 20-version UI arc passed triage, three architects, one-owner builds,
+// a 3-skeptic panel and a completeness critic — and shipped an infinite MutationObserver loop that
+// FROZE THE WHOLE APP, live, for two versions. Every gate the project had was green: parity,
+// modules parsing, i18n complete. None of them can see a painted page.
+//
+// So: if the project has a way to drive its own UI, this run MUST use it, and a failure here is a
+// ship-blocker, not a note. This is the phase that would have caught it.
+let renderGate = null
+if (APPLY) {
+  phase('Render gate')
+  renderGate = await spawn(
+    `RENDER GATE (Opus). The build phase has finished. Task: ${TASK}\n\n` +
+    `YOUR JOB: prove the UI still WORKS WHEN PAINTED — not that it parses.\n` +
+    `0. CI FIRST — CHECK BEFORE YOU SPAWN ANYTHING. If the project runs its UI checks in CI (a ` +
+    `.github/workflows/*.yml that drives a browser), that is the gate. Do NOT launch a browser on ` +
+    `the user's machine: read the verdict instead (\`gh run list --workflow="<name>" -L 3\`, ` +
+    `\`gh run view <id> --log-failed\`). A fleet of agents each starting chromium is how a laptop ` +
+    `gets saturated, and Konyo has already had that happen once. Only fall through to running it ` +
+    `locally if there is NO CI gate at all.\n` +
+    `1. Otherwise find the project's own UI verification: an npm script (test:render / e2e / test), a ` +
+    `playwright/cypress config, a spec dir, or a documented "browser verify floor". USE IT. Run it.\n` +
+    `2. If one exists, run it and report the true result. Do NOT edit a test to make it pass; if a ` +
+    `test is genuinely wrong, say so and explain why in notes.\n` +
+    `3. If NONE exists, say so plainly (available:false) and list the specific checks that are ` +
+    `missing — do not invent a passing result, and do not install a framework unasked.\n` +
+    `4. Whatever tooling exists, check at minimum: does the app boot without console errors; is ` +
+    `every visible control actually hit-testable (elementFromPoint, after scrolling it into view); ` +
+    `does any unfilled {placeholder} or raw i18n key render as text; does the page still respond ` +
+    `after ~1s of idle (an infinite observer/timer loop shows up as an unresponsive page, NOT as an ` +
+    `error); does a second open of a modal keep its controls.\n` +
+    `NEVER start a long-lived server on a port the user's own app uses; kill anything you start.\n` +
+    `Report failures as failures. A green report you did not actually run is the worst outcome here.`,
+    { model: 'opus', effort: 'high', phase: 'Render gate', schema: {
+        type: 'object', additionalProperties: false,
+        required: ['available', 'ran', 'passed', 'failures', 'notes'],
+        properties: {
+          available: { type: 'boolean', description: 'does the project have UI verification tooling at all' },
+          ran:       { type: 'string',  description: 'the exact command run, or why none was' },
+          passed:    { type: 'boolean', description: 'false if ANY check failed or none could run' },
+          failures:  { type: 'array', items: { type: 'string' }, description: 'one line per real failure' },
+          notes:     { type: 'string', description: 'what a human should eyeball that no test covers' },
+        },
+      } }
+  ).catch(() => null)
+  if (renderGate && renderGate.available && !renderGate.passed) {
+    log(`⛔ RENDER GATE FAILED — ${renderGate.failures.length} failure(s). This is a SHIP BLOCKER.`)
+    renderGate.failures.slice(0, 8).forEach(f => log(`   · ${f}`))
+  } else if (renderGate && !renderGate.available) {
+    log(`⚠ RENDER GATE: the project has no UI verification. Nothing here has been seen painted.`)
+  } else if (renderGate) {
+    log(`✅ Render gate passed (${renderGate.ran}).`)
+  }
+}
+
 // 7) SYNTHESIZE
 phase('Synthesize')
 results = results.filter(Boolean).filter(r => r && r.item)   // v5 — a ceiling-refused item is not a failure to report on
@@ -420,6 +477,11 @@ const final = await spawn(
   `SYNTHESIZER (Opus), MAX-QUALITY run, mode=${mode}. Task: ${TASK}\nVersion: ${plan.version_label}.\n` +
   `PASSED the 3-skeptic panel (${passed.length}):\n` + passed.map(r => `- ${r.item.file}: ${r.build && r.build.summary}`).join('\n') +
   `\nSTILL FAILING (${failed.length}):\n` + failed.map(r => `- ${r.item.file}: ${(r.gate && r.gate.reasons || []).join('; ')}`).join('\n') +
+  (renderGate ? `\nRENDER GATE: available=${renderGate.available} ran=${renderGate.ran} passed=${renderGate.passed}` +
+    (renderGate.failures.length ? `\n  FAILURES:\n` + renderGate.failures.map(f => '  - ' + f).join('\n') : '') +
+    (renderGate.notes ? `\n  eyeball: ${renderGate.notes}` : '') +
+    `\nIf the render gate FAILED, the headline must say the ship is BLOCKED and why — do not report success over a broken screen. ` +
+    `If it was unavailable, the headline must say nothing was seen painted.` : '\nRENDER GATE: not run (dry-run).') +
   `\nWrite the single final report. headline = the ONE-line ping for Konyo.`,
   { model: 'opus', effort: 'high', phase: 'Synthesize', schema: FINAL_SCHEMA }
 , true)
@@ -442,5 +504,6 @@ return {
     complete: !CEILING_HIT && !(globalThis.__trimmed || []).length,
   },
   triage: globalThis.__triage || null,
+  render_gate: renderGate,
   final,
 }

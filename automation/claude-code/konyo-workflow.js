@@ -8,6 +8,7 @@ export const meta = {
     { title: 'Third-eye',   detail: 'optional Grok consult on the plan' },
     { title: 'Build+Gate',  detail: 'Haiku/Sonnet build each item; Fable gates it immediately (no barrier)' },
     { title: 'Rework',      detail: 'failed items escalate one tier up and re-gate, version-per-round' },
+    { title: 'Render gate', detail: 'if the project can drive its own UI, run it — a failure BLOCKS the ship' },
     { title: 'Synthesize',  detail: 'Opus integrates all passing work into ONE final report' },
   ],
 }
@@ -327,6 +328,41 @@ while (round < MAXROUNDS && budgetOK()) {
 }
 
 // 5) SYNTHESIZE (Opus, once) — ONE final ping
+// ── THE RENDER GATE (v-render, 2026-08-02) ───────────────────────────────────────────────────────
+// A parser cannot see a painted page. Konyo's predicter shipped a MutationObserver loop that froze
+// the entire app past a fully green gate — parity, modules, i18n all passing. If the project has a
+// way to drive its own UI, use it, and treat a failure as a ship blocker.
+let renderGate = null
+if (APPLY) {
+  phase('Render gate')
+  renderGate = await spawn(
+    `RENDER GATE. Task: ${TASK}\n` +
+    `Find the project's own UI verification (npm script test:render/e2e/test, playwright/cypress ` +
+    `config, spec dir, or a documented browser verify floor) and RUN it. Report the true result — ` +
+    `never edit a test to make it pass, never invent a green result, never install a framework ` +
+    `unasked. If none exists, set available=false and list what is missing. Minimum checks when ` +
+    `tooling does exist: boots without console errors; every visible control is hit-testable after ` +
+    `being scrolled into view; no unfilled {placeholder} or raw i18n key renders as text; the page ` +
+    `still responds after ~1s idle (an infinite loop reads as unresponsive, not as an error). ` +
+    `Never bind a port the user's own app uses; kill anything you start.`,
+    { effort: 'medium', phase: 'Render gate', schema: {
+        type: 'object', additionalProperties: false,
+        required: ['available', 'ran', 'passed', 'failures'],
+        properties: {
+          available: { type: 'boolean' },
+          ran:       { type: 'string' },
+          passed:    { type: 'boolean' },
+          failures:  { type: 'array', items: { type: 'string' } },
+        } } }
+  ).catch(() => null)
+  if (renderGate && renderGate.available && !renderGate.passed) {
+    log(`⛔ RENDER GATE FAILED — ${renderGate.failures.length} failure(s). SHIP BLOCKER.`)
+    renderGate.failures.slice(0, 6).forEach(f => log(`   · ${f}`))
+  } else if (renderGate && !renderGate.available) {
+    log('⚠ RENDER GATE: no UI verification in this project — nothing was seen painted.')
+  }
+}
+
 phase('Synthesize')
 const passed = results.filter(r => r.gate && r.gate.verdict === 'pass')
 const failed = results.filter(r => !r.gate || r.gate.verdict !== 'pass')
@@ -348,5 +384,6 @@ return {
   ceiling: { cap: MAX_AGENTS, spent: SPENT, hit: CEILING_HIT, complete: !CEILING_HIT },
   passed: passed.length,
   failed: failed.length,
+  render_gate: renderGate,
   final,
 }

@@ -67,17 +67,18 @@ Not required: Obsidian, a new GitHub org, or foreign names. **Same spirit as a p
 |------|------|
 | `SKILL.md` | The method — give this to the AI |
 | `install.sh` | Copies into `~/.konyo-workflow/` |
-| `docs/SHIP_LAWS.md` | 16 ship laws |
+| `docs/SHIP_LAWS.md` | 18 ship laws |
 | `automation/workflows/` | Optional scripts if your setup can run them |
 
 ---
 
-## 16 ship laws (short)
+## 18 ship laws (short)
 
 1. TDD/tests for this change · 2. Review · 3. Security · 4. Docs/ops · 5. Rollback  
 6. Patch discipline · 7. Syntax gates · 8. UX polish · 9. Interaction matrix · 10. Visual eyes  
 11. Version stamps · 12. Ledger · 13. Deploy/live safety · 14. Self-enforcing checks  
-15. Army zero-overlap · 16. **Seven-round pingpong**
+15. Army zero-overlap · 16. **Seven-round pingpong**  
+17. **Fat version bar** · 18. **Painted-UI proof**
 
 Verdicts: **ship** | **draft** | **blocked** (fail closed).  
 If a law doesn’t apply (e.g. no UI), mark **N/A + evidence** — don’t fake it, don’t skip silently.
