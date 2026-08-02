@@ -9,6 +9,7 @@ export const meta = {
     { title: 'Build',           detail: 'Opus builds each item, one owner per file', model: 'opus' },
     { title: 'Adversarial gate',detail: '3 Opus skeptics per change (correctness / safety / reproduce); majority-refute → rework', model: 'opus' },
     { title: 'Rework',          detail: 'refuted items rebuilt with the skeptics\' reasons + re-gated', model: 'opus' },
+    { title: 'Merge',          detail: 'isolate mode only — applies each worktree patch to the REAL repo, one at a time, git apply --check first', model: 'opus' },
     { title: 'Completeness',    detail: 'Opus critic hunts for missed work; loop until N dry rounds', model: 'opus' },
     { title: 'Render gate',    detail: 'drives the REAL UI — hit-testable controls, no raw placeholders, page still responds; failure BLOCKS the ship', model: 'opus' },
     { title: 'Fat version bar', detail: 'LAW17 — >=3 user-visible outcomes in one theme OR one structural bug with root cause+verify+prevention; a thin ship BLOCKS', model: 'opus' },
@@ -32,6 +33,25 @@ const FORCE     = !!(A && A.force)                    // run the panel even if t
 // work and the loop kept buying Opus agents to do it. This is the number the run may never exceed,
 // whatever triage or the critic wants.
 const MAX_AGENTS = (A && A.maxAgents) || 24
+/* ── v9 — SANDBOX ISOLATION WITH A REAL MERGE ────────────────────────────────────────────────────
+   The fleet has been capped at ~14 agents for one reason: they all edit files in ONE shared
+   working tree, and this project already lost 25,000 lines to a single bad edit in a 38k-line file.
+   The cap was fear, paid for in tokens on every run.
+
+   `isolation:'worktree'` alone does NOT fix that — it hands each agent an isolated COPY and
+   auto-cleans it, and nothing merges a CHANGED copy back. Switched on naively in apply mode, every
+   edit lands in a throwaway directory, never reaches the repo, and the run reports success: a
+   silent no-op dressed as a green ship.
+
+   So isolation here is isolate → PATCH → merge. Each builder works in its own worktree and returns
+   the complete unified diff it produced; a single merge agent then applies those patches to the
+   real repo ONE AT A TIME with `git apply --check` first. Nothing depends on a worktree surviving
+   (the patch is carried in the result), no two writers ever touch the tree at once, and a conflict
+   surfaces as a reported failure instead of being forced through.
+
+   OPT-IN, deliberately. A merge stage that goes wrong loses work, so it does not turn itself on:
+   pass {isolate:true}. Without it the behaviour is exactly what it was. */
+const ISOLATE = !!(A && A.isolate) && APPLY
 
 // ── v3 — THE CEILING THAT ACTUALLY BINDS ────────────────────────────────────────────────────────
 // v2 estimated the spend as `6 + items * (1 + skeptics)` and checked it only BETWEEN completeness
@@ -152,6 +172,10 @@ const BUILD_SCHEMA = {
        run and already have tools. */
     files_touched: { type: 'array', items: { type: 'string' }, maxItems: 40,
                      description: 'EVERY file you created, edited or deleted — relative paths. If you only wrote the one file you own, that is a single-element list. Do not omit files.' },
+    /* v9 — the carrier for isolated builds. Empty in shared-tree mode, where the edit is already
+       in the repo. In isolate mode this IS the work: the worktree may be cleaned up the moment the
+       agent returns, so a patch that only exists on disk is a patch that can evaporate. */
+    patch: { type: 'string', description: 'ISOLATE MODE ONLY: the complete unified diff of your change (git diff output), applyable with `git apply` from the repo root. Empty string when not in isolate mode.' },
   },
 }
 const SKEPTIC_SCHEMA = {
@@ -246,17 +270,26 @@ const CRAFT_RULES =
    exactly the orphaned-route class LAW19 now blocks — found while adding LAW19, which is the point
    of having it. A rebuild is a genuinely different thing to watch than a first build. */
 function buildAgent(item, reworkNote) {
-  const act = APPLY
-    ? `Make the edit directly to ${item.file}. Touch NO other file — you own this one.`
-    : `Do NOT write anything. Return the change as a unified diff in "changes".`
+  const act = !APPLY
+    ? `Do NOT write anything. Return the change as a unified diff in "changes".`
+    : ISOLATE
+      ? `You are running in your OWN GIT WORKTREE — an isolated copy of the repo. Edit ${item.file} ` +
+        `here as normal, then produce the patch that carries your work back:\n` +
+        `  git add -A && git diff --cached\n` +
+        `Return that COMPLETE unified diff in "patch". This is not bookkeeping — your worktree may ` +
+        `be discarded the moment you return, so a change that exists only on your disk is a change ` +
+        `that is LOST. Do NOT commit, push, or touch the main repo. Touch NO file but ${item.file}.`
+      : `Make the edit directly to ${item.file}. Touch NO other file — you own this one.`
   const rw = reworkNote ? `\n\nSKEPTICS REFUTED THE LAST ATTEMPT — address ALL of this: ${reworkNote}` : ''
   return spawn(
     `MAX-QUALITY build agent (Opus). Task context: ${TASK}\n` +
     `You own exactly ONE file: ${item.file}. Instruction: ${item.instruction}\n${act}${rw}\n` +
     `Be rigorous: trace the exact failure you are fixing, handle edge cases, match surrounding style, ` +
     `and in self_check state what you verified (compile/syntax/logic-trace). Return the structured result.` + CRAFT_RULES,
-    { model: 'opus', effort: 'high', label: `${reworkNote ? 'rework' : 'build'}:${item.file}`,
-      phase: reworkNote ? 'Rework' : 'Build', schema: BUILD_SCHEMA }
+    Object.assign(
+      { model: 'opus', effort: 'high', label: `${reworkNote ? 'rework' : 'build'}:${item.file}`,
+        phase: reworkNote ? 'Rework' : 'Build', schema: BUILD_SCHEMA },
+      ISOLATE ? { isolation: 'worktree' } : {})
   ).then(b => ({ item, build: b || null })).catch(() => ({ item, build: null }))
 }
 
@@ -464,6 +497,65 @@ if (USE_GROK) {
 // 3+4+5) BUILD → ADVERSARIAL GATE → REWORK
 phase('Build')
 let results = await buildAndGate(items, 'Build')
+let merge = null
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// 5.5) THE MERGE — the half `isolation:'worktree'` does not give you
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// Isolation without a merge is a silent no-op: every builder edits a throwaway copy, the run goes
+// green, and the repo never changes. This is the stage that makes the isolation real.
+//
+// ONE agent, applying patches SEQUENTIALLY to the live repo. That is the whole point — the tree
+// only ever has one writer, which is the property the shared-tree fleet never had and the reason it
+// was capped. `git apply --check` runs first on every patch, so a conflict is REPORTED rather than
+// forced, and a patch that will not apply leaves the repo untouched instead of half-written.
+if (ISOLATE) {
+  phase('Merge')
+  const passing = results.filter(r => r && r.build && r.gate && r.gate.verdict === 'pass' && r.build.patch)
+  const noPatch = results.filter(r => r && r.build && r.gate && r.gate.verdict === 'pass' && !r.build.patch)
+  if (noPatch.length) {
+    log(`⛔ MERGE: ${noPatch.length} passing item(s) returned NO PATCH — their work is in a discarded worktree and is LOST:`)
+    noPatch.forEach(r => log(`   · ${r.item.file}`))
+  }
+  if (!passing.length) {
+    log(`MERGE: nothing to apply.`)
+  } else {
+    const bundle = passing.map((r, i) =>
+      `--- PATCH ${i + 1} · owner: ${r.item.file} ---\n${r.build.patch}`).join('\n\n')
+    merge = await spawn(
+      `MERGE AGENT (Opus). You are in the REAL repository — not a worktree. ${passing.length} isolated ` +
+      `builders each edited their own copy and returned a patch. Apply them to this repo.\n\n` +
+      `FOR EACH patch, IN ORDER:\n` +
+      `1. Write it to a temp file.\n` +
+      `2. \`git apply --check <file>\` FIRST. If that fails, do NOT apply it — record the failure with ` +
+      `git's exact error and move to the next patch. A forced or hand-reconstructed merge is worse ` +
+      `than a reported conflict: it is a silent corruption of a file nobody is watching.\n` +
+      `3. If the check passes, \`git apply <file>\` and confirm with \`git status --porcelain\`.\n` +
+      `4. Never commit, never push, never \`git checkout\`/\`reset\` anything — you are applying work, ` +
+      `not managing history, and a reset here destroys other agents' output.\n\n` +
+      `Report applied[] and failed[] honestly. A patch you did not apply MUST appear in failed[] — ` +
+      `this is the only record that work existed, and a silent drop means a builder's change is gone ` +
+      `with the worktree that held it.\n\nPATCHES:\n${bundle}`,
+      { model: 'opus', effort: 'high', phase: 'Merge', schema: {
+          type: 'object', additionalProperties: false,
+          required: ['applied', 'failed', 'notes'],
+          properties: {
+            applied: { type: 'array', maxItems: 60, items: { type: 'string' }, description: 'file per successfully applied patch' },
+            failed:  { type: 'array', maxItems: 60, items: { type: 'string' }, description: 'file + git\'s exact reason, one line each' },
+            notes:   { type: 'string' },
+          },
+        } }
+    ).catch(() => null)
+    if (merge && (merge.failed || []).length) {
+      log(`⛔ MERGE: ${merge.applied.length} applied, ${merge.failed.length} FAILED — those changes are NOT in the repo:`)
+      merge.failed.slice(0, 8).forEach(x => log(`   · ${x}`))
+    } else if (merge) {
+      log(`✅ Merge: ${merge.applied.length}/${passing.length} patches applied to the real repo.`)
+    } else {
+      log(`⛔ MERGE AGENT DIED — ${passing.length} patch(es) were NOT applied. The repo is unchanged.`)
+    }
+  }
+}
 
 // 6) COMPLETENESS CRITIC — loop until DRYROUNDS consecutive "nothing missing"
 phase('Completeness')
@@ -698,6 +790,7 @@ return {
   },
   triage: globalThis.__triage || null,
   render_gate: renderGate,
+  merge: merge,
   fat_version: fatBar,
   final,
 }

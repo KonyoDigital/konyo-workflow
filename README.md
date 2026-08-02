@@ -72,6 +72,26 @@ Not required: Obsidian, a new GitHub org, or foreign names. **Same spirit as a p
 
 ---
 
+## Sandbox isolation (opt-in): `{isolate: true}`
+
+By default every builder edits ONE shared working tree. That is why the fleet is capped in the low
+teens — not a real ceiling, just fear of two agents in the same file, and this project has already
+lost 25,000 lines to a single bad edit.
+
+`{isolate: true}` (apply mode only) gives each builder its own git worktree AND adds the half that
+makes isolation real: **the merge**. `isolation:'worktree'` on its own hands the agent a throwaway
+copy and merges nothing back — switched on naively, every edit vanishes and the run still reports
+success. So builders return their **patch**, and one merge agent applies the patches to the real
+repo sequentially, `git apply --check` first, reporting conflicts instead of forcing them. The tree
+never has more than one writer, and no work depends on a worktree surviving.
+
+It is opt-in because a merge stage that goes wrong loses work. Without the flag, behaviour is
+unchanged.
+
+> **Model providers:** these harnesses run on whatever your host provides. If you drive an external
+> harness (e.g. ByteDance's DeerFlow) alongside them, prefer a **Claude Code OAuth** provider over a
+> metered API key — it uses the subscription you already pay for instead of billing per token.
+
 ## 19 ship laws (short)
 
 1. TDD/tests for this change · 2. Review · 3. Security · 4. Docs/ops · 5. Rollback  
