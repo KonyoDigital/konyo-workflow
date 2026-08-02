@@ -2,8 +2,17 @@
 
 | Slash | File | Role |
 |-------|------|------|
-| **`/konyo-workflow`** | `../automation/workflows/konyo-workflow.rhai` | Standard shipper · **LAW17 fat version bar** |
-| **`/konyo-workflow-max`** | `konyo-workflow-max.rhai` | MAX · Grok builds · **Claude Opus** third-eye · same fat bar |
+| **`/konyo-workflow`** | `../automation/workflows/konyo-workflow.rhai` | Standard shipper · **LAW17 fat version bar** · **LAW18 painted-UI proof** |
+| **`/konyo-workflow-max`** | `konyo-workflow-max.rhai` | MAX · Grok builds · **Claude Opus** third-eye · same fat bar · same painted-UI proof |
+
+## Painted-UI proof (LAW18, both workflows)
+
+Both Grok shippers now carry the same render gate the Claude Code ones do, and it is a **ship
+blocker**. It reads the project's **CI verdict first** (`gh run list` / `gh run view --log-failed`)
+and only drives a browser locally when there is no CI gate at all — a fleet of agents each starting
+Chromium is how a laptop gets saturated. `available:false` is the honest answer when a project has
+no UI verification; inventing a passing result, or installing a framework unasked, is itself a
+violation.
 
 ## Fat version law (both workflows)
 

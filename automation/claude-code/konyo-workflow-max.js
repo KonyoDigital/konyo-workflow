@@ -11,6 +11,7 @@ export const meta = {
     { title: 'Rework',          detail: 'refuted items rebuilt with the skeptics\' reasons + re-gated', model: 'opus' },
     { title: 'Completeness',    detail: 'Opus critic hunts for missed work; loop until N dry rounds', model: 'opus' },
     { title: 'Render gate',    detail: 'drives the REAL UI — hit-testable controls, no raw placeholders, page still responds; failure BLOCKS the ship', model: 'opus' },
+    { title: 'Fat version bar', detail: 'LAW17 — >=3 user-visible outcomes in one theme OR one structural bug with root cause+verify+prevention; a thin ship BLOCKS', model: 'opus' },
     { title: 'Synthesize',      detail: 'Opus integrates all passing work into ONE final report', model: 'opus' },
   ],
 }
@@ -166,6 +167,29 @@ const CRITIC_SCHEMA = {
     },
   },
 }
+// LAW17 — THE FAT VERSION BAR. Both .rhai shippers block a thin ship and this one did not, so a
+// user picking Claude Code could stamp a version integer on one toast. Same law, same threshold,
+// this file's idiom. Carried by the architects, the judge, the skeptic panel and its own gate.
+const FAT_LAW =
+  `FAT VERSION LAW (LAW17): ONE version integer must package real work — (A) >=3 user-visible ` +
+  `outcomes in one theme, OR (B) one structural bug with root cause + verification + prevention. ` +
+  `A plan whose entire content is one toast / one label / one i18n key / one CSS one-liner / docs ` +
+  `fluff does not clear the bar; expand the plan until it does, or state plainly that the work is ` +
+  `below a version stamp. Never micro-stamp one version per one-liner. This is NOT a licence to ` +
+  `inflate the fleet: the triage agent cap stands — fold MORE OUTCOMES into the SAME items, do not ` +
+  `spawn more items.`
+const FAT_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['applicable', 'passes', 'kind', 'outcomes', 'reason'],
+  properties: {
+    applicable:  { type: 'boolean' },
+    passes:      { type: 'boolean' },
+    kind:        { type: 'string', description: 'outcomes | structural-bug | thin' },
+    outcomes:    { type: 'array', items: { type: 'string' }, description: 'one user-visible outcome per entry, each tied to a changed file' },
+    reason:      { type: 'string' },
+    na_evidence: { type: 'string' },
+  },
+}
 const FINAL_SCHEMA = {
   type: 'object', additionalProperties: false,
   required: ['version_label', 'headline', 'shipped', 'follow_ups'],
@@ -214,7 +238,8 @@ function adversarialGate(built) {
       `ADVERSARIAL SKEPTIC — lens: ${lens}\nTask: ${TASK}\nFile: ${built.item.file}\n` +
       `Instruction it was meant to satisfy: ${built.item.instruction}\n` +
       `Proposed change:\n${built.build.changes}\nBuilder's self-check: ${built.build.self_check}\n` +
-      `Through YOUR lens only, try to REFUTE this change. Default to refuted=true if you are not convinced it is correct AND safe AND complete.`,
+      `Through YOUR lens only, try to REFUTE this change. Default to refuted=true if you are not convinced it is correct AND safe AND complete.\n` +
+      `Also refute micro-version inflation: if the shipped package is only one toast / one label / one i18n key / one CSS one-liner claiming a full version stamp, that is a BLOCKER under LAW17 (fat version bar), not a nit.`,
       { model: 'opus', effort: 'high', label: `skeptic:${i + 1}:${built.item.file}`, phase: 'Adversarial gate', schema: SKEPTIC_SCHEMA }
     ).catch(() => ({ refuted: true, severity: 'major', reason: 'skeptic errored' }))
   )).then(votes => {
@@ -329,7 +354,8 @@ const ANGLES = [
 const candidatePlans = (await parallel(ANGLES.map((angle, i) => () =>
   spawn(
     `ARCHITECT (${angle}) for a MAX-QUALITY fix run. Decompose this task into independent work items, ` +
-    `ONE OWNER PER FILE (no file appears twice). Read the repo to ground paths. Tag each item's risk.\n\nTASK: ${TASK}`,
+    `ONE OWNER PER FILE (no file appears twice). Read the repo to ground paths. Tag each item's risk.\n\n` +
+    `${FAT_LAW}\n\nTASK: ${TASK}`,
     { model: 'opus', effort: 'high', label: `architect:${i + 1}`, phase: 'Architect panel', schema: PLAN_SCHEMA }
   ).catch(() => null)
 ))).filter(Boolean)
@@ -340,6 +366,8 @@ const plan = await spawn(
   `JUDGE + MERGE. You are given ${candidatePlans.length} candidate decomposition plans for the same task. ` +
   `Produce the single BEST one-owner-per-file plan: take the sharpest decomposition, graft the best items from the others, ` +
   `drop redundancy, ensure NO file is owned twice, and every item is a self-contained fix. Explain why in "why".\n\n` +
+  `${FAT_LAW}\nThe merged plan must clear this bar; if the candidates together are still thin, say so in "why" ` +
+  `rather than stamping a version on a one-liner.\n\n` +
   `TASK: ${TASK}\n\nCANDIDATES:\n${candidatePlans.map((p, i) => `--- Plan ${i + 1} (${p.version_label}) ---\n` +
     p.items.map(it => `- [${it.risk || '?'}] ${it.file}: ${it.instruction}`).join('\n')).join('\n\n')}`,
   { model: 'opus', effort: 'high', phase: 'Architect panel', schema: JUDGE_SCHEMA }
@@ -468,6 +496,54 @@ if (APPLY) {
   }
 }
 
+// 6.6) THE FAT VERSION BAR — LAW17
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// Both .rhai shippers have blocked a thin ship for a while; this one did not, so the same work
+// could ship as a version through Claude Code and be refused through Grok. One standard: a version
+// integer has to package real work. MAX depth = the judge must ENUMERATE what it counted, each
+// outcome tied to a changed file — an unenumerated "yes it's fat" is exactly the assertion this
+// gate exists to refuse.
+let fatBar = null
+if (APPLY) {
+  phase('Fat version bar')
+  const gatePassed = results.filter(r => r && r.item && r.gate && r.gate.verdict === 'pass')
+  fatBar = await spawn(
+    `FAT VERSION BAR (Opus). Task: ${TASK}\nVersion stamp being claimed: ${plan.version_label}\n\n` +
+    `LAW17 FAT VERSION BAR: ONE version integer must package real work — (A) >=3 user-visible ` +
+    `outcomes in one theme, OR (B) one structural bug with root cause + verification + prevention. ` +
+    `A ship whose entire content is one toast / one label / one i18n key / one CSS one-liner / docs ` +
+    `fluff alone is a BLOCKER, not a ship.\n\n` +
+    `WHAT ACTUALLY SHIPPED (only changes that PASSED the skeptic panel count):\n` +
+    (gatePassed.length
+      ? gatePassed.map(r => `- ${r.item.file}: ${r.build && r.build.summary}`).join('\n')
+      : '(nothing passed the gate)') + `\n\n` +
+    `YOUR JOB, and it is not a vibe check:\n` +
+    `1. ENUMERATE every user-visible outcome you are counting, ONE PER LINE in outcomes[], and TIE ` +
+    `EACH ONE to a changed file from the list above (e.g. "src/foo.ts — the export button now ` +
+    `reports the row count"). An unenumerated "yes it's fat" is a FAIL.\n` +
+    `2. Count only outcomes a USER CAN SEE. Files touched, refactors, comments, tests and docs are ` +
+    `not outcomes. NEVER inflate a count to clear the bar — three real outcomes beat five padded ones, ` +
+    `and a padded count is itself the failure.\n` +
+    `3. State explicitly in "kind" which limb was satisfied: "outcomes" for (A), "structural-bug" for ` +
+    `(B), "thin" if neither. For (B) the root cause, the verification and the prevention must ALL be ` +
+    `named in "reason" — a bug fix with no prevention has not cleared limb B.\n` +
+    `4. Read the changed files if you need to; do not take a builder's summary as proof of a visible outcome.\n` +
+    `5. applicable:false ONLY if this run produces no version stamp at all, and it REQUIRES ` +
+    `na_evidence naming what you inspected to conclude that. N/A without evidence is a FAIL.\n` +
+    `If it is thin, say thin. Blocking a one-liner is the cheapest thing this gate ever does.`,
+    { model: 'opus', effort: 'high', phase: 'Fat version bar', schema: FAT_SCHEMA }
+  ).catch(() => null)
+  if (fatBar && fatBar.applicable && !fatBar.passes) {
+    log(`⛔ LAW17 FAT VERSION BAR FAILED — ${fatBar.reason}. This is a SHIP BLOCKER.`)
+    ;(fatBar.outcomes || []).slice(0, 8).forEach(o => log(`   · ${o}`))
+  } else if (fatBar && !fatBar.applicable) {
+    log(`⚠ LAW17 N/A — no version stamp in this run. Evidence: ${fatBar.na_evidence || '(none given — that is itself a fail)'}`)
+  } else if (fatBar) {
+    log(`✅ Fat version bar passed (${(fatBar.outcomes || []).length} outcomes).`)
+    ;(fatBar.outcomes || []).slice(0, 8).forEach(o => log(`   · ${o}`))
+  }
+}
+
 // 7) SYNTHESIZE
 phase('Synthesize')
 results = results.filter(Boolean).filter(r => r && r.item)   // v5 — a ceiling-refused item is not a failure to report on
@@ -482,6 +558,13 @@ const final = await spawn(
     (renderGate.notes ? `\n  eyeball: ${renderGate.notes}` : '') +
     `\nIf the render gate FAILED, the headline must say the ship is BLOCKED and why — do not report success over a broken screen. ` +
     `If it was unavailable, the headline must say nothing was seen painted.` : '\nRENDER GATE: not run (dry-run).') +
+  (fatBar ? `\nFAT VERSION BAR: applicable=${fatBar.applicable} passes=${fatBar.passes} kind=${fatBar.kind}` +
+    ((fatBar.outcomes && fatBar.outcomes.length) ? `\n  outcomes:\n` + fatBar.outcomes.map(o => '  - ' + o).join('\n') : '\n  outcomes: (none enumerated)') +
+    (fatBar.reason ? `\n  reason: ${fatBar.reason}` : '') +
+    (fatBar.na_evidence ? `\n  na_evidence: ${fatBar.na_evidence}` : '') +
+    `\nIf the fat version bar FAILED, the headline must say the ship is BLOCKED as a THIN VERSION under LAW17, ` +
+    `and must name what would make it fat (which additional user-visible outcomes, or which structural bug ` +
+    `with root cause + verification + prevention).` : '\nFAT VERSION BAR: not run (dry-run).') +
   `\nWrite the single final report. headline = the ONE-line ping for Konyo.`,
   { model: 'opus', effort: 'high', phase: 'Synthesize', schema: FINAL_SCHEMA }
 , true)
@@ -505,5 +588,6 @@ return {
   },
   triage: globalThis.__triage || null,
   render_gate: renderGate,
+  fat_version: fatBar,
   final,
 }

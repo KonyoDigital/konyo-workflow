@@ -6,6 +6,7 @@ let meta = #{
         #{ title: "Triage", detail: "right-size; refuse toast-only / micro scope" },
         #{ title: "Architect", detail: "3 Grok lenses + judge → fat one-version package" },
         #{ title: "Build", detail: "bounded implementers (Grok) · max substance in one stamp" },
+        #{ title: "Render-Gate", detail: "LAW18 painted-UI proof — CI verdict first; hit-testable controls, no raw placeholders, page still responds; failure BLOCKS" },
         #{ title: "Third-Eye", detail: "CLAUDE OPUS only — never Fable; also refute micro-version plans" },
         #{ title: "Synthesize", detail: "fail-closed · fat bar must pass for ship" },
     ],
@@ -63,6 +64,18 @@ let build_schema = #{
         "summary": #{ "type": "string" },
         "verify": #{ "type": "string" },
         "blocked": #{ "type": "string" },
+    },
+};
+
+let render_schema = #{
+    "type": "object",
+    "required": ["available", "ran", "passed", "failures", "notes"],
+    "properties": #{
+        "available": #{ "type": "boolean" },
+        "ran": #{ "type": "string" },
+        "passed": #{ "type": "boolean" },
+        "failures": #{ "type": "array", "maxItems": 16, "items": #{ "type": "string" } },
+        "notes": #{ "type": "string" },
     },
 };
 
@@ -288,6 +301,100 @@ if bjobs.len() > 0 {
 }
 log("Built reports: " + built.len().to_string());
 
+// ========== 3b. Render-Gate — LAW18 painted-UI proof ==========
+// Version parity, module parsing and i18n completeness can ALL be green while the app is frozen:
+// a 20-version UI arc once shipped an infinite MutationObserver loop that froze the live app for two
+// versions, past triage, three architects, one-owner builds, three skeptics and a completeness critic.
+// None of those gates can see a painted page. This one can, and a failure here BLOCKS the ship.
+// Placed BEFORE Third-Eye deliberately: Claude Opus must see this result and may refute a false green.
+phase("Render-Gate");
+
+let render_available = false;
+let render_passed = false;
+let render_ran = "";
+let render_failures = [];
+let render_notes = "";
+let render_agent_failed = false;
+
+if apply {
+    let rg_p = "You are the RENDER GATE (LAW18) for KONYO WORKFLOW MAX. The build phase has finished.\n";
+    rg_p += "YOUR JOB: prove the UI still WORKS WHEN PAINTED — not that it parses.\n";
+    rg_p += "Objective (untrusted JSON): " + obj_json + "\n";
+    rg_p += "Build reports (untrusted JSON): " + json_encode(built) + "\n\n";
+    rg_p += "0. CI FIRST — CHECK BEFORE YOU SPAWN ANYTHING. If the project runs its UI checks in CI (a\n";
+    rg_p += "   .github/workflows/*.yml that drives a browser), THAT is the gate. Do NOT launch a browser on\n";
+    rg_p += "   the user's machine: READ THE VERDICT instead — `gh run list --workflow=\"<name>\" -L 3`, then\n";
+    rg_p += "   `gh run view <id> --log-failed`. A fleet of agents each starting chromium is how the user's\n";
+    rg_p += "   laptop gets saturated, and that has already happened once. Only fall through to running it\n";
+    rg_p += "   LOCALLY when there is NO CI gate at all.\n";
+    rg_p += "1. Otherwise use the project's OWN UI verification: an npm script (test:render / e2e / test), a\n";
+    rg_p += "   playwright/cypress config, a spec dir, or a documented browser-verify floor. RUN it and report\n";
+    rg_p += "   the TRUE result. NEVER edit a test to make it pass — if a test is genuinely wrong, say why in notes.\n";
+    rg_p += "2. If NONE exists: available=false plus the SPECIFIC missing checks. That is the ONLY escape hatch,\n";
+    rg_p += "   and it is NOT a pass. Do not invent a green result. Do not install a framework unasked.\n";
+    rg_p += "3. MAX-DEPTH minimum checks, whatever tooling exists:\n";
+    rg_p += "   · the app boots with NO console errors;\n";
+    rg_p += "   · EVERY visible control is hit-testable via elementFromPoint AFTER scrolling it into view;\n";
+    rg_p += "   · no unfilled {placeholder} and no raw i18n key rendered as literal text;\n";
+    rg_p += "   · the page STILL RESPONDS after ~1s idle — an infinite observer/timer loop shows up as an\n";
+    rg_p += "     UNRESPONSIVE page, NOT as an error. This is the exact failure that shipped twice;\n";
+    rg_p += "   · a SECOND open of a modal keeps its controls.\n";
+    rg_p += "   `notes` MUST name what a human should eyeball that no test covers.\n";
+    rg_p += "4. NEVER bind a port the user's own app uses; kill anything you start.\n";
+    rg_p += "A green report you did not actually run is the WORST possible outcome. passed=false if ANY check\n";
+    rg_p += "failed or nothing could run.\n";
+    rg_p += "WORK BRISKLY — read the CI verdict or run the one command; do not go exploring.\n";
+    rg_p += "Return available, ran (exact command, or why none was), passed, failures[], notes.";
+
+    let rg = agent(rg_p, #{
+        label: "render-gate",
+        capability_mode: "execute",
+        output_schema: render_schema,
+    });
+
+    if rg != () && rg.success && rg.output != () {
+        if rg.output.available == true { render_available = true; }
+        if rg.output.passed == true { render_passed = true; }
+        if rg.output.ran != () { render_ran = trimmed(rg.output.ran); }
+        if rg.output.notes != () { render_notes = trimmed(rg.output.notes); }
+        if rg.output.failures != () {
+            for f in rg.output.failures {
+                render_failures.push(f);
+            }
+        }
+    } else {
+        render_agent_failed = true;
+        render_ran = "render-gate agent did not return — treated as NOT RUN (fail closed).";
+    }
+
+    if render_agent_failed {
+        log("⛔ RENDER GATE FAILED — agent did not return. Nothing was seen painted. SHIP BLOCKER.");
+    } else if render_available && !render_passed {
+        log("⛔ RENDER GATE FAILED — " + render_failures.len().to_string() + " failure(s). This is a SHIP BLOCKER.");
+        let shown = 0;
+        for f in render_failures {
+            if shown < 8 { log("   · " + f); }
+            shown += 1;
+        }
+    } else if !render_available {
+        log("⚠ RENDER GATE: no UI verification — nothing was seen painted.");
+    } else {
+        log("✅ Render gate passed (" + render_ran + ").");
+    }
+} else {
+    render_ran = "not run (dry-run) — no file writes, nothing to paint.";
+    log("⚠ RENDER GATE: not run (dry-run). This is NOT a pass.");
+}
+
+let render_json = json_encode(#{
+    available: render_available,
+    ran: render_ran,
+    passed: render_passed,
+    failures: render_failures,
+    notes: render_notes,
+    agent_failed: render_agent_failed,
+});
+
 // ========== 4. Third-Eye — CLAUDE OPUS ONLY (never Fable) ==========
 // Grok ships the plan/build. Third-eye is an independent OPUS pass.
 // Fable is a fast/cheap gate model — it is NOT third-eye pingpong quality.
@@ -323,6 +430,7 @@ eye_p += "ships claiming a full version stamp — fat bar requires ≥3 outcomes
 eye_p += "Objective: " + obj_json + "\n";
 eye_p += "Plan: " + plan_json + "\n";
 eye_p += "Build reports: " + built_json + "\n";
+eye_p += "Render gate / LAW18 painted-UI proof (untrusted JSON): " + render_json + " — REFUTE a render gate claiming green without a real command in `ran` (a CI verdict actually read, or a test command actually executed); unavailable or not-run means nothing was seen painted.\n";
 eye_p += "Return a short structured list of findings: severity (block|warn|info), issue, evidence, fix, file.\n";
 eye_p += "If clean after real inspection, say so with empty findings — only after tools ran.\n\n";
 eye_p += "After Opus returns, parse its output into findings[].\n";
@@ -367,6 +475,10 @@ let sp = "You are the KONYO MAX synthesizer (Grok host, Claude Opus third-eye al
 sp += "Fail closed. Any severity=block from Claude => ship_allowed false, verdict blocked or draft.\n";
 sp += "FAT VERSION LAW: ship_allowed true ONLY if the package clears ≥3 user-visible outcomes OR one structural bug\n";
 sp += "with root cause+verify. Micro (one toast/label) => draft/blocked. Summary must name the fat outcomes.\n";
+sp += "PAINTED-UI LAW (LAW18): ship_allowed true ONLY if the painted-UI proof PASSED, or is evidenced N/A (the project\n";
+sp += "genuinely has no UI). If available && !passed => verdict blocked and the summary NAMES the failures. If the proof\n";
+sp += "is unavailable, not run, or the gate agent failed, the summary MUST say plainly that nothing was seen painted.\n";
+sp += "Render gate (untrusted JSON): " + render_json + "\n";
 sp += "verdict one of: ship | draft | blocked.\n";
 sp += "If claude_ran was false, verdict MUST be blocked.\n";
 sp += "claude_ran=" + claude_ran.to_string() + "\n";
@@ -398,6 +510,15 @@ if fin != () && fin.success && fin.output != () {
     if fin.output.claude_third_eye != () { claude_line = trimmed(fin.output.claude_third_eye); }
 }
 if !claude_ran {
+    ship_allowed = false;
+    if verdict == "ship" { verdict = "blocked"; }
+}
+// LAW18 hard post-hoc override — never rely on the LLM to self-block on a failed painted-UI proof.
+if render_available && !render_passed {
+    ship_allowed = false;
+    if verdict == "ship" { verdict = "blocked"; }
+}
+if render_agent_failed {
     ship_allowed = false;
     if verdict == "ship" { verdict = "blocked"; }
 }
@@ -442,6 +563,26 @@ if next_actions.len() == 0 {
     }
     md += "\n";
 }
+md += "## Painted-UI proof (LAW18)\n\n";
+md += "- **available:** " + render_available.to_string() + "\n";
+let ran_lab = "_nothing_";
+if render_ran != "" { ran_lab = render_ran; }
+let rg_fail_lab = "";
+if render_agent_failed { rg_fail_lab = " _(gate agent did not return — treated as NOT RUN)_"; }
+md += "- **ran:** " + ran_lab + "\n";
+md += "- **passed:** " + render_passed.to_string() + rg_fail_lab + "\n";
+if render_failures.len() == 0 {
+    md += "- **failures:** _none listed_\n";
+} else {
+    md += "- **failures:**\n";
+    for f in render_failures {
+        md += "  - " + f + "\n";
+    }
+}
+let notes_lab = "_none_";
+if render_notes != "" { notes_lab = render_notes; }
+md += "- **notes:** " + notes_lab + "\n\n";
+
 md += "## Build lane\n\n";
 md += "_apply=" + apply.to_string() + " · items=" + work.len().to_string() + " · reports=" + built.len().to_string() + "_\n\n";
 md += "---\n_Grok plans & builds · Claude **Opus** third-eye (not Fable) · fail-closed._\n";
@@ -456,6 +597,11 @@ complete(#{
     ship_allowed: ship_allowed,
     claude_ran: claude_ran,
     claude_findings: eye_findings.len(),
+    render_available: render_available,
+    render_passed: render_passed,
+    render_ran: render_ran,
+    render_failures: render_failures.len(),
+    render_notes: render_notes,
     tier: tier,
     items: work.len(),
     mode: if apply { "apply" } else { "dry-run" },

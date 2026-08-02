@@ -9,6 +9,7 @@ export const meta = {
     { title: 'Build+Gate',  detail: 'Haiku/Sonnet build each item; Fable gates it immediately (no barrier)' },
     { title: 'Rework',      detail: 'failed items escalate one tier up and re-gate, version-per-round' },
     { title: 'Render gate', detail: 'if the project can drive its own UI, run it — a failure BLOCKS the ship' },
+    { title: 'Fat version bar', detail: 'LAW17 — >=3 user-visible outcomes in one theme OR one structural bug with root cause+verify+prevention; a thin ship BLOCKS' },
     { title: 'Synthesize',  detail: 'Opus integrates all passing work into ONE final report' },
   ],
 }
@@ -241,6 +242,13 @@ const plan = await spawn(
       `${globalThis.__triage.est_agents} agents. Produce AT MOST ${Math.max(1, Math.min(24, globalThis.__triage.est_agents))} items. ` +
       `Fewer, larger items beat many thin ones — every extra item costs a build AND its gate.\n`
     : '') +
+  `\nFAT VERSION LAW (LAW17): ONE version integer must package real work — (A) >=3 user-visible ` +
+  `outcomes in one theme, OR (B) one structural bug with root cause + verification + prevention. ` +
+  `A plan whose entire content is one toast / one label / one i18n key / one CSS one-liner / docs ` +
+  `fluff does NOT clear the bar: fold in the rest of the theme's outcomes, or say plainly in ` +
+  `version_label/why that this is below a version stamp. Maximize outcomes INSIDE the one version; ` +
+  `never micro-stamp a version per one-liner. This is NOT a licence to inflate the fleet — more ` +
+  `outcomes per item, not more items.\n` +
   `\nTASK: ${TASK}`,
   { model: 'opus', effort: 'high', phase: 'Architect', schema: PLAN_SCHEMA }
 )
@@ -337,7 +345,12 @@ if (APPLY) {
   phase('Render gate')
   renderGate = await spawn(
     `RENDER GATE. Task: ${TASK}\n` +
-    `Find the project's own UI verification (npm script test:render/e2e/test, playwright/cypress ` +
+    `0. CI FIRST — CHECK BEFORE YOU SPAWN ANYTHING. If the project runs its UI checks in CI (a ` +
+    `.github/workflows/*.yml that drives a browser), THAT is the gate: read the verdict ` +
+    `(\`gh run list --workflow="<name>" -L 3\`, \`gh run view <id> --log-failed\`) instead of ` +
+    `launching a browser here. A fleet of agents each starting chromium is how Konyo's laptop got ` +
+    `saturated once already. Only fall through to a local run if there is NO CI gate at all.\n` +
+    `Otherwise: find the project's own UI verification (npm script test:render/e2e/test, playwright/cypress ` +
     `config, spec dir, or a documented browser verify floor) and RUN it. Report the true result — ` +
     `never edit a test to make it pass, never invent a green result, never install a framework ` +
     `unasked. If none exists, set available=false and list what is missing. Minimum checks when ` +
@@ -353,6 +366,7 @@ if (APPLY) {
           ran:       { type: 'string' },
           passed:    { type: 'boolean' },
           failures:  { type: 'array', items: { type: 'string' } },
+          notes:     { type: 'string', description: 'what a human should eyeball that no test covers' },
         } } }
   ).catch(() => null)
   if (renderGate && renderGate.available && !renderGate.passed) {
@@ -360,6 +374,51 @@ if (APPLY) {
     renderGate.failures.slice(0, 6).forEach(f => log(`   · ${f}`))
   } else if (renderGate && !renderGate.available) {
     log('⚠ RENDER GATE: no UI verification in this project — nothing was seen painted.')
+  }
+}
+
+// ── THE FAT VERSION BAR (LAW17) ──────────────────────────────────────────────────────────────────
+// A version integer is a promise that something real landed. A "ship" whose whole content is one
+// toast is a version stamp spent on nothing. Both Grok shippers enforce this; so does this one.
+// Dry runs are covered by the FAT VERSION LAW paragraph in the architect prompt — there are no
+// build results to judge here, so the bar only runs under APPLY.
+let fatBar = null
+if (APPLY) {
+  phase('Fat version bar')
+  const fatPassed = results.filter(r => r.gate && r.gate.verdict === 'pass')
+  fatBar = await spawn(
+    `FAT VERSION BAR. Task: ${TASK}\n` +
+    `LAW17 FAT VERSION BAR: ONE version integer must package real work — (A) >=3 user-visible ` +
+    `outcomes in one theme, OR (B) one structural bug with root cause + verification + prevention. ` +
+    `A ship whose entire content is one toast / one label / one i18n key / one CSS one-liner / ` +
+    `docs fluff alone is a BLOCKER, not a ship.\n` +
+    `Version: ${plan.version_label}\n` +
+    `WHAT PASSED THE GATE (${fatPassed.length}):\n` +
+    fatPassed.map(r => `- ${r.item.file}: ${r.build && r.build.summary}`).join('\n') + `\n` +
+    `Count only outcomes a USER can see, not files touched — three edits to one label is ONE ` +
+    `outcome. Never inflate a count to clear the bar. If this does not clear it, say so plainly: ` +
+    `passes=false, kind='thin', and name in reason what would have to be folded in to make it fat.\n` +
+    `applicable=false is permitted ONLY for a run that produces no version stamp at all (pure ` +
+    `diagnosis / dry analysis) and REQUIRES na_evidence naming what was inspected. ` +
+    `N/A without evidence is a FAIL.`,
+    { effort: 'medium', phase: 'Fat version bar', schema: {
+        type: 'object', additionalProperties: false,
+        required: ['applicable', 'passes', 'kind', 'outcomes', 'reason'],
+        properties: {
+          applicable:  { type: 'boolean' },
+          passes:      { type: 'boolean' },
+          kind:        { type: 'string', description: 'outcomes | structural-bug | thin' },
+          outcomes:    { type: 'array', items: { type: 'string' } },
+          reason:      { type: 'string' },
+          na_evidence: { type: 'string' },
+        } } }
+  ).catch(() => null)
+  if (fatBar && fatBar.applicable && !fatBar.passes) {
+    log('⛔ LAW17 FAT VERSION BAR FAILED — ' + fatBar.reason + ' SHIP BLOCKER.')
+  } else if (fatBar && !fatBar.applicable) {
+    log('⚠ LAW17 N/A (no version stamp this run) — ' + (fatBar.na_evidence || 'NO EVIDENCE GIVEN — treat as a fail.'))
+  } else if (fatBar) {
+    log(`✅ Fat version bar passed (${fatBar.kind}, ${(fatBar.outcomes || []).length} user-visible outcome(s)).`)
   }
 }
 
@@ -371,6 +430,15 @@ const final = await spawn(
   `Version: ${plan.version_label} (after ${round} round(s)).\n` +
   `PASSED gate (${passed.length}):\n` + passed.map(r => `- ${r.item.file}: ${r.build && r.build.summary}`).join('\n') +
   `\nSTILL FAILING (${failed.length}):\n` + failed.map(r => `- ${r.item.file}: ${r.gate && r.gate.reason}`).join('\n') +
+  (renderGate ? `\nRENDER GATE: available=${renderGate.available} ran=${renderGate.ran} passed=${renderGate.passed}` +
+    ((renderGate.failures || []).length ? `\n  FAILURES:\n` + renderGate.failures.map(f => '  - ' + f).join('\n') : '') +
+    (renderGate.notes ? `\n  eyeball: ${renderGate.notes}` : '') +
+    `\nIf the render gate FAILED, the headline must say the ship is BLOCKED and why — do not report success over a broken screen. ` +
+    `If it was unavailable, the headline must say nothing was seen painted.` : '\nRENDER GATE: not run (dry-run).') +
+  (fatBar ? `\nFAT VERSION BAR (LAW17): applicable=${fatBar.applicable} passes=${fatBar.passes} kind=${fatBar.kind}` +
+    ((fatBar.outcomes || []).length ? `\n  OUTCOMES:\n` + fatBar.outcomes.map(o => '  - ' + o).join('\n') : '') +
+    (fatBar.reason ? `\n  reason: ${fatBar.reason}` : '') +
+    `\nIf the fat version bar FAILED, the headline must say the ship is BLOCKED as a thin version and name what would make it fat.` : '\nFAT VERSION BAR: not run (dry-run).') +
   `\nWrite the single final report: headline is the ONE-line ping Konyo reads.`,
   { model: 'opus', effort: 'high', phase: 'Synthesize', schema: FINAL_SCHEMA }
 )
@@ -385,5 +453,6 @@ return {
   passed: passed.length,
   failed: failed.length,
   render_gate: renderGate,
+  fat_version: fatBar,
   final,
 }

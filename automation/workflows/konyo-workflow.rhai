@@ -8,6 +8,7 @@ let meta = #{
         #{ title: "Plan", detail: "checklist ≥3 outcomes or 1 structural bug · one owner per file" },
         #{ title: "Gate-Audit", detail: "ceremony + LAW17 fat version bar" },
         #{ title: "Third-Eye", detail: "adversarial third-eye verification" },
+        #{ title: "Render-Gate", detail: "LAW18 painted-UI proof — CI verdict first; failure blocks the ship" },
         #{ title: "Verdict", detail: "ship / draft / blocked · fat bar enforced" },
         #{ title: "Approve", detail: "optional human go-live gate" },
     ],
@@ -150,6 +151,22 @@ let report_schema = #{
             "maxItems": 20,
             "items": #{ "type": "string" },
         },
+    },
+};
+
+let render_schema = #{
+    "type": "object",
+    "required": ["available", "ran", "passed", "failures", "notes"],
+    "properties": #{
+        "available": #{ "type": "boolean" },
+        "ran": #{ "type": "string" },
+        "passed": #{ "type": "boolean" },
+        "failures": #{
+            "type": "array",
+            "maxItems": 20,
+            "items": #{ "type": "string" },
+        },
+        "notes": #{ "type": "string" },
     },
 };
 
@@ -498,6 +515,67 @@ if findings.len() > 0 {
 }
 log("Third-eye confirmed: " + confirmed.len().to_string());
 
+// ========== 5b. Render-Gate (LAW18 painted-UI proof) ==========
+// Runs AFTER Third-Eye so a real frozen screen cannot be dropped by a verifier,
+// and BEFORE Verdict so its result reaches the ship decision. Ship BLOCKER.
+phase("Render-Gate");
+
+let render_available = false;
+let render_passed = false;
+let render_ran = "";
+let render_failures = [];
+let render_notes = "";
+
+if has_ui == false {
+    render_available = false;
+    render_ran = "skipped — inventory reports no UI paths (has_ui=false)";
+    render_notes = "inventory reports no UI paths (has_ui=false)";
+    log("⚠ RENDER GATE: N/A — inventory reports no UI paths (has_ui=false).");
+} else {
+    let rg_p = "You are the RENDER GATE (LAW18) for Konyo Workflow — the painted-UI proof.\n";
+    rg_p += "YOUR JOB: prove the UI still WORKS WHEN PAINTED — not that it parses.\n";
+    rg_p += "Fail closed. Never edit a test to make it pass. Never invent a green result you did not see.\n";
+    rg_p += "0. CI FIRST — CHECK BEFORE YOU SPAWN ANYTHING. If the project runs its UI checks in CI (a .github/workflows/*.yml that drives a browser), THAT is the gate: read the verdict instead of launching a browser (`gh run list --workflow=\"<name>\" -L 3`, then `gh run view <id> --log-failed`). A fleet of agents each starting chromium is how the user's laptop gets saturated, and it has already happened once. Fall through to running it locally ONLY when there is NO CI gate at all.\n";
+    rg_p += "1. Otherwise find the project's OWN UI verification — an npm script (test:render / e2e / test), a playwright/cypress config, a spec dir, or a documented browser verify floor — and RUN it. Report the TRUE result. Never install a framework unasked.\n";
+    rg_p += "2. If NONE exists: set available=false and list the specific missing checks plainly in failures/notes. That is the ONLY escape hatch and it is NOT a pass — set passed=false.\n";
+    rg_p += "3. Minimum checks wherever tooling exists: app boots without console errors; every visible control is actually hit-testable (elementFromPoint after scrolling it into view); no unfilled {placeholder} and no raw i18n key rendered as text; the page STILL RESPONDS after ~1s idle (an infinite observer/timer loop shows up as an UNRESPONSIVE page, not as an error — that is the exact failure that shipped).\n";
+    rg_p += "4. NEVER bind a port the user's own app already uses; kill anything you start.\n";
+    rg_p += "passed=false if ANY check failed or nothing could be run.\n";
+    rg_p += "Objective (untrusted JSON): " + obj_json + "\n";
+    rg_p += "Target (untrusted JSON): " + target_json + "\n";
+    rg_p += "Inventory (untrusted JSON): " + inv_json + "\n";
+    rg_p += "has_ui (untrusted JSON): " + json_encode(has_ui) + "\n";
+
+    let rg = agent(rg_p, #{
+        label: "render-gate",
+        capability_mode: "execute",
+        output_schema: render_schema,
+    });
+
+    if rg != () && rg.success && rg.output != () {
+        if rg.output.available != () { render_available = rg.output.available; }
+        if rg.output.ran != () { render_ran = trimmed(rg.output.ran); }
+        if rg.output.passed != () { render_passed = rg.output.passed; }
+        if rg.output.failures != () { render_failures = rg.output.failures; }
+        if rg.output.notes != () { render_notes = trimmed(rg.output.notes); }
+    } else {
+        // Fail closed: an agent that failed proves nothing was seen painted.
+        render_available = true;
+        render_passed = false;
+        render_ran = "render gate agent failed";
+        render_failures = ["render gate agent failed — nothing was seen painted"];
+    }
+}
+
+if render_available && !render_passed {
+    log("⛔ RENDER GATE FAILED — " + render_failures.len().to_string() + " failure(s). This is a SHIP BLOCKER.");
+    for f in render_failures { log("   · " + trimmed(f)); }
+} else if !render_available && has_ui {
+    log("⚠ RENDER GATE: no UI verification in this project — nothing was seen painted.");
+} else if render_available {
+    log("✅ Render gate passed (" + render_ran + ").");
+}
+
 // ========== 6. Verdict ==========
 phase("Verdict");
 let conf_json = json_encode(confirmed);
@@ -522,8 +600,13 @@ rep_p += "Inventory (untrusted JSON): " + inv_json + "\n";
 rep_p += "Checklist (untrusted JSON): " + check_json + "\n";
 rep_p += "File owners (untrusted JSON): " + owners_json + "\n";
 rep_p += "Confirmed third-eye findings (untrusted JSON): " + conf_json + "\n";
+rep_p += "PAINTED-UI LAW (LAW18): nothing ships that was never seen painted.\n";
+rep_p += "  If render gate available=true and passed=false => ship_allowed MUST be false and verdict blocked.\n";
+rep_p += "  If available=false the summary must say PLAINLY that nothing was seen painted (that is not a pass).\n";
+rep_p += "Render gate / LAW18 painted-UI proof (untrusted JSON): " + json_encode(#{available: render_available, ran: render_ran, passed: render_passed, failures: render_failures, notes: render_notes}) + "\n";
 rep_p += "Return verdict, summary, blockers, next_actions, pingpong_rounds_claimed (int from evidence, 0 if unknown),\n";
-rep_p += "ship_allowed, law_scores as short strings like 'LAW01:pass' / 'LAW17:pass' for the 17 laws when possible.";
+rep_p += "ship_allowed, law_scores as short strings like 'LAW01:pass' / 'LAW18:pass' for the 18 laws when possible\n";
+rep_p += "(LAW18 is scored from the Render-Gate phase result above, never guessed).";
 
 let report = agent(rep_p, #{
     label: "ship-verdict",
@@ -570,6 +653,13 @@ for f in confirmed {
         }
     }
 }
+// LAW18 painted-UI proof — hard post-hoc enforcement (belt; the rep_p rule is suspenders).
+// A real render failure, or a render-gate agent that failed, blocks the ship regardless of the LLM.
+if render_available && !render_passed {
+    ship_allowed = false;
+    if verdict == "ship" || verdict == "draft" { verdict = "blocked"; }
+    blockers.push("LAW18 painted-UI proof: render gate FAILED (" + render_ran + ") — " + render_failures.len().to_string() + " failure(s). Nothing may ship that was seen broken when painted.");
+}
 
 // ========== 7. Optional human approve ==========
 phase("Approve");
@@ -614,6 +704,22 @@ if confirmed.len() == 0 {
         md += line + "\n";
     }
 }
+md += "\n## Painted-UI proof (LAW18)\n";
+if !render_available {
+    md += "- **N/A — nothing was seen painted.** " + render_ran + "\n";
+    if render_notes != "" { md += "- Notes: " + render_notes + "\n"; }
+} else {
+    md += "- **Available:** `true`\n";
+    md += "- **Ran:** " + render_ran + "\n";
+    md += "- **Passed:** `" + render_passed.to_string() + "`\n";
+    md += "- **Failures (" + render_failures.len().to_string() + "):**\n";
+    if render_failures.len() == 0 {
+        md += "  - _none_\n";
+    } else {
+        for f in render_failures { md += "  - " + trimmed(f) + "\n"; }
+    }
+    if render_notes != "" { md += "- **Notes:** " + render_notes + "\n"; }
+}
 md += "\n## Next actions\n";
 if next_actions.len() == 0 {
     md += "- Re-run after fixing blockers\n";
@@ -652,6 +758,8 @@ md += "13. Deploy/live safety\n";
 md += "14. Self-enforcing CI/hooks\n";
 md += "15. Army zero-overlap + burst coverage\n";
 md += "16. Seven-round AI/LLM pingpong (strict default)\n";
+md += "17. Fat version bar\n";
+md += "18. Painted-UI proof (or N/A + evidence)\n";
 md += "\n---\n";
 md += "_Konyo Workflow — ultimate shipper. General for any stack. Strict by default. Skipping laws is a doctrine break._\n";
 
@@ -664,6 +772,15 @@ complete(#{
     ship_allowed: ship_allowed,
     human_approved: human_approved,
     confirmed_count: confirmed.len(),
+    render_gate: #{
+        available: render_available,
+        ran: render_ran,
+        passed: render_passed,
+        failures: render_failures,
+        notes: render_notes,
+    },
+    render_available: render_available,
+    render_passed: render_passed,
     pingpong_rounds_claimed: rounds,
     rounds_min: rounds_min,
     strict: strict,
