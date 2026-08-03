@@ -3,6 +3,7 @@ export const meta = {
   description: 'KONYO WORKFLOW — MAX QUALITY. Opus everywhere · 3-architect judge panel · one-owner-per-file Opus build · 3-skeptic diverse-lens adversarial gate (majority-refute kills a change) · loop-until-dry completeness critic · Opus synthesis. ~10-15x the cost of the cost-scaled workflow — use ONLY for high-stakes / correctness-critical work.',
   whenToUse: 'When being WRONG costs more than tokens: trading-system code (Kai), security audits, production ships you can\'t easily roll back. For routine work use the cost-scaled konyo-workflow instead. It TRIAGES ITSELF FIRST and hard-caps the fleet, so a max run cannot quietly become an all-night one. Pass {task, apply, maxRounds, dryRounds, budgetFloor, grok, force, maxAgents}.',
   phases: [
+    { title: 'Preflight',       detail: 'workspace lock — refuse to start if another run is already editing this tree' },
     { title: 'Triage',          detail: 'right-size the run BEFORE spending a single Opus agent; hard-caps the fleet', model: 'opus' },
     { title: 'Architect panel', detail: '3 Opus architects (risk / correctness / simplest lenses) + Opus judge → one plan', model: 'opus' },
     { title: 'Third-eye',       detail: 'optional Grok consult on the winning plan' },
@@ -33,6 +34,32 @@ const FORCE     = !!(A && A.force)                    // run the panel even if t
 // work and the loop kept buying Opus agents to do it. This is the number the run may never exceed,
 // whatever triage or the critic wants.
 const MAX_AGENTS = (A && A.maxAgents) || 24
+/* ── v10 — THE WORKSPACE LOCK ────────────────────────────────────────────────────────────────────
+   2026-08-03. A correctness run was mid-flight over a single-file static site when Konyo asked for
+   a design pass on the SAME file. Two fleets, one 963-line file, both with a builder that reads the
+   whole thing and writes it back: whichever finished second would have silently erased the other's
+   work, and the report would have been green either way. It was caught only because a human
+   happened to notice — "fix this so it doesnt happen again."
+
+   Nothing in this workflow knew another instance existed. So: a lock, keyed on the working tree,
+   taken in Preflight BEFORE a single Opus agent is bought. A second run in the same tree refuses
+   immediately and names the run that holds it, instead of discovering the collision in the diff.
+
+   TTL, not a promise to release. A killed run (TaskStop, a crash, a closed laptop) never reaches its
+   release, and a lock that outlives its holder is worse than no lock — it locks the human out of
+   their own repo. So every lock carries an expiry and the acquirer purges dead ones first. Release
+   is best-effort on the way out; the TTL is what actually guarantees the tree comes back.
+
+   Escape hatch: {ignoreLock:true} for the case where the holder is genuinely dead but not yet
+   expired, and the human knows it. Deliberately NOT folded into force:true — force means "overrule
+   triage's judgement", which is a different and much cheaper mistake than "overwrite another
+   fleet's work". */
+const IGNORE_LOCK  = !!(A && A.ignoreLock)
+const LOCK_TTL_MIN = (A && A.lockTtlMinutes) || 180
+// v12 — triage may buy fewer skeptics than MAX implies (see activeLenses). That is usually right,
+// but on a run the human explicitly invoked as MAX it is a surprise they pay Opus prices for. This
+// is the explicit override, and the downgrade is now announced rather than silent.
+const SKEPTICS_OVERRIDE = (A && typeof A.skeptics === 'number') ? A.skeptics : null
 /* ── v9 — SANDBOX ISOLATION WITH A REAL MERGE ────────────────────────────────────────────────────
    The fleet has been capped at ~14 agents for one reason: they all edit files in ONE shared
    working tree, and this project already lost 25,000 lines to a single bad edit in a 38k-line file.
@@ -102,6 +129,22 @@ const LENSES = [
   'SAFETY & SCOPE — did it touch anything it should NOT? any regression, broken invariant, security/secret leak, or scope-creep beyond the instruction?',
   'REPRODUCE — trace the SPECIFIC failure this change claims to fix; confirm the change truly addresses that failure and not just its symptom.',
 ]
+
+const LOCK_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['acquired', 'key'],
+  properties: {
+    acquired:      { type: 'boolean', description: 'true = this run now owns the tree' },
+    key:           { type: 'string',  description: 'the working tree this lock covers' },
+    token:         { type: 'string',  description: 'unique id written into our lock file; needed to release it' },
+    purged_stale:  { type: 'number',  description: 'how many expired locks were cleaned up' },
+    holder_token:  { type: 'string',  description: 'if not acquired: the token of the live lock' },
+    holder_since:  { type: 'string',  description: 'if not acquired: when the holder took it' },
+    holder_expires:{ type: 'string',  description: 'if not acquired: when the holder lock expires on its own' },
+    holder_task:   { type: 'string',  description: 'if not acquired: the holder task snippet' },
+  },
+}
 
 const TRIAGE_SCHEMA = {
   type: 'object', additionalProperties: false,
@@ -299,8 +342,13 @@ function buildAgent(item, reworkNote) {
 // gate ignored it and ran the full lens panel — 3x the cost of what was asked for, on every item.
 // A triage whose decision is overridden is a triage that is only ever theatre.
 function activeLenses() {
-  const want = (globalThis.__triage && typeof globalThis.__triage.skeptics === 'number')
-    ? globalThis.__triage.skeptics : LENSES.length
+  // v12 — an EXPLICIT {skeptics:N} outranks triage. v4 made triage's number authoritative, which was
+  // right when the alternative was ignoring it entirely; but it left the human no way to say "I know
+  // what this is, buy the full panel" short of editing this file.
+  const want = SKEPTICS_OVERRIDE !== null
+    ? SKEPTICS_OVERRIDE
+    : (globalThis.__triage && typeof globalThis.__triage.skeptics === 'number')
+      ? globalThis.__triage.skeptics : LENSES.length
   return LENSES.slice(0, Math.max(0, Math.min(LENSES.length, want)))
 }
 
@@ -385,6 +433,87 @@ if (!APPLY && wantsAFile(TASK)) {
 // ================= RUN =================
 log(`KONYO WORKFLOW — MAX · ${mode} · ${DRYROUNDS} dry-rounds · floor ${Math.round(FLOOR / 1000)}k`)
 
+// 0) PREFLIGHT — take the workspace lock BEFORE spending anything. See the v10 note above.
+// Sonnet, not Opus: this is `date`, `mkdir` and a JSON file. There is no judgement in it, and a
+// lock that costs an Opus agent is a lock people will be tempted to switch off.
+phase('Preflight')
+let lock = null
+if (APPLY) {
+  const taskSnip = TASK.slice(0, 120).replace(/\s+/g, ' ')
+  lock = await spawn(
+    `WORKSPACE LOCK — acquire. Pure mechanics, no judgement. Use Bash only.\n\n` +
+    `1. LOCKDIR="$HOME/.claude/workflows/.locks"; mkdir -p "$LOCKDIR".\n` +
+    `2. KEY = the absolute path of the current working directory (\`pwd -P\`). Slugify it for a ` +
+    `filename: replace every "/" with "-" and strip a leading "-". LOCKFILE="$LOCKDIR/<slug>.json".\n` +
+    `3. PURGE FIRST. NOW=$(date -u +%s) — INTEGER EPOCH SECONDS. For every *.json in "$LOCKDIR", read ` +
+    `its "expires_epoch" and delete the file if it is numerically less than $NOW. Compare with ` +
+    `[ "$EXP" -lt "$NOW" ] — an INTEGER test. Do NOT compare the ISO strings with [ a \\< b ]: that ` +
+    `is invalid under zsh (it errors with "condition expected: <"), the test then silently fails, and ` +
+    `a dead lock survives forever and locks the human out of their own repo. This was caught in ` +
+    `testing; do not reintroduce it. Count deletions -> purged_stale. A malformed or unparseable lock ` +
+    `file counts as stale — delete it too; unreadable must never mean "held".\n` +
+    `4. If "$LOCKFILE" still exists after the purge, another LIVE run owns this tree. Do NOT touch ` +
+    `it, do NOT overwrite it. Return acquired:false with its token/started_at/expires_at/task fields ` +
+    `as holder_token / holder_since / holder_expires / holder_task.\n` +
+    `5. Otherwise WRITE "$LOCKFILE" with exactly these keys, then return acquired:true:\n` +
+    `   token         = a unique id you generate (e.g. "$(date -u +%Y%m%dT%H%M%SZ)-$RANDOM")\n` +
+    `   started_at    = now, ISO-8601 UTC (human-readable only)\n` +
+    `   expires_at    = now + ${LOCK_TTL_MIN} minutes, ISO-8601 UTC (human-readable only)\n` +
+    `   expires_epoch = $(( $(date -u +%s) + ${LOCK_TTL_MIN} * 60 ))  <- INTEGER, this is the field\n` +
+    `                   step 3 compares. It MUST be present and numeric or the lock is unpurgeable.\n` +
+    `   cwd           = the pwd from step 2\n` +
+    `   task          = ${JSON.stringify(taskSnip)}\n` +
+    `Return the token you wrote. Do not create, edit or delete anything outside "$LOCKDIR".`,
+    { model: 'sonnet', effort: 'low', phase: 'Preflight', label: 'lock:acquire', schema: LOCK_SCHEMA }
+  , true).catch(() => null)
+
+  if (lock && lock.acquired === false && !IGNORE_LOCK) {
+    log(`⛔ WORKSPACE LOCKED — another run is already editing this tree.`)
+    log(`   tree     : ${lock.key}`)
+    log(`   held by  : ${lock.holder_token || '(unknown)'} since ${lock.holder_since || '(unknown)'}`)
+    log(`   its task : ${lock.holder_task || '(not recorded)'}`)
+    log(`   expires  : ${lock.holder_expires || '(unknown)'} (locks self-expire after ${LOCK_TTL_MIN}m)`)
+    log(`   Refusing to start. Two fleets editing one tree silently overwrite each other.`)
+    log(`   Wait for it, stop it, or re-run with {ignoreLock:true} if you KNOW the holder is dead.`)
+    return {
+      refused: 'workspace locked by another run',
+      lock,
+      fix: 'wait for the holder to finish, TaskStop it, or pass {ignoreLock:true} if it is dead',
+    }
+  }
+  if (lock && lock.acquired === false && IGNORE_LOCK) {
+    log(`⚠ WORKSPACE LOCKED but {ignoreLock:true} was passed — proceeding over the lock held by ` +
+        `${lock.holder_token || '(unknown)'}. If that run is actually alive, one of you will lose work.`)
+  }
+  if (lock && lock.acquired) {
+    log(`🔒 Workspace lock taken on ${lock.key} (expires in ${LOCK_TTL_MIN}m).` +
+        (lock.purged_stale ? ` Purged ${lock.purged_stale} stale lock(s).` : ''))
+  }
+  if (!lock) log(`⚠ Preflight lock could not be established — proceeding UNLOCKED. If another run is ` +
+                 `editing this tree, this run can overwrite it.`)
+} else {
+  log('Preflight: dry-run writes nothing, so no workspace lock is needed.')
+}
+
+// Best-effort release. The TTL is the real guarantee — this just hands the tree back early.
+async function releaseLock() {
+  if (!lock || !lock.acquired || !lock.token) return null
+  // Find the file by TOKEN, not by re-deriving the path slug. The acquirer built that slug from its
+  // own `pwd`; re-deriving it here would silently fail to match if the two ever disagreed, and a
+  // release that misses leaves the tree locked until the TTL. The token is the thing we actually own.
+  return spawn(
+    `WORKSPACE LOCK — release. Bash only, no judgement.\n` +
+    `LOCKDIR="$HOME/.claude/workflows/.locks"\n` +
+    `Find the file in "$LOCKDIR" whose "token" field is exactly ${JSON.stringify(lock.token)} ` +
+    `(e.g. \`grep -l\` for that token). Delete ONLY that file — matching the token is what proves it ` +
+    `is still OUR lock and not a later run's that reused the same path. If no file carries that ` +
+    `token, it was already released or expired: change nothing and say so.\n` +
+    `Return {acquired:false, key:"released"} if you deleted it, or {acquired:false, key:"not-ours"} ` +
+    `if you did not. Touch nothing outside "$LOCKDIR".`,
+    { model: 'sonnet', effort: 'low', phase: 'Synthesize', label: 'lock:release', schema: LOCK_SCHEMA }
+  , true).catch(() => null)
+}
+
 // 1) ARCHITECT PANEL — 3 diverse lenses in parallel, then an Opus judge merges the best plan.
 phase('Triage')
 if (!APPLY && wantsAFile(TASK)) {
@@ -418,9 +547,22 @@ if (triage) {
     log('⛔ TRIAGE SAYS DO THIS DIRECTLY — spawning nothing.')
     log(`  ${triage.why}`)
     log('  If you disagree, re-run with force:true.')
+    await releaseLock()          // v10 — never hold the tree on a path that does no work
     return { refused: 'triage says direct', triage, advice: 'do it in the main loop; a fleet would be slower and dearer here' }
   }
   globalThis.__triage = { ...triage, skeptics: sk }
+  // v12 — SAY THE DOWNGRADE OUT LOUD. A MAX run whose triage quietly buys 1 skeptic instead of 3 is
+  // still charged at MAX rates, and the human only finds out by reading triage.skeptics in the final
+  // JSON. On 2026-08-03 that is exactly what happened, and it was reported as "you paid max-workflow
+  // prices for a single-skeptic gate". Announce it while there is still time to re-run.
+  if (SKEPTICS_OVERRIDE !== null) {
+    log(`SKEPTICS → ${SKEPTICS_OVERRIDE} by explicit override (triage wanted ${sk}).`)
+  } else if (typeof sk === 'number' && sk < LENSES.length) {
+    log(`⚠ TRIAGE BOUGHT ${sk} SKEPTIC(S), NOT ${LENSES.length} — this is a MAX run at MAX prices with a ` +
+        `reduced adversarial gate.`)
+    log(`  Its reason: ${triage.why}`)
+    log(`  If being wrong here is expensive, stop and re-run with {skeptics:${LENSES.length}}.`)
+  }
 }
 
 // THE CEILING. Whatever triage asked for, this run may not exceed MAX_AGENTS — the completeness
@@ -481,6 +623,28 @@ if (items.length > roomForItems) {
   items = items.slice(0, roomForItems)
 }
 log(`Winning plan "${plan.version_label}": ${items.length} items — ${plan.why || ''}`)
+
+/* ── v11 — FEASIBILITY, ANNOUNCED BEFORE THE MONEY IS SPENT ──────────────────────────────────────
+   The ceiling (v3) is honest but it is a TRIPWIRE: it tells you the run was truncated only once it
+   has already truncated it, three quarters of the way in. On 2026-08-03 a 14-agent cap met a plan
+   whose completeness loop needed more, and the run reported complete:false after spending 13 — the
+   arithmetic that predicted that was available the moment the plan existed.
+   So do the multiplication here, out loud. This does NOT refuse: a truncated run is often exactly
+   what the human wants. It just refuses to let the truncation be a surprise. */
+{
+  const skeptN   = activeLenses().length
+  const GATES    = 5                       // completeness critic + render + fat bar + reachability + merge
+  const RESERVE2 = 2                       // synthesis + one spare, mirrors spawn()'s reserve
+  const worst    = SPENT + items.length * (1 + skeptN) * MAXROUNDS + GATES + RESERVE2
+  log(`FEASIBILITY → ${items.length} item(s) x (1 build + ${skeptN} skeptic(s)) x up to ${MAXROUNDS} round(s) ` +
+      `+ ${GATES} gates + ${RESERVE2} reserved ≈ ${worst} agents worst-case, against a ceiling of ${MAX_AGENTS}.`)
+  if (worst > MAX_AGENTS) {
+    log(`⚠ THIS PLAN CANNOT FULLY FINISH inside the ceiling. It will do the most valuable work first ` +
+        `and report what it could not reach — it will NOT quietly claim completeness.`)
+    log(`  To let it finish, re-run with {maxAgents:${worst}}. To keep the ceiling, expect a partial run.`)
+    globalThis.__infeasible = { worst, cap: MAX_AGENTS, items: items.length, skeptics: skeptN }
+  }
+}
 
 // 2) THIRD-EYE
 if (USE_GROK) {
@@ -812,13 +976,33 @@ const final = await spawn(
   { model: 'opus', effort: 'high', phase: 'Synthesize', schema: FINAL_SCHEMA }
 , true)
 
+// v10 — hand the tree back before reporting. If this never runs (killed run, crash), the TTL does it.
+const released = await releaseLock()
+const didRelease = !!(released && released.key === 'released')
+if (lock && lock.acquired) {
+  log(didRelease ? '🔓 Workspace lock released.'
+                 : `⚠ Workspace lock NOT released (${(released && released.key) || 'release agent failed'}) — ` +
+                   `it self-expires after ${LOCK_TTL_MIN}m.`)
+}
+
 return {
   version: plan.version_label,
   mode,
-  quality: 'MAX (Opus everywhere · 3-architect judge panel · 3-skeptic adversarial gate · loop-until-dry)',
+  quality: `MAX (Opus everywhere · 3-architect judge panel · ${activeLenses().length}-skeptic adversarial gate · loop-until-dry)`,
   tokens_spent: budget.total ? budget.spent() : null,
   passed: passed.length,
   failed: failed.length,
+  // v12 — the size of the gate the run ACTUALLY bought, next to what MAX implies. A report that says
+  // "3-skeptic adversarial gate" over a 1-skeptic run is the report lying about its own rigour.
+  skeptics: {
+    used: activeLenses().length,
+    of: LENSES.length,
+    source: SKEPTICS_OVERRIDE !== null ? 'explicit override'
+      : (globalThis.__triage && typeof globalThis.__triage.skeptics === 'number') ? 'triage' : 'default',
+  },
+  // v11 — if the plan never fit the ceiling, that was known before building. Say so here too.
+  infeasible: globalThis.__infeasible || null,
+  lock: lock ? { acquired: !!lock.acquired, key: lock.key, released: didRelease } : null,
   // ★ a capped run must never READ as a complete one. If the ceiling trimmed the plan or stopped the
   // completeness loop, that is the first thing the report says — the alternative is a green summary
   // over work nobody did.

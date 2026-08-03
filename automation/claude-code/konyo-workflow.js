@@ -3,6 +3,7 @@ export const meta = {
   description: 'KONYO WORKFLOW, cost-scaled: Opus architects, Haiku/Sonnet build one-owner-per-file, Fable gates every merge, failed items escalate up the ladder, Opus synthesizes ONE final report.',
   whenToUse: 'ANY multi-step task you want orchestrated. It TRIAGES itself first — serial diagnosis is sent back to be done directly instead of spawning a fleet, and skeptics are only bought when being wrong is expensive. Pass {task, apply, maxRounds, budgetFloor, grok, force, skeptics}.',
   phases: [
+    { title: 'Preflight',   detail: 'workspace lock — refuse to start if another run is already editing this tree' },
     { title: 'Triage',      detail: 'right-size the run BEFORE spending: shape · parallelism · cost-of-wrong', model: 'opus' },
     { title: 'Architect',   detail: 'Opus decomposes the task into one-owner-per-file work items + tier',   model: 'opus' },
     { title: 'Third-eye',   detail: 'optional Grok consult on the plan' },
@@ -28,6 +29,15 @@ const USE_GROK  = !(A && A.grok === false)
 const FORCE     = !!(A && A.force)                 // run the fleet even if triage says do it directly
 const SKEPTICS_OVERRIDE = (A && typeof A.skeptics === 'number') ? A.skeptics : null
 const MAX_AGENTS = (A && A.maxAgents) || 24
+/* ── THE WORKSPACE LOCK (ported from max, 2026-08-03) ────────────────────────────────────────────
+   A lock only ONE of the two workflows respects is not a lock. The collision that prompted this was
+   max-vs-max on site/index.html, but a cost-scaled run editing the same tree as a max run loses work
+   exactly as thoroughly, and this workflow is the one people reach for casually. Same protocol, same
+   lock directory, so the two actually exclude each other.
+   TTL rather than a promise to release: a killed run never reaches its release, and a lock that
+   outlives its holder locks the human out of their own repo. Escape hatch {ignoreLock:true}. */
+const IGNORE_LOCK  = !!(A && A.ignoreLock)
+const LOCK_TTL_MIN = (A && A.lockTtlMinutes) || 180
 
 // ── THE CEILING (2026-08-01, ported from max after it blew a 34-cap into 119 agents / 4.1 hours) ──
 // This workflow's only bound was a SENTENCE IN A PROMPT — "Produce AT MOST N items" — which asks the
@@ -73,6 +83,22 @@ const mode = APPLY ? 'APPLY (agents edit files)' : 'DRY-RUN (agents propose diff
 // document, while the same night's hardest work — finding why CI had been red for 30 versions —
 // was solved by one process reading logs. Fan-out does not make a root cause appear faster; it
 // produces N opinions about it that still have to be checked one at a time.
+const LOCK_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['acquired', 'key'],
+  properties: {
+    acquired:      { type: 'boolean', description: 'true = this run now owns the tree' },
+    key:           { type: 'string',  description: 'the working tree this lock covers' },
+    token:         { type: 'string',  description: 'unique id written into our lock file; needed to release it' },
+    purged_stale:  { type: 'number',  description: 'how many expired locks were cleaned up' },
+    holder_token:  { type: 'string',  description: 'if not acquired: the token of the live lock' },
+    holder_since:  { type: 'string',  description: 'if not acquired: when the holder took it' },
+    holder_expires:{ type: 'string',  description: 'if not acquired: when the holder lock expires on its own' },
+    holder_task:   { type: 'string',  description: 'if not acquired: the holder task snippet' },
+  },
+}
+
 const TRIAGE_SCHEMA = {
   type: 'object', additionalProperties: false,
   required: ['shape', 'parallelism', 'cost_of_wrong', 'tier', 'est_agents', 'skeptics', 'why'],
@@ -232,6 +258,81 @@ function wantsAFile(task) {
   return /\b(write|create|save|author|produce)\b[^\n]{0,60}?\b(file|document|\.md|report to disk)\b/i.test(t)
 }
 
+// 0) PREFLIGHT — take the workspace lock BEFORE spending anything. Same lock dir as max, so the two
+// workflows genuinely exclude each other. Sonnet: this is `date`, `mkdir` and a JSON file.
+phase('Preflight')
+let lock = null
+if (APPLY) {
+  const taskSnip = TASK.slice(0, 120).replace(/\s+/g, ' ')
+  lock = await spawn(
+    `WORKSPACE LOCK — acquire. Pure mechanics, no judgement. Use Bash only.\n\n` +
+    `1. LOCKDIR="$HOME/.claude/workflows/.locks"; mkdir -p "$LOCKDIR".\n` +
+    `2. KEY = absolute path of the current working directory (\`pwd -P\`). Slugify for a filename: ` +
+    `replace every "/" with "-" and strip a leading "-". LOCKFILE="$LOCKDIR/<slug>.json".\n` +
+    `3. PURGE FIRST. NOW=$(date -u +%s) — INTEGER EPOCH SECONDS. For every *.json in "$LOCKDIR", read ` +
+    `its "expires_epoch" and delete the file if it is numerically less than $NOW, using ` +
+    `[ "$EXP" -lt "$NOW" ] — an INTEGER test. Do NOT compare ISO strings with [ a \\< b ]: that is ` +
+    `invalid under zsh, the test silently fails, and a dead lock then survives forever and locks the ` +
+    `human out of their own repo. Count deletions -> purged_stale. Malformed/unparseable counts as ` +
+    `stale — delete it too; unreadable must never mean "held".\n` +
+    `4. If "$LOCKFILE" still exists after the purge, another LIVE run owns this tree. Do NOT touch or ` +
+    `overwrite it. Return acquired:false with its token/started_at/expires_at/task as holder_token / ` +
+    `holder_since / holder_expires / holder_task.\n` +
+    `5. Otherwise WRITE "$LOCKFILE" with exactly these keys, then return acquired:true:\n` +
+    `   token         = a unique id you generate (e.g. "$(date -u +%Y%m%dT%H%M%SZ)-$RANDOM")\n` +
+    `   started_at    = now, ISO-8601 UTC (human-readable only)\n` +
+    `   expires_at    = now + ${LOCK_TTL_MIN} minutes, ISO-8601 UTC (human-readable only)\n` +
+    `   expires_epoch = $(( $(date -u +%s) + ${LOCK_TTL_MIN} * 60 ))  <- INTEGER, the field step 3\n` +
+    `                   compares. MUST be present and numeric or the lock is unpurgeable.\n` +
+    `   cwd           = the pwd from step 2\n` +
+    `   task          = ${JSON.stringify(taskSnip)}\n` +
+    `Return the token you wrote. Do not create, edit or delete anything outside "$LOCKDIR".`,
+    { model: 'sonnet', effort: 'low', phase: 'Preflight', label: 'lock:acquire', schema: LOCK_SCHEMA }
+  ).catch(() => null)
+
+  if (lock && lock.acquired === false && !IGNORE_LOCK) {
+    log(`⛔ WORKSPACE LOCKED — another run is already editing this tree.`)
+    log(`   tree     : ${lock.key}`)
+    log(`   held by  : ${lock.holder_token || '(unknown)'} since ${lock.holder_since || '(unknown)'}`)
+    log(`   its task : ${lock.holder_task || '(not recorded)'}`)
+    log(`   expires  : ${lock.holder_expires || '(unknown)'} (locks self-expire after ${LOCK_TTL_MIN}m)`)
+    log(`   Refusing to start. Two fleets editing one tree silently overwrite each other.`)
+    log(`   Wait for it, stop it, or re-run with {ignoreLock:true} if you KNOW the holder is dead.`)
+    return {
+      refused: 'workspace locked by another run',
+      lock,
+      fix: 'wait for the holder to finish, TaskStop it, or pass {ignoreLock:true} if it is dead',
+    }
+  }
+  if (lock && lock.acquired === false && IGNORE_LOCK) {
+    log(`⚠ WORKSPACE LOCKED but {ignoreLock:true} was passed — proceeding over ${lock.holder_token || '(unknown)'}. ` +
+        `If that run is alive, one of you will lose work.`)
+  }
+  if (lock && lock.acquired) {
+    log(`🔒 Workspace lock taken on ${lock.key} (expires in ${LOCK_TTL_MIN}m).` +
+        (lock.purged_stale ? ` Purged ${lock.purged_stale} stale lock(s).` : ''))
+  }
+  if (!lock) log(`⚠ Preflight lock could not be established — proceeding UNLOCKED.`)
+} else {
+  log('Preflight: dry-run writes nothing, so no workspace lock is needed.')
+}
+
+// Best-effort release; the TTL is the real guarantee.
+async function releaseLock() {
+  if (!lock || !lock.acquired || !lock.token) return null
+  return spawn(
+    `WORKSPACE LOCK — release. Bash only, no judgement.\n` +
+    `LOCKDIR="$HOME/.claude/workflows/.locks"\n` +
+    `Find the file in "$LOCKDIR" whose "token" field is exactly ${JSON.stringify(lock.token)} ` +
+    `(e.g. \`grep -l\`). Delete ONLY that file — the token match is what proves it is still OUR lock ` +
+    `and not a later run's that reused the same path. If no file carries that token, it was already ` +
+    `released or expired: change nothing and say so.\n` +
+    `Return {acquired:false, key:"released"} if you deleted it, else {acquired:false, key:"not-ours"}. ` +
+    `Touch nothing outside "$LOCKDIR".`,
+    { model: 'sonnet', effort: 'low', phase: 'Synthesize', label: 'lock:release', schema: LOCK_SCHEMA }
+  ).catch(() => null)
+}
+
 phase('Triage')
 if (!APPLY && wantsAFile(TASK)) {
   log('⚠ TRIAGE REFUSED: this is a DRY-RUN (apply:false) but the task asks agents to WRITE A FILE.')
@@ -264,6 +365,7 @@ if (triage) {
     log('⛔ TRIAGE SAYS DO THIS DIRECTLY — spawning nothing.')
     log(`  ${triage.why}`)
     log('  If you disagree, re-run with force:true.')
+    await releaseLock()          // never hold the tree on a path that does no work
     return { refused: 'triage says direct', triage, advice: 'do it in the main loop; a fleet would be slower and dearer here' }
   }
   globalThis.__triage = { ...triage, skeptics: sk }
@@ -580,9 +682,18 @@ const final = await spawn(
   { model: 'opus', effort: 'high', phase: 'Synthesize', schema: FINAL_SCHEMA }
 )
 
+const released = await releaseLock()
+const didRelease = !!(released && released.key === 'released')
+if (lock && lock.acquired) {
+  log(didRelease ? '🔓 Workspace lock released.'
+                 : `⚠ Workspace lock NOT released (${(released && released.key) || 'release agent failed'}) — ` +
+                   `it self-expires after ${LOCK_TTL_MIN}m.`)
+}
+
 return {
   version: plan.version_label,
   mode,
+  lock: lock ? { acquired: !!lock.acquired, key: lock.key, released: didRelease } : null,
   triage: globalThis.__triage || null,   // what this run was sized at, and why — visible after the fact
   rounds: round,
   tokens_spent: budget.total ? budget.spent() : null,
