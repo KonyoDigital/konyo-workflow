@@ -107,6 +107,43 @@ Full list: **[docs/SHIP_LAWS.md](./docs/SHIP_LAWS.md)**
 
 ---
 
+## Workspace lock (2026-08-03)
+
+Both Claude Code shippers open with a **Preflight** phase that takes a lock on the working
+tree before a single agent is bought. A second run in the same tree refuses immediately and
+names the holder rather than queueing.
+
+Why: two fleets editing one file silently overwrite each other and **both report green**.
+Each builder reads a whole file and writes it back, so whichever finishes second erases the
+other, and nothing in either diff or either final report reveals it.
+
+- Lock dir `~/.claude/workflows/.locks/`, keyed on `pwd`. Both shippers share it, so they
+  exclude each other — a lock only one workflow respects is not a lock.
+- **TTL, not a promise to release.** A killed run never reaches its release, and a lock that
+  outlives its holder locks you out of your own repo. Every lock carries `expires_epoch` and
+  each acquirer purges dead ones first. Release is best-effort; the TTL is the guarantee.
+- Compare expiry as **integers** (`[ "$EXP" -lt "$NOW" ]`). `[ a \< b ]` on ISO strings is
+  invalid under zsh, fails silently, and leaves a dead lock forever — the one failure mode
+  that makes a lock worse than none. Found by testing; called out in the prompt so it cannot
+  be reintroduced.
+- Overrides: `{ignoreLock:true}` only when the holder is genuinely dead, `{lockTtlMinutes:N}`.
+  Deliberately **not** folded into `force:true` — force overrules *triage*, a far cheaper
+  mistake than overwriting another fleet's work.
+
+### Parity: this is 2 of the 4 shippers
+
+The two Grok `.rhai` shippers do **not** have the lock. A Grok run and a Claude Code run can
+still collide in one tree.
+
+It is expressible there — `complete(#{...})` is the proven early exit, `phase`/`agent`/`log`
+all exist, and `capability_mode: "execute"` can write the lock file. It is not shipped because
+**there is no rhai parser on this machine**: no `cargo`, no rhai runner, and the Grok CLI has
+no workflow validate/list subcommand. Shipping an unvalidated control-flow edit into a working
+shipper risks killing it silently, which is worse than the gap it closes.
+
+To finish it, validate on a machine that can parse rhai, or run it once against a scratch repo
+and confirm the Preflight phase acquires and the run proceeds.
+
 ## Uninstall
 
 ```bash
