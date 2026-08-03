@@ -42,6 +42,26 @@ else
   fi
 fi
 
+# ---- Claude Code shippers (.js) --------------------------------------------------------------
+# 2026-08-03: these had NO install path at all. install.sh only ever handled *.rhai, so the two
+# workflows people actually run on Claude Code could be updated ONLY by hand-copying — which is
+# precisely how "the repo lags the installed copies" happens, and it is the same bug that left the
+# standard Grok shipper 145 lines behind with three blocking gates missing. Same rot, other host.
+# Claude Code registers a workflow from the meta block of any .js in ~/.claude/workflows, so
+# dropping the files there is the whole install.
+CLAUDE_DEST="${CLAUDE_WORKFLOW_HOME:-$HOME/.claude/workflows}"
+if [[ -d "$HOME/.claude" ]]; then
+  mkdir -p "$CLAUDE_DEST"
+  for f in konyo-workflow konyo-workflow-max; do
+    if [[ -f "$ROOT/automation/claude-code/${f}.js" ]]; then
+      cp "$ROOT/automation/claude-code/${f}.js" "$CLAUDE_DEST/${f}.js"
+    else
+      curl -fsSL "$BASE/automation/claude-code/${f}.js" -o "$CLAUDE_DEST/${f}.js" 2>/dev/null || true
+    fi
+  done
+  echo "   Claude Code shippers → $CLAUDE_DEST (konyo-workflow, konyo-workflow-max)"
+fi
+
 echo "✅ Konyo Workflow installed to $DEST"
 echo "   Give your AI: $DEST/SKILL.md"
 echo "   Say: Use the Konyo Workflow."
