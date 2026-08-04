@@ -411,7 +411,25 @@ function activeLenses() {
     ? SKEPTICS_OVERRIDE
     : (globalThis.__triage && typeof globalThis.__triage.skeptics === 'number')
       ? globalThis.__triage.skeptics : LENSES.length
-  return LENSES.slice(0, Math.max(0, Math.min(LENSES.length, want)))
+  /* v17 — A MAX RUN NEVER FACES AN EMPTY PANEL. Konyo: "so this also needs a safegaurds".
+     On 2026-08-04 triage returned skeptics:0 for the v1635 run, reasoning that the task's own item 1
+     WAS the skeptic pass. Defensible reasoning, wrong authority: the adversarial gate is what MAX
+     IS, the payload still advertises "3-skeptic adversarial gate", and zero lenses means every
+     built change passes unreviewed — the same end state as the v14 threshold bug, reached from the
+     other side. Triage may size the panel DOWN; it may not size it to nothing.
+     An EXPLICIT {skeptics:0} from the human is still honoured — that is a person knowingly opting
+     out, not a heuristic quietly doing it — but it is recorded so the report cannot imply a gate
+     that never sat. Everything else floors at 1. */
+  const floored = Math.max(0, Math.min(LENSES.length, want))
+  if (floored === 0 && SKEPTICS_OVERRIDE === null) {
+    if (!globalThis.__skepticFloored) {
+      globalThis.__skepticFloored = true
+      log('\u26a0 SKEPTIC FLOOR: triage asked for 0 skeptics — a MAX run does not ship unreviewed. Using 1.')
+    }
+    return LENSES.slice(0, 1)
+  }
+  if (floored === 0) globalThis.__skepticsOptedOut = true   // explicit human {skeptics:0}
+  return LENSES.slice(0, floored)
 }
 
 function adversarialGate(built) {
@@ -824,10 +842,19 @@ let critStop = null
 // round was then counted DRY — i.e. a critic shouting "that file is STILL broken" was recorded as
 // "nothing missing". They no longer make a round dry, and they are carried into the summary.
 const unbuiltGaps = []
-while (dry < DRYROUNDS && critRound < 3 && budgetOK()) {   // v5 — 6 rounds was hours of tail for diminishing finds
+/* v17 — ADAPTIVE, NOT A FIXED 3. Evidence: the v1635 run ended `spent 20 / cap 24, hit:false` with
+   FOUR agents unspent, while completeness reported `rounds:3, wentDry:false,
+   stoppedBecause:"hard 3-round cap"` and named four real gaps on the way out. The binding limit was
+   this number, not the budget — a second, blunter ceiling doing the honest one's job worse.
+   Now: loop while the critic still finds NEW work and there is non-reserved budget to build it.
+   CONVERGENCE (the reason this cannot spin): a round that surfaces no NEW file now counts as DRY
+   instead of `continue`-ing forever on gaps already owned — see the `!fresh.length` branch below.
+   CRIT_MAX stays only as an absurd backstop far above any real run. */
+const CRIT_MAX = 12
+while (dry < DRYROUNDS && critRound < CRIT_MAX && budgetOK()) {   // v5 — 6 rounds was hours of tail for diminishing finds
   // the critic can always find one more thing, and each gap costs a builder plus its skeptics —
   // so the loop asks the REAL counter, not an estimate of it
-  if (SPENT >= MAX_AGENTS) { log(`CEILING: stopping the completeness loop at ${SPENT}/${MAX_AGENTS}.`); critStop = 'ceiling'; break }
+  if (SPENT >= Math.max(1, MAX_AGENTS - 2)) { log(`CEILING: stopping the completeness loop at ${SPENT}/${MAX_AGENTS} (2 held for the report).`); critStop = 'ceiling'; break }
   critRound++
   const passed = results.filter(r => r && r.item && r.gate && r.gate.verdict === 'pass')
   const crit = await spawn(
@@ -861,7 +888,10 @@ while (dry < DRYROUNDS && critRound < 3 && budgetOK()) {   // v5 — 6 rounds wa
   if ((crit.done || !missing.length) && !filteredOut.length) {
     dry++; log(`Completeness: dry round ${dry}/${DRYROUNDS}`); continue
   }
-  if (!fresh.length) { log(`Completeness: no NEW files to own this round.`); continue }
+  /* v17 — a round that found nothing NEW is a DRY round. It used to `continue` without touching
+     `dry`, which was safe only because critRound was capped at 3; with an adaptive bound that
+     shape would loop on already-owned gaps until the ceiling ate the run. */
+  if (!fresh.length) { dry++; log(`Completeness: no NEW files to own — dry round ${dry}/${DRYROUNDS}.`); continue }
   dry = 0
   fresh.forEach(m => seen.add(m.file))
   log(`Completeness: critic found ${fresh.length} gap(s) — building`)
@@ -872,7 +902,7 @@ while (dry < DRYROUNDS && critRound < 3 && budgetOK()) {   // v5 — 6 rounds wa
 // dry" were the same silent outcome. critRound is bounded by the cap, so this cannot spin.
 if (dry < DRYROUNDS && !critStop) {
   critStop = !budgetOK() ? 'budget floor reached'
-    : critRound >= 3 ? 'hard 3-round cap'
+    : critRound >= CRIT_MAX ? `hard ${CRIT_MAX}-round backstop`
     : 'unknown'
 }
 if (critStop) log(`Completeness: NEVER WENT DRY (${dry}/${DRYROUNDS} dry rounds) — stopped because: ${critStop}`)

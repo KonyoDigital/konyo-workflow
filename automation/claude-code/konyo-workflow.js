@@ -417,7 +417,21 @@ const triage = await spawn(
 ).catch(() => null)
 
 if (triage) {
-  const sk = SKEPTICS_OVERRIDE != null ? SKEPTICS_OVERRIDE : triage.skeptics
+  /* v17 — THE SAME SKEPTIC FLOOR AS MAX. Konyo: "both of them need to be treated exactly the same!"
+     This script's schema says "0 unless cost_of_wrong is high", so a 0 here is by DESIGN — its
+     review is the Fable gate on every merge, not a panel. The floor is still worth having for the
+     same reason it is in MAX: on 2026-08-04 triage chose 0 for a run that WAS shipping code, and a
+     heuristic must not be able to remove the last independent look at a change. Triage may size the
+     panel DOWN; it may not size it to nothing. An explicit human {skeptics:0} is still honoured —
+     that is a person knowingly opting out — and is recorded so the report cannot imply a gate that
+     never sat. Cost note: this buys at most one extra agent per item on APPLY runs. */
+  let sk = SKEPTICS_OVERRIDE != null ? SKEPTICS_OVERRIDE : triage.skeptics
+  if (APPLY && sk === 0 && SKEPTICS_OVERRIDE == null) {
+    log('\u26a0 SKEPTIC FLOOR: triage asked for 0 skeptics on a run that WRITES FILES — using 1.')
+    sk = 1
+  } else if (sk === 0 && SKEPTICS_OVERRIDE != null) {
+    globalThis.__skepticsOptedOut = true
+  }
   log(`TRIAGE → ${triage.tier.toUpperCase()} · ${triage.shape} · ${triage.parallelism} · cost-of-wrong ${triage.cost_of_wrong}`)
   log(`  ≈${triage.est_agents} agents, ${sk} skeptic(s) per item — ${triage.why}`)
   if (triage.work_list_known === false) log('  (work-list unknown — scout first, then fan out over what is found)')
