@@ -1,7 +1,7 @@
 export const meta = {
   name: 'konyo-workflow',
-  description: 'KONYO WORKFLOW — ONE body. RUNS AT MAX BY DEFAULT: Opus everywhere, a 3-architect judge panel, a diverse-lens skeptic panel as THE gate, a loop-until-dry completeness critic, and the third eye (Grok — a different model family) ON. Pass {quality:"standard"} — and only that exact word — to opt DOWN to the cost-scaled ladder (Haiku/Sonnet build, Fable gates every merge, escalate on rework). Pass {thirdEye:false} to run without an independent reviewer. Every safeguard (agent ceiling, blockers, bail, render gate, LAW17, LAW19, workspace lock, skeptic floor) runs at BOTH qualities — the flag only buys model tier, panel size and extra phases.',
-  whenToUse: 'ANY multi-step task you want orchestrated — it is MAX unless you say otherwise, because being wrong usually costs more than tokens. It TRIAGES itself first, so a serial diagnosis is sent back to be done directly instead of spawning a fleet, and the ceiling + budget floor still bound every run. Opt down with {quality:"standard"} for routine, low-cost-of-wrong, easily reversible work (~10-15x cheaper). Pass {task, quality, thirdEye, apply, maxRounds, dryRounds, budgetFloor, force, skeptics, maxAgents, isolate}. `grok:false` still works as the old name for thirdEye:false.',
+  description: 'KONYO WORKFLOW — ONE body, three paths (max | fast | standard). RUNS AT MAX BY DEFAULT: Opus everywhere, a 3-architect judge panel, a diverse-lens skeptic panel as THE gate, a loop-until-dry completeness critic, and the third eye (Grok — a different model family) ON. Pass {quality:"fast"} to keep EVERY max gate while building risk:"low" items at the tier its architect asked for instead of Opus (the review is Opus either way; a failed cheap build escalates on rework). Pass {quality:"standard"} to opt DOWN to the cost-scaled ladder (Haiku/Sonnet build, Fable gates every merge, ONE architect, no completeness critic). Pass {thirdEye:false} to run without an independent reviewer. Every safeguard (agent ceiling, blockers, bail, render gate, LAW17, LAW19, workspace lock, skeptic floor) runs at BOTH qualities — the flag only buys model tier, panel size and extra phases.',
+  whenToUse: 'ANY multi-step task you want orchestrated — it is MAX unless you say otherwise, because being wrong usually costs more than tokens. It TRIAGES itself first, so a serial diagnosis is sent back to be done directly instead of spawning a fleet, and the ceiling + budget floor still bound every run. {quality:"fast"} = same gates, cheaper builders on low-risk items only. Opt all the way down with {quality:"standard"} for routine, low-cost-of-wrong, easily reversible work (~10-15x cheaper). Pass {task, quality, thirdEye, apply, maxRounds, dryRounds, budgetFloor, force, skeptics, maxAgents, isolate}. `grok:false` still works as the old name for thirdEye:false.',
   phases: [
     { title: 'Preflight',   detail: 'workspace lock — refuse to start if another run is already editing this tree' },
     { title: 'Triage',      detail: 'right-size the run BEFORE spending: shape · parallelism · cost-of-wrong', model: 'opus' },
@@ -46,15 +46,36 @@ if (typeof A === 'string') { try { A = JSON.parse(A) } catch { A = { task: A } }
    'cheap', 'fast') resolves to MAX — the failure mode of a misread flag must be an expensive run,
    never a quiet one that the caller believes was maxed. And the fallback is SAID OUT LOUD below:
    a quality you did not ask for is exactly the kind of fact that reads as consent when it is silent. */
-const QUALITY_ASKED = (A && typeof A.quality === 'string') ? A.quality.trim().toLowerCase() : null
-const QUALITY = (QUALITY_ASKED === 'standard' || globalThis.__KONYO_QUALITY === 'standard') ? 'standard' : 'max'
-const QUALITY_TYPO = !!(QUALITY_ASKED && QUALITY_ASKED !== 'standard' && QUALITY_ASKED !== 'max')
-const MAXQ    = QUALITY === 'max'
+const QUALITY_ASKED = (A && typeof A.quality === 'string') ? A.quality.trim().toLowerCase()
+                    : (typeof globalThis.__KONYO_QUALITY === 'string' ? globalThis.__KONYO_QUALITY : null)
+const KNOWN_QUALITIES = ['max', 'fast', 'standard']
+const QUALITY = KNOWN_QUALITIES.includes(QUALITY_ASKED) ? QUALITY_ASKED : 'max'
+const QUALITY_TYPO = !!(QUALITY_ASKED && !KNOWN_QUALITIES.includes(QUALITY_ASKED))
+/* v19 — FAST IS MAX WITH ITS EYES OPEN ABOUT TIER, NOT MAX WITH FEWER GATES.
+   Measured on the first real max run (D2R console queue, 2026-08-04): the ceremony everyone assumes
+   is the overhead — lock, triage, three architects — took 3.5 minutes of a 36-minute run. Cutting it
+   would buy nothing. The time is in BUILDERS and SKEPTICS, and the critical path is whichever agent
+   owns the biggest file.
+   What max actually wastes is INFORMATION IT ALREADY HAS: the architect tags every item with a
+   `risk`, and then tierFor() overrides all of it to Opus-everywhere, so a `#hd-forge-chips` grid
+   fix and a CASC binary re-extraction are built identically.
+   So `fast` keeps EVERY gate max has — the 3-architect panel, the skeptic panel AS the gate, the
+   completeness critic, the render gate, LAW17, LAW19, feasibility — and changes exactly one thing:
+   a `risk:'low'` item is built at the tier its architect asked for instead of at Opus. Anything
+   medium or high risk, and anything with no risk tag at all, still gets Opus. A low-risk item that
+   FAILS its gate escalates on rework like any other, so the cheap tier is a first attempt, never a
+   final answer. Nothing about the review changes — the skeptics reading the diff are Opus either way. */
+const MAXQ    = QUALITY === 'max' || QUALITY === 'fast'   // every max-only GATE applies to fast too
+const FASTQ   = QUALITY === 'fast'
 const TASK      = typeof A === 'string' ? A : (A && A.task) || ''
 const APPLY     = !!(A && A.apply)                 // false = dry-run (propose diffs, write nothing). true = agents edit files.
 // Quality-dependent DEFAULTS preserve each original script's default exactly; an explicit caller arg
 // always wins over both.
-const MAXROUNDS = (A && A.maxRounds) || (MAXQ ? 2 : 3)
+/* v19 — FAST BUYS ONE ATTEMPT, NOT TWO. Rework is the single biggest multiplier on wall-clock:
+   every item can be built, gated, and built again. At fast the first failure is REPORTED instead of
+   retried, which is honest (failed items already force an INCOMPLETE verdict) and halves the worst
+   case. Max keeps its second attempt. */
+const MAXROUNDS = (A && A.maxRounds) || (FASTQ ? 1 : MAXQ ? 2 : 3)
 const DRYROUNDS = (A && A.dryRounds) || 1          // consumed only by the max-only completeness loop
 const FLOOR     = (A && A.budgetFloor) || (MAXQ ? 120_000 : 60_000)  // stop opening new rounds under this many tokens remaining
 /* v18 — THE THIRD EYE IS A FIRST-CLASS FLAG, ON BY DEFAULT, AND IT MEANS A DIFFERENT MODEL FAMILY.
@@ -299,8 +320,13 @@ const bump = (tier) => LADDER[Math.min(LADDER.indexOf(tier) + 1, LADDER.length -
 // forces Opus everywhere, which is what konyo-workflow-max.js did by hardcoding 'opus' at every call
 // site. Note bump('opus') === 'opus', so at max the escalation ladder is a harmless no-op and needs
 // no branch of its own — the rework round still happens, it just cannot escalate further.
-const tierFor = (t) => MAXQ ? 'opus' : (t || 'sonnet')
-const effortFor = (tier) => MAXQ ? 'high' : tier === 'opus' ? 'high' : tier === 'sonnet' ? 'medium' : 'low'
+const tierFor = (t, risk) => FASTQ
+  // fast: honour the architect's tier ONLY where it also called the blast radius low. No risk tag
+  // means no permission — an untagged item is treated as risky, because "unknown" is not "low".
+  ? (risk === 'low' ? (t || 'sonnet') : 'opus')
+  : MAXQ ? 'opus' : (t || 'sonnet')
+const effortFor = (tier) => (MAXQ && !FASTQ) ? 'high'
+  : tier === 'opus' ? 'high' : tier === 'sonnet' ? 'medium' : 'low'
 const budgetOK = () => !budget.total || budget.remaining() > FLOOR
 const mode = APPLY ? 'APPLY (agents edit files)' : 'DRY-RUN (agents propose diffs, nothing written)'
 
@@ -480,7 +506,7 @@ const CRAFT_RULES =
   `answer, because nothing catches it unless something compares them.`
 
 function buildAgent(item, reworkNote) {
-  const tier = tierFor(item.tier)          // standard: the plan's own tier. max: Opus, always.
+  const tier = tierFor(item.tier, item.risk)   // standard: the plan's tier. max: Opus always. fast: Opus unless risk=low.
   const rw = reworkNote
     ? `\n\n${MAXQ ? 'SKEPTICS REFUTED' : 'FABLE GATE REJECTED'} THE LAST ATTEMPT — address ALL of this: ${reworkNote}`
     : ''
@@ -760,9 +786,9 @@ log(`KONYO WORKFLOW [${QUALITY.toUpperCase()}] · ${mode} · budget floor ${Math
     (ISOLATE ? ' · ISOLATE+MERGE' : '') +
     ` · third eye ${THIRD_EYE === 'off' ? 'OFF' : THIRD_EYE === 'claude' ? 'CLAUDE STAND-IN (degraded)' : 'ON (grok)'}`)
 // v18 — a flag we did not understand must never be a silent downgrade.
-if (QUALITY_TYPO) log(`⚠ quality:"${QUALITY_ASKED}" is not a quality this workflow knows. ` +
-    `Ran at MAX. The only value that buys the cheap ladder is exactly "standard".`)
-if (MAXQ && !A?.quality) log('   (max is the default — pass {quality:"standard"} for the cost-scaled run)')
+if (QUALITY_TYPO) log(`⚠ quality:"${QUALITY_ASKED}" is not a quality this workflow knows ` +
+    `(max | fast | standard). Ran at MAX — an unrecognised flag fails EXPENSIVE, never quiet.`)
+if (MAXQ && !FASTQ && !A?.quality) log('   (max is the default — {quality:"fast"} keeps every gate but builds low-risk items cheaper; {quality:"standard"} is the cost-scaled ladder)')
 
 // 0) TRIAGE — decide the size of the run before buying any of it.
 //
@@ -936,7 +962,13 @@ if (triage) {
 // The quality only changes how many candidates are bought, which the detail string says.
 phase('Architect')
 let plan = null
-if (MAXQ) {
+/* v19 — THE PANEL IS A BARRIER, AND FAST DOES NOT PAY FOR IT. Three architects plus a judge is four
+   agents and a serial round: nothing starts building until the slowest candidate AND the judge are
+   done (measured 13:14:50 -> 13:17:46 on the first max run). Fast buys ONE architect — and the plan
+   is still independently read, because the third eye reviews it before a builder spends anything.
+   That is a different MODEL FAMILY looking at the plan, which is a stronger check than a second
+   Claude candidate anyway. */
+if (MAXQ && !FASTQ) {
   const ANGLES = [
     'RISK-FIRST: order items by blast radius; isolate the highest-risk change and make it the most defensively specified.',
     'CORRECTNESS-FIRST: decompose so each item has a single, testable, unambiguous fix; no item bundles two concerns.',
@@ -1211,7 +1243,13 @@ const unbuiltGaps = []
    CONVERGENCE (why this cannot spin): a round that surfaces no NEW file counts as DRY instead of
    continuing forever on gaps already owned. CRIT_MAX is an absurd backstop far above any real run. */
 const CRIT_MAX = 12
-if (MAXQ) {
+/* v19 — THE COMPLETENESS LOOP IS THE OTHER LONG TAIL, AND FAST DOES NOT BUY IT. On the measured max
+   run it opened at 13:39 of a run that started at 13:14 and can add whole build+gate rounds after
+   every item has already passed. It is the right thing to buy when being wrong is expensive; it is
+   the wrong thing to buy when the caller asked for speed. Skipped at fast, and REPORTED as skipped
+   with its reason — never silently, because "no gaps found" and "nobody looked for gaps" must not
+   read the same. Fast therefore cannot claim completeness, and its verdict clause below reflects it. */
+if (MAXQ && !FASTQ) {
   phase('Completeness')
   while (dry < DRYROUNDS && critRound < CRIT_MAX && budgetOK()) {
     // the critic can always find one more thing, and each gap costs a builder plus its skeptics —
@@ -1684,7 +1722,10 @@ return emit({
      ABORTED. A field that answers correctly only on failure is the null-reads-as-pass defect wearing
      a different hat. The token is now the field; the prose is a separate label. */
   quality: QUALITY,
-  quality_label: MAXQ
+  quality_label: FASTQ
+    ? `FAST (every MAX gate · 3-architect judge panel · ${SKEPTICS}-skeptic adversarial gate · loop-until-dry · ` +
+      `low-risk items built at the architect's tier instead of Opus)`
+    : MAXQ
     ? `MAX (Opus everywhere · 3-architect judge panel · ${SKEPTICS}-skeptic adversarial gate · loop-until-dry)`
     : `STANDARD (cost-scaled ladder · single Opus architect · Fable merge gate${SKEPTICS ? ` · ${SKEPTICS}-skeptic panel` : ' · no skeptics'})`,
   knobs: {
@@ -1692,8 +1733,9 @@ return emit({
     maxRounds: MAXROUNDS,
     dryRounds: DRYROUNDS,
     floor: FLOOR,
-    tierPolicy: MAXQ ? 'opus everywhere' : 'cost-scaled ladder (haiku→sonnet→opus, escalate on rework)',
-    judgePanel: MAXQ ? '3 architects + judge' : 'single architect',
+    tierPolicy: FASTQ ? "opus, EXCEPT risk:'low' items which build at the architect's tier (escalate on rework)"
+      : MAXQ ? 'opus everywhere' : 'cost-scaled ladder (haiku→sonnet→opus, escalate on rework)',
+    judgePanel: (MAXQ && !FASTQ) ? '3 architects + judge' : 'single architect',
     gateKind: MAXQ ? 'adversarial skeptic panel (the panel IS the gate)' : 'fable merge gate + skeptic panel behind it',
     isolate: ISOLATE,
     skeptics: { used: SKEPTICS, of: LENSES.length, source: SKEPTICS_SOURCE },
@@ -1704,10 +1746,12 @@ return emit({
   rework: { rounds: round, maxRounds: MAXROUNDS, stopped_because: reworkStop },
   skeptics: { used: SKEPTICS, of: LENSES.length, source: SKEPTICS_SOURCE,
               opted_out: !!globalThis.__skepticsOptedOut, floored: !!globalThis.__skepticFloored },
-  completeness: MAXQ
+  completeness: (MAXQ && !FASTQ)
     ? { ran: true, rounds: critRound, dry, required: DRYROUNDS, wentDry: dry >= DRYROUNDS,
         stoppedBecause: critStop, unbuiltGaps }
-    : { ran: false, reason: 'quality=standard — the completeness critic is a max-only phase and was never bought' },
+    : { ran: false, reason: FASTQ
+        ? 'quality=fast — the completeness critic was deliberately not bought (it is the run\'s longest tail). Nothing hunted for work nobody did; re-run at quality:"max" if that matters.'
+        : 'quality=standard — the completeness critic is a max-only phase and was never bought' },
   infeasible: globalThis.__infeasible || null,
   /* v18.4 — REPORT THE SPEND, ALWAYS. This read `budget.total ? budget.spent() : null`, so unless a
      caller had set an explicit token target the run reported tokens_spent:null — while budget.spent()
@@ -1729,13 +1773,13 @@ return emit({
   // above says so out loud, so it cannot be mistaken for a loop that ran and went dry.
   verdict: BLOCKERS.length ? 'BLOCKED — see blockers[]'
     : CEILING_HIT ? 'UNVERIFIED — the agent ceiling stopped the run early'
-    : (MAXQ && (dry < DRYROUNDS || unbuiltGaps.length)) ? 'UNVERIFIED — the completeness critic never went dry (' + (critStop || 'gaps raised but never built') + ')'
+    : (MAXQ && !FASTQ && (dry < DRYROUNDS || unbuiltGaps.length)) ? 'UNVERIFIED — the completeness critic never went dry (' + (critStop || 'gaps raised but never built') + ')'
     : trimmedFromPlan.length ? 'PARTIAL — ' + trimmedFromPlan.length + ' item(s) were trimmed from the plan to fit the ceiling'
     : failed.length ? 'INCOMPLETE — ' + failed.length + ' item(s) never passed the gate'
     : SPAWN_ERRORS.length ? 'DEGRADED — some agents died; their work is missing, not failed'
     : 'OK',
   shippable: !BLOCKERS.length && !CEILING_HIT && !trimmedFromPlan.length && !failed.length
-    && !SPAWN_ERRORS.length && (!MAXQ || (dry >= DRYROUNDS && !unbuiltGaps.length)),
+    && !SPAWN_ERRORS.length && (!MAXQ || FASTQ || (dry >= DRYROUNDS && !unbuiltGaps.length)),
   passed: passed.length,
   failed: failed.length,
   render_gate: renderGate,
