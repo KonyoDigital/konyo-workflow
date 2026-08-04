@@ -5,14 +5,14 @@ export const meta = {
   phases: [
     { title: 'Preflight',   detail: 'workspace lock — refuse to start if another run is already editing this tree' },
     { title: 'Triage',      detail: 'right-size the run BEFORE spending: shape · parallelism · cost-of-wrong', model: 'opus' },
-    { title: 'Architect',   detail: 'Opus decomposes the task into one-owner-per-file work items + tier',   model: 'opus' },
-    { title: 'Architect panel', detail: '(max only) 3 Opus architects (risk / correctness / simplest lenses) + Opus judge → one plan', model: 'opus' },
+    { title: 'Architect',   detail: '(quality:"standard" only) ONE Opus architect decomposes the task into one-owner-per-file work items + tier',   model: 'opus' },
+    { title: 'Architect panel', detail: 'THE DEFAULT PATH — 3 Opus architects (risk / correctness / simplest lenses) + an Opus judge → one plan', model: 'opus' },
     { title: 'Third-eye',   detail: 'seat 1 of 4 — Grok (a DIFFERENT model family) reviews the chosen plan before a builder spends anything; seats 2-4 sit on the skeptic panel, the render gate and the pre-ship verdict' },
-    { title: 'Build+Gate',  detail: 'Haiku/Sonnet (Opus at max) build each item; Fable gates it immediately (no barrier)' },
-    { title: 'Adversarial gate', detail: '(max only) diverse-lens Opus skeptics ARE the gate; majority-refute kills the change', model: 'opus' },
+    { title: 'Build+Gate',  detail: 'Opus builds each item (Haiku/Sonnet at quality:"standard"); one owner per file, gated immediately, no barrier' },
+    { title: 'Adversarial gate', detail: 'THE DEFAULT PATH — diverse-lens Opus skeptics ARE the gate (floor 2, one seat is the third eye); majority-refute kills the change', model: 'opus' },
     { title: 'Rework',      detail: 'failed items escalate one tier up and re-gate, version-per-round' },
     { title: 'Merge',       detail: '(isolate mode only) applies each worktree patch to the REAL repo, one at a time, git apply --check first', model: 'opus' },
-    { title: 'Completeness',detail: '(max only) Opus critic hunts for missed work; loop until N dry rounds', model: 'opus' },
+    { title: 'Completeness',detail: 'THE DEFAULT PATH — an Opus critic hunts for work nobody did; loops until N dry rounds (skipped at quality:"standard")', model: 'opus' },
     { title: 'Render gate', detail: 'drives the REAL UI — hit-testable controls + SCREENSHOT-BACKED geometry (non-zero boxes, no clipping/overflow, text vs background, no overlap); failure BLOCKS the ship' },
     { title: 'Fat version bar', detail: 'LAW17 — >=3 user-visible outcomes in one theme OR one structural bug with root cause+verify+prevention; a thin ship BLOCKS' },
     { title: 'Reachability',   detail: 'LAW19 — every symbol the change added has a caller AND a writer; added tests proven to have RUN; failure BLOCKS', model: 'opus' },
@@ -541,13 +541,30 @@ function activeLenses() {
      standard run floors at 1 whenever it is APPLYing, which is when being unreviewed can cost
      something. An EXPLICIT {skeptics:0} from a human is still honoured — that is a person knowingly
      opting out — and is RECORDED so the report cannot imply a gate that never sat. */
-  if (floored === 0 && SKEPTICS_OVERRIDE === null && (MAXQ || APPLY)) {
+  /* v18 — THE MAX FLOOR IS 2, NOT 1, AND THE REASON IS ARITHMETIC. Measured on the first real v18
+     run (D2R console queue, 2026-08-04): triage read eight already-diagnosed fixes as
+     `cost_of_wrong: low` and asked for ZERO skeptics — on a run that re-extracts binary game art
+     and restructures a column. The v17 floor caught it, but flooring to ONE leaves a gate that is
+     technically able to refuse and practically toothless:
+       · a 1-seat panel is one opinion, and `refutedN * 2 > cast` means that single voice decides
+         alone — no corroboration, which is the whole point of a panel;
+       · the third eye only takes a seat when the panel has >= 2 (so a dead transport can never
+         empty a floor panel), so a 1-seat floor silently costs MAX its MODEL DIVERSITY too —
+         the one thing a same-family panel cannot buy at any size.
+     At 2 seats a refusal needs 2 votes, and one of those seats is Grok. That is the smallest panel
+     that is still a panel. Standard keeps the 1-seat floor: its gate is Fable on every merge, and
+     its whole point is to be cheap.
+     An EXPLICIT {skeptics:N} from a human ALWAYS wins, including 0 and 1 — a person knowingly
+     opting out is not a heuristic under-buying, and it is RECORDED either way. */
+  const FLOOR_N = MAXQ ? Math.min(2, LENSES.length) : 1
+  if (SKEPTICS_OVERRIDE === null && floored < FLOOR_N && (MAXQ || APPLY)) {
     if (!globalThis.__skepticFloored) {
       globalThis.__skepticFloored = true
-      log('⚠ SKEPTIC FLOOR: triage asked for 0 skeptics on a run that ' +
-          (MAXQ ? 'is MAX quality' : 'WRITES FILES') + ' — a change does not ship unreviewed. Using 1.')
+      log(`⚠ SKEPTIC FLOOR: triage asked for ${floored} skeptic(s) on a run that ` +
+          (MAXQ ? 'is MAX quality' : 'WRITES FILES') + ` — a change does not ship unreviewed. Using ${FLOOR_N}.` +
+          (MAXQ && FLOOR_N === 2 ? ' (2 is the MAX floor: a refusal needs corroboration, and the third eye needs a seat.)' : ''))
     }
-    return LENSES.slice(0, 1)
+    return LENSES.slice(0, FLOOR_N)
   }
   if (floored === 0 && SKEPTICS_OVERRIDE !== null) globalThis.__skepticsOptedOut = true
   return LENSES.slice(0, floored)
@@ -858,29 +875,33 @@ if (triage) {
      panel DOWN; it may not size it to nothing. An explicit human {skeptics:0} is still honoured —
      that is a person knowingly opting out — and is recorded so the report cannot imply a gate that
      never sat. Cost note: this buys at most one extra agent per item on APPLY runs. */
-  let sk = SKEPTICS_OVERRIDE != null ? SKEPTICS_OVERRIDE : triage.skeptics
-  if (APPLY && sk === 0 && SKEPTICS_OVERRIDE == null) {
-    log('\u26a0 SKEPTIC FLOOR: triage asked for 0 skeptics on a run that WRITES FILES — using 1.')
-    sk = 1
-    // The floor has TWO sites — here, and activeLenses() for the case where triage died or the run
-    // is MAX. Both must set the same flag, or the payload reports floored:false over a floored run,
-    // which is the same "true in the data, absent from the summary" defect the blocker ledger exists
-    // to kill.
-    globalThis.__skepticFloored = true
-  } else if (sk === 0 && SKEPTICS_OVERRIDE != null) {
-    globalThis.__skepticsOptedOut = true
-  }
-  log(`TRIAGE → ${triage.tier.toUpperCase()} · ${triage.shape} · ${triage.parallelism} · cost-of-wrong ${triage.cost_of_wrong}`)
-  log(`  ≈${triage.est_agents} agents, ${sk} skeptic(s) per item — ${triage.why}`)
-  if (triage.work_list_known === false) log('  (work-list unknown — scout first, then fan out over what is found)')
+  /* v18 — ONE FLOOR, ONE AUTHORITY, AND THE RAW ASK SURVIVES.
+     There were TWO floors: this site (which flattened any 0 to 1) and activeLenses() (the real,
+     quality-aware floor). Two implementations of one rule is precisely the drift this merge exists
+     to end — and on the FIRST REAL v18 run they disagreed OUT LOUD: the logs said "using 1" and
+     "TRIAGE BOUGHT 1 SKEPTIC(S)" while the panel that actually sat was 2.
+     Worse, this site OVERWROTE triage.skeptics with its own floored value, destroying the raw ask,
+     so nothing downstream could tell "triage wanted 0 and was floored" from "triage wanted 1".
+     activeLenses() is now the ONLY floor. This site records what triage ASKED for, and announces
+     what will ACTUALLY sit. */
+  const skAsked = triage.skeptics
+  const sk = SKEPTICS_OVERRIDE != null ? SKEPTICS_OVERRIDE : skAsked
+  if (sk === 0 && SKEPTICS_OVERRIDE != null) globalThis.__skepticsOptedOut = true
+  log(`TRIAGE \u2192 ${triage.tier.toUpperCase()} \u00b7 ${triage.shape} \u00b7 ${triage.parallelism} \u00b7 cost-of-wrong ${triage.cost_of_wrong}`)
+  if (triage.work_list_known === false) log('  (work-list unknown \u2014 scout first, then fan out over what is found)')
   if (triage.tier === 'direct' && !FORCE) {
-    log('⛔ TRIAGE SAYS DO THIS DIRECTLY — spawning nothing.')
+    log('\u26d4 TRIAGE SAYS DO THIS DIRECTLY \u2014 spawning nothing.')
     log(`  ${triage.why}`)
     log('  If you disagree, re-run with force:true.')
     await releaseLock()          // never hold the tree on a path that does no work
-    return bail({ refused: 'triage says direct', triage, advice: 'do it in the main loop; a fleet would be slower and dearer here', verdict: 'NOT RUN — triage judged this cheaper in the main loop; nothing was attempted' })
+    return bail({ refused: 'triage says direct', triage, advice: 'do it in the main loop; a fleet would be slower and dearer here', verdict: 'NOT RUN \u2014 triage judged this cheaper in the main loop; nothing was attempted' })
   }
-  globalThis.__triage = { ...triage, skeptics: sk }
+  globalThis.__triage = { ...triage, skeptics: sk, skeptics_asked: skAsked }
+  // Ask the single authority what will really sit, so the number announced is the number that
+  // reviews the code. activeLenses() emits its own floor warning, once.
+  const skEff = activeLenses().length
+  log(`  \u2248${triage.est_agents} agents, ${skEff} skeptic(s) per item` +
+      (skEff !== sk ? ` (triage asked for ${skAsked})` : '') + ` \u2014 ${triage.why}`)
 }
 
 // 1) ARCHITECT — one Opus architect at standard, a 3-angle panel + judge at max.
@@ -1040,15 +1061,19 @@ else log(`No skeptics this run (source: ${SKEPTICS_SOURCE}) — NOTHING will try
    time to kill the run and re-run it properly. */
 {
   const _tri = globalThis.__triage
-  const _sk = _tri && typeof _tri.skeptics === 'number' ? _tri.skeptics : null
+  // v18 — the RAW ask, not the post-floor number. Reporting the floored value made the warning say
+  // "TRIAGE BOUGHT 1, NOT 3" when triage had actually asked for 0 and the floor had seated 2 —
+  // three different numbers, and the log named the only one that was true of nothing.
+  const _sk = _tri && typeof _tri.skeptics_asked === 'number' ? _tri.skeptics_asked
+            : (_tri && typeof _tri.skeptics === 'number' ? _tri.skeptics : null)
   /* The override branch must swallow the whole case, not just the case where the numbers differ:
      a human who asked for {skeptics:1} chose it, and warning them that "triage bought 1, not 3" is
      crying wolf at their own decision. Only an UNASKED-FOR reduction is worth a warning. */
   if (SKEPTICS_OVERRIDE !== null) {
     if (_sk !== null && _sk !== SKEPTICS_OVERRIDE) log(`SKEPTICS → ${SKEPTICS_OVERRIDE} by explicit override (triage wanted ${_sk}).`)
   } else if (MAXQ && _sk !== null && _sk < LENSES.length) {
-    log(`⚠ TRIAGE BOUGHT ${_sk} SKEPTIC(S), NOT ${LENSES.length} — this is a MAX run at MAX prices ` +
-        `with a reduced adversarial gate.`)
+    log(`⚠ TRIAGE ASKED FOR ${_sk} SKEPTIC(S), NOT ${LENSES.length} — this is a MAX run at MAX prices ` +
+        `with a reduced adversarial gate. The floor seated ${SKEPTICS}.`)
     log(`  Its reason: ${_tri.why || '(none given)'}`)
     log(`  If being wrong here is expensive, stop and re-run with {skeptics:${LENSES.length}}.`)
   }
@@ -1612,7 +1637,15 @@ if (lock && lock.acquired) {
 return emit({
   version: plan.version_label,
   mode,
-  quality: MAXQ
+  /* v18 — ONE SHAPE ON BOTH EXIT PATHS. Caught by the completeness critic of the very run that
+     built this merge: bail() returned `quality: QUALITY` (the machine token 'max'|'standard') while
+     the SUCCESS path returned `quality:` as a PROSE SENTENCE, with the machine value buried in
+     knobs.quality. So `result.quality === 'max'` — the exact check this merge told callers to use to
+     prove a max run was really bought — was FALSE on every successful run and TRUE only when the run
+     ABORTED. A field that answers correctly only on failure is the null-reads-as-pass defect wearing
+     a different hat. The token is now the field; the prose is a separate label. */
+  quality: QUALITY,
+  quality_label: MAXQ
     ? `MAX (Opus everywhere · 3-architect judge panel · ${SKEPTICS}-skeptic adversarial gate · loop-until-dry)`
     : `STANDARD (cost-scaled ladder · single Opus architect · Fable merge gate${SKEPTICS ? ` · ${SKEPTICS}-skeptic panel` : ' · no skeptics'})`,
   knobs: {
