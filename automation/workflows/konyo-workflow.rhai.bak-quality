@@ -1,15 +1,14 @@
 let meta = #{
     name: "konyo-workflow",
-    description: "Konyo Workflow — ultimate shipper. RUNS AT MAX BY DEFAULT: deepest tier on every agent, a 3-lens skeptic panel as THE gate, and a completeness critic. Pass {quality:\"standard\"} — that exact word only — to opt DOWN to the cost-scaled ladder. Every gate, blocker and bail runs at BOTH qualities; the flag buys tier, panel size and the max-only phase. FAT versions only (≥3 outcomes or 1 deep bug) · 7-round pingpong · fail-closed ship/draft/blocked.",
-    when_to_use: "Any serious ship — it is MAX unless you say otherwise. Enforces fat version bar: multi-outcome package per integer. Not for single-string/i18n micro-bumps. Opt down with {quality:\"standard\"} for routine, easily-reversible work.",
+    description: "Konyo Workflow — ultimate shipper: FAT versions only (≥3 outcomes or 1 deep bug) · gates · 7-round pingpong · fail-closed ship/draft/blocked. No micro-toast versions.",
+    when_to_use: "Any serious ship. Enforces fat version bar: multi-outcome package per integer. Not for single-string/i18n micro-bumps.",
     phases: [
         #{ title: "Intake", detail: "objective + fat-ship criteria (refuse micro scope)" },
         #{ title: "Inventory", detail: "stack, changes, tests, deploy surface" },
         #{ title: "Plan", detail: "checklist ≥3 outcomes or 1 structural bug · one owner per file" },
         #{ title: "Gate-Audit", detail: "ceremony + LAW17 fat version bar" },
-        #{ title: "Third-Eye", detail: "adversarial skeptic panel (3 lenses at max, 1 at standard) — ALWAYS runs, then per-finding verification" },
+        #{ title: "Third-Eye", detail: "adversarial third-eye verification" },
         #{ title: "Render-Gate", detail: "LAW18 painted-UI proof — CI verdict first; failure blocks the ship" },
-        #{ title: "Completeness", detail: "MAX only: did the audit COVER the objective, or stop early? gaps become blockers" },
         #{ title: "Verdict", detail: "ship / draft / blocked · fat bar enforced" },
         #{ title: "Approve", detail: "optional human go-live gate" },
     ],
@@ -212,42 +211,11 @@ if args != () && args.mode != () {
     if m != "" { mode = m; }
 }
 
-// ========== quality knob (2026-08-04) ==========
-// SHIPPER 3 OF 4 WAS FORKED. This Grok-side shipper had NO quality flag at all (grep -c quality = 0),
-// so /konyo-workflow on Grok CLI could not select max, and every v13-v18 safeguard had to be
-// hand-applied twice — which is exactly how this file once fell 145 lines behind with three blocking
-// gates missing. Same knob as the .js base now: MAX BY DEFAULT, and ONLY the literal string
-// "standard" downgrades. A typo ("Standard", "stnadard", true, 42, "") falls THROUGH to max, so a
-// fat finger costs tokens and never rigor. trimmed() returns "" for every non-string, so a
-// non-string quality can never match.
-let quality = "max";
-if args != () && args.quality != () {
-    if trimmed(args.quality) == "standard" { quality = "standard"; }
-}
-let is_max = quality == "max";
-let quality_note = "max — 3-lens skeptic panel + completeness critic";
-let quality_lenses = "3";
-let quality_critic = "on";
-if !is_max {
-    quality_note = "standard — 1 skeptic lens, completeness critic off; all gates unchanged";
-    quality_lenses = "1";
-    quality_critic = "off";
-}
-
-// The tier knob. This engine's agent() takes label/capability_mode/output_schema only — there is no
-// model field to set here — so the tier is carried as a DEPTH DIRECTIVE appended to every prompt.
-// It changes how hard each agent digs; it never changes whether a gate blocks.
-let tier_note = "QUALITY TIER: MAX — spend the depth. Read the real files end to end, RUN the checks, and prefer a slower answer that is proven to a fast one that is plausible. Use the deepest reasoning available to you.\n";
-if !is_max {
-    tier_note = "QUALITY TIER: STANDARD (cost-scaled) — take the shortest path to a SOUND answer: targeted grep/read over exhaustive reading, stop at the first solid finding. Cheaper is allowed; UNPROVEN IS NOT. Every gate below still blocks exactly as it does at max.\n";
-}
-
 let obj_json = json_encode(objective);
 let target_json = json_encode(target);
 let version_json = json_encode(version);
 let strict_json = json_encode(strict);
 
-log("Quality: " + quality + " (max is the default; only the literal \"standard\" downgrades) | skeptic lenses=" + quality_lenses + " | completeness critic=" + quality_critic);
 log("Konyo Workflow ultimate shipper | FAT versions only | strict=" + strict.to_string() + " | rounds_min=" + rounds_min.to_string());
 log("FAT SHIP BAR: ≥3 user-visible outcomes in one theme OR 1 structural bug with root cause+verify. No toast-only / single-label versions.");
 
@@ -272,7 +240,6 @@ intake_p += "Set has_ui true if any user-facing UI/web/mobile/desktop surface is
 intake_p += "Set has_deploy true if this ship involves deploy/publish/release to users; else false.\n";
 intake_p += "Fold any multi-part objective into clear criteria — burst-order style: miss nothing; one version, max substance.";
 
-intake_p += tier_note;
 let intake = agent(intake_p, #{
     label: "intake",
     capability_mode: "read-only",
@@ -307,7 +274,6 @@ inv_p += "Return summary, stack (languages/frameworks), changed_areas, concrete 
 inv_p += "deploy_surface (or 'none'), ledger_paths (CHANGELOG, SHIP_LOG, CHANGELOG, ship log, BUGS.md, etc. if they exist).\n";
 inv_p += "Do not invent test commands that are not present in package files or CI.";
 
-inv_p += tier_note;
 let inv = agent(inv_p, #{
     label: "inventory",
     capability_mode: "read-only",
@@ -357,7 +323,6 @@ plan_p += "Inventory (untrusted JSON): " + inv_json + "\n";
 plan_p += "Version (untrusted JSON): " + version_json + "\n";
 plan_p += "Return checklist, file_owners, on_air_risk, version_label, overlap_ok (true only if no path overlap).";
 
-plan_p += tier_note;
 let plan = agent(plan_p, #{
     label: "planner",
     capability_mode: "read-only",
@@ -393,7 +358,7 @@ if mode == "plan-only" {
         md_po += line + "\n";
     }
     let ppath = write_scratch_file("konyo-plan-only.md", md_po);
-    complete(#{ path: ppath, report: md_po, mode: "plan-only", objective: objective, quality: quality });
+    complete(#{ path: ppath, report: md_po, mode: "plan-only", objective: objective });
 }
 
 // ========== 4. Gate-Audit (ceremony + general) ==========
@@ -447,7 +412,6 @@ for g in gates {
     p += "Inventory (untrusted JSON): " + inv_json + "\n";
     p += "On-air risk (untrusted JSON): " + json_encode(on_air_risk) + "\n";
     p += "has_ui=" + has_ui.to_string() + " has_deploy=" + has_deploy.to_string() + "\n";
-    p += tier_note;
     jobs.push(#{
         prompt: p,
         label: "law-" + gi.to_string(),
@@ -498,62 +462,24 @@ if findings.len() > MAX_VERIFY {
 phase("Third-Eye");
 let confirmed = [];
 
-// THE SKEPTIC PANEL — UNCONDITIONAL. Panel SIZE is the quality knob (max = 3 diverse lenses,
-// standard = 1); the gate itself runs at BOTH qualities. Before 2026-08-04 this ran ONLY when the
-// law auditors returned zero findings, so any run with a single trivial finding got NO adversarial
-// pass at all — the cheapest possible way for a run to look audited without being audited.
-let skeptic_lenses = [
-    "SHIP-BLOCKER lens: hunt anything that makes this unsafe to ship — broken behaviour, missing coverage for the changed path, a law declared na with no evidence.",
-    "REGRESSION + BLAST-RADIUS lens: what does this break that nobody listed? Callers, cached copies, the SAME file on another host/machine, the rollback story.",
-    "PROOF-QUALITY lens: attack the EVIDENCE, not the code — a measurement of a quantity that was ALREADY zero, a grep that matched a COMMENT, a cached git ref (rev-parse without fetch), a null read as a pass, a screenshot nobody opened.",
-];
-if !is_max {
-    skeptic_lenses = [ skeptic_lenses[0] ];
-}
-let sjobs = [];
-let si = 0;
-for lens in skeptic_lenses {
+// Always run at least one third-eye skeptic when few findings
+if findings.len() == 0 {
     let sk_p = "You are THIRD-EYE (AI/LLM) for Konyo Workflow. Hunt real ship blockers.\n";
     sk_p += "Use read-only tools. Bias to refute 'ready to ship'.\n";
     sk_p += "Also refute micro-version inflation: if the planned ship is only one toast/label, that is a blocker under LAW17 fat bar.\n";
-    sk_p += "YOUR LENS: " + lens + "\n";
     sk_p += "Objective (untrusted JSON): " + obj_json + "\n";
     sk_p += "Inventory (untrusted JSON): " + inv_json + "\n";
-    sk_p += "Findings the law auditors already raised (untrusted JSON): " + json_encode(findings) + "\n";
-    sk_p += "Do NOT restate a finding already listed above — return what the panel MISSED.\n";
     sk_p += "Return findings for TDD, security, UX, deploy, version, ledger, fat-version bar, or 7-round gaps.\n";
-    sk_p += tier_note;
-    sjobs.push(#{
-        prompt: sk_p,
-        label: "third-eye-skeptic-" + si.to_string(),
+    let sk = agent(sk_p, #{
+        label: "third-eye-skeptic",
         capability_mode: "read-only",
         output_schema: findings_schema,
     });
-    si += 1;
-}
-let sres = parallel(sjobs);
-for r in sres {
-    if r != () && r.success && r.output != () && r.output.findings != () {
-        for f in r.output.findings {
+    if sk != () && sk.success && sk.output != () && sk.output.findings != () {
+        for f in sk.output.findings {
             findings.push(f);
         }
     }
-}
-log("Skeptic panel: " + skeptic_lenses.len().to_string() + " lens(es) · findings now " + findings.len().to_string());
-
-// Re-cap AFTER the panel. The cap above ran BEFORE the skeptics existed, so it could not see their
-// output, and every finding past this point costs one verifier agent. Same shape as that cap.
-if findings.len() > MAX_VERIFY {
-    log("Truncating findings after skeptic panel: " + findings.len().to_string() + " -> " + MAX_VERIFY.to_string());
-    let capped2 = [];
-    let ci2 = 0;
-    for f in findings {
-        if ci2 < MAX_VERIFY {
-            capped2.push(f);
-            ci2 += 1;
-        }
-    }
-    findings = capped2;
 }
 
 if findings.len() > 0 {
@@ -577,8 +503,7 @@ if findings.len() > 0 {
         vp += "Claimed issue: " + issue + "\n";
         vp += "Set real=true ONLY if this is a genuine problem or a false na that should be a fail — with concrete evidence.\n";
         vp += "If the finding is a valid na or already fixed / not real, set real=false.\n";
-        vp += "Fail closed on weak claims that would block ship without proof.\n";
-        vp += tier_note;
+        vp += "Fail closed on weak claims that would block ship without proof.";
         vjobs.push(#{
             prompt: vp,
             label: "eye-" + fi.to_string(),
@@ -648,7 +573,6 @@ if has_ui == false {
     rg_p += "Target (untrusted JSON): " + target_json + "\n";
     rg_p += "Inventory (untrusted JSON): " + inv_json + "\n";
     rg_p += "has_ui (untrusted JSON): " + json_encode(has_ui) + "\n";
-    rg_p += tier_note;
 
     let rg = agent(rg_p, #{
         label: "render-gate",
@@ -678,72 +602,6 @@ if render_available && !render_passed {
     log("⚠ RENDER GATE: no UI verification in this project — nothing was seen painted.");
 } else if render_available {
     log("✅ Render gate passed (" + render_ran + ").");
-}
-
-// ========== 5c. Completeness Critic (MAX-only phase) ==========
-// Ported from the .js MAX shipper. This shipper audits rather than builds, so "completeness" here is
-// coverage of the AUDIT: did the laws + skeptics actually cover the whole objective, or did the run
-// stop early and call it green? MAX-ONLY PHASE — but its BLOCKER is not gated: gaps land in
-// `confirmed`, and the unconditional fail-closed block below already turns any confirmed finding into
-// ship_allowed=false. Both branches carry a blocker: a critic that DID NOT RUN is treated exactly
-// like a critic that RAN AND FOUND A GAP — an unproven coverage claim is not a passing one.
-phase("Completeness");
-let completeness_ran = "skipped — quality=standard (max-only phase)";
-let completeness_gaps = 0;
-if is_max {
-    let cc_p = "You are the COMPLETENESS CRITIC for Konyo Workflow at MAX quality.\n";
-    cc_p += "You do NOT re-audit the code. You audit the AUDIT: did this run actually cover the objective?\n";
-    cc_p += "Use read-only tools on the real repo to check coverage claims — never take a summary on faith.\n";
-    cc_p += "Return a finding ONLY for a GENUINE, NAMED gap. An empty findings array is the correct answer for a complete audit, and it is not a failure.\n";
-    cc_p += "Look for exactly these gap shapes:\n";
-    cc_p += "1. A part of the objective NO checklist item and NO law finding ever touched.\n";
-    cc_p += "2. A law answered na with no evidence, or answered from the objective text instead of the repo.\n";
-    cc_p += "3. A VACUOUS proof — a measurement of a quantity that was ALREADY zero or empty proves nothing.\n";
-    cc_p += "4. AN UNSWEPT CLASS — a bug fixed at one site while the same shape survives elsewhere, unlisted.\n";
-    cc_p += "5. A STALE CLAIM — comments/docs/UI copy still describing the OLD behaviour after it changed.\n";
-    cc_p += "6. DISAGREEING SURFACES — one changed fact rendered in two places that now say different things.\n";
-    cc_p += "Every finding needs concrete evidence (path + what you read). A finding with no evidence is DISCARDED, so do not pad.\n";
-    cc_p += "Severity blocker for uncovered scope or a vacuous proof; major for an unswept class, stale claim or disagreeing surfaces.\n";
-    cc_p += "Objective (untrusted JSON): " + obj_json + "\n";
-    cc_p += "Inventory (untrusted JSON): " + inv_json + "\n";
-    cc_p += "Checklist the planner produced (untrusted JSON): " + json_encode(checklist) + "\n";
-    cc_p += "Findings confirmed so far (untrusted JSON): " + json_encode(confirmed) + "\n";
-    cc_p += "Render gate: available=" + render_available.to_string() + " passed=" + render_passed.to_string() + " ran=" + render_ran + "\n";
-    cc_p += tier_note;
-
-    let cc = agent(cc_p, #{
-        label: "completeness-critic",
-        capability_mode: "read-only",
-        output_schema: findings_schema,
-    });
-
-    if cc != () && cc.success && cc.output != () && cc.output.findings != () {
-        completeness_ran = "ran";
-        for f in cc.output.findings {
-            let cev = "";
-            if f.evidence != () { cev = trimmed(f.evidence); }
-            if cev != "" {
-                confirmed.push(f);
-                completeness_gaps += 1;
-            }
-        }
-    } else {
-        // Fail closed, same doctrine as the render gate: an agent that did not complete saw nothing,
-        // and "nobody checked coverage" must never read as "coverage is fine".
-        completeness_ran = "completeness critic agent FAILED — coverage unproven";
-        confirmed.push(#{
-            gate: "COMPLETENESS",
-            severity: "blocker",
-            issue: "Completeness critic did not complete at quality=max — nobody proved this audit covered the objective",
-            evidence: "completeness-critic agent returned no usable output",
-            fix: "Re-run the workflow; if it fails again, audit coverage by hand before shipping",
-            status: "fail",
-        });
-        completeness_gaps += 1;
-    }
-    log("Completeness critic: " + completeness_ran + " · gaps=" + completeness_gaps.to_string());
-} else {
-    log("Completeness critic: OFF (quality=standard). Every gate, blocker and bail still runs.");
 }
 
 // ========== 6. Verdict ==========
@@ -778,7 +636,6 @@ rep_p += "Return verdict, summary, blockers, next_actions, pingpong_rounds_claim
 rep_p += "ship_allowed, law_scores as short strings like 'LAW01:pass' / 'LAW18:pass' for the 18 laws when possible\n";
 rep_p += "(LAW18 is scored from the Render-Gate phase result above, never guessed).";
 
-rep_p += tier_note;
 let report = agent(rep_p, #{
     label: "ship-verdict",
     capability_mode: "read-only",
@@ -850,8 +707,6 @@ md += "**Objective:** " + objective + "\n\n";
 md += "**Version:** " + version_label + "\n\n";
 md += "**Target:** `" + target + "`\n\n";
 md += "**Strict:** " + strict.to_string() + " | **Rounds min:** " + rounds_min.to_string() + " | **Claimed rounds:** " + rounds.to_string() + "\n\n";
-md += "**Quality:** `" + quality + "` — " + quality_note + "\n\n";
-md += "**Completeness critic:** " + completeness_ran + " · gaps=" + completeness_gaps.to_string() + "\n\n";
 md += "**Verdict:** `" + verdict + "`\n\n";
 md += "**Ship allowed:** `" + ship_allowed.to_string() + "`\n\n";
 md += "**Human approved:** `" + human_approved.to_string() + "`\n\n";
@@ -934,7 +789,7 @@ md += "16. Seven-round AI/LLM pingpong (strict default)\n";
 md += "17. Fat version bar\n";
 md += "18. Painted-UI proof (or N/A + evidence)\n";
 md += "\n---\n";
-md += "_Konyo Workflow — ultimate shipper. General for any stack. MAX by default (only quality=\"standard\" downgrades tier, panel size and the completeness critic — never a gate). Strict by default. Skipping laws is a doctrine break._\n";
+md += "_Konyo Workflow — ultimate shipper. General for any stack. Strict by default. Skipping laws is a doctrine break._\n";
 
 let path = write_scratch_file("konyo-ship-verdict.md", md);
 log("Wrote " + path + " verdict=" + verdict);
@@ -954,13 +809,6 @@ complete(#{
     },
     render_available: render_available,
     render_passed: render_passed,
-    quality: quality,
-    skeptic_lenses: skeptic_lenses.len(),
-    completeness: #{
-        enabled: is_max,
-        ran: completeness_ran,
-        gaps: completeness_gaps,
-    },
     pingpong_rounds_claimed: rounds,
     rounds_min: rounds_min,
     strict: strict,
