@@ -62,7 +62,7 @@ function spawn(prompt, opts, reserved) {
   // v13 — a dying agent must not kill the run; see konyo-workflow-max.js for the full account.
   // agent() can THROW (the token ceiling does, by contract), and most call sites await spawn()
   // with no catch of their own, so one rejection unwound the entire script.
-  return agent(String(prompt || '') + PACE, opts).catch(err => {
+  return agent(String(prompt || '') + PACE + PROOF, opts).catch(err => {
     SPAWN_ERRORS.push(String((err && err.message) || err).slice(0, 200))
     log(`⚠ AGENT FAILED (${SPAWN_ERRORS.length} so far): ${String((err && err.message) || err).slice(0, 140)}`)
     return null
@@ -107,6 +107,25 @@ const PACE = '\n\nWORK BRISKLY — this run is budgeted. Prefer targeted grep/se
   + 'calls. A good answer now beats a perfect one in twenty minutes. If you genuinely cannot settle a '
   + 'point inside that budget, SAY SO in your result instead of spending more — an honest "not '
   + 'established" is worth more than a slow guess.'
+
+// v16 — THE PROXY BAN, attached to EVERY agent prompt beside PACE. Three separate bugs in one day
+// were the same mistake wearing different clothes: checking a cheap stand-in for a fact instead of
+// the fact. (1) `naturalWidth > 0` and "the path resolves" were accepted as proof an IMAGE was
+// correct — art/mephisto_graphic.png contains a soulstone and survived months of green gates.
+// (2) `git rev-parse origin/main` was read as "what GitHub has" — it is a CACHED ref and answers
+// "what I last fetched", so a commit that WAS pushed was reported as unpushed. (3) A gate that
+// returned null was read as a gate that passed. Each proxy was true and each conclusion was false.
+// This is cheap to state and expensive to keep re-learning, so every agent carries it.
+const PROOF = '\n\nVERIFY THE THING, NOT A PROXY FOR IT. Before you assert something is true, ask what '
+  + 'you actually measured. Named traps, all of which have produced a WRONG confident answer in this '
+  + 'project: an IMAGE is only correct if you OPENED it and saw what it depicts (naturalWidth>0, a '
+  + 'resolving path, a filename, a hash and a file size are NOT evidence of content); REMOTE git state '
+  + 'requires `git fetch` first or `git ls-remote` (`git rev-parse origin/...` is a cached ref and '
+  + 'answers what you last saw); a test proves nothing until you have seen it FAIL on a deliberately '
+  + 'broken version; a NULL/absent result is never a passing result; and "the file changed" is not '
+  + '"the running system changed" when anything caches. If you could not verify the thing itself, say '
+  + 'so in your result — an explicit "not established" is worth more than a confident proxy.'
+
 
 const LADDER = ['haiku', 'sonnet', 'opus']               // the cost-scaling ladder
 const bump = (tier) => LADDER[Math.min(LADDER.indexOf(tier) + 1, LADDER.length - 1)] || 'sonnet'
