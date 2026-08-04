@@ -5,8 +5,7 @@ export const meta = {
   phases: [
     { title: 'Preflight',   detail: 'workspace lock — refuse to start if another run is already editing this tree' },
     { title: 'Triage',      detail: 'right-size the run BEFORE spending: shape · parallelism · cost-of-wrong', model: 'opus' },
-    { title: 'Architect',   detail: '(quality:"standard" only) ONE Opus architect decomposes the task into one-owner-per-file work items + tier',   model: 'opus' },
-    { title: 'Architect panel', detail: 'THE DEFAULT PATH — 3 Opus architects (risk / correctness / simplest lenses) + an Opus judge → one plan', model: 'opus' },
+    { title: 'Architect',   detail: 'decide the plan — 3 Opus architects (risk / correctness / simplest lenses) + an Opus judge by default; ONE architect at quality:"standard". One owner per file either way.', model: 'opus' },
     { title: 'Third-eye',   detail: 'seat 1 of 4 — Grok (a DIFFERENT model family) reviews the chosen plan before a builder spends anything; seats 2-4 sit on the skeptic panel, the render gate and the pre-ship verdict' },
     { title: 'Build+Gate',  detail: 'Opus builds each item (Haiku/Sonnet at quality:"standard"); one owner per file, gated immediately, no barrier' },
     { title: 'Adversarial gate', detail: 'THE DEFAULT PATH — diverse-lens Opus skeptics ARE the gate (floor 2, one seat is the third eye); majority-refute kills the change', model: 'opus' },
@@ -707,7 +706,12 @@ async function buildAndGate(itemsIn, label) {
     const failing = res.filter(x => x.gate && x.gate.verdict === 'rework')
     if (!failing.length) break
     r++
-    phase(`Rework r${r}`)
+    // v18.2 — PLAIN, NOT TEMPLATED. `phase(`Rework r${r}`)` opened a group named 'Rework r1'
+    // while this round's builders carry `phase:'Rework'` (line ~489) — so the box the phase
+    // opened was always EMPTY and the builders landed in a second box beside it. A templated
+    // title can also never match a meta entry, which must be a static literal. The round is
+    // already visible in the version label and in every agent's own label.
+    phase('Rework')
     log(`${label}: round ${r} — ${failing.length} item(s) failed the gate → escalating up the ladder`)
     const redone = await pipeline(
       failing,
@@ -908,7 +912,12 @@ if (triage) {
 // BOTH branches assign the SAME `plan`, BOTH bail() when no plan comes back, and BOTH fall through
 // into the SAME one-owner-per-file dedupe and the SAME trim. The panel is an EXTRA PHASE, not a
 // different pipeline.
-phase(MAXQ ? 'Architect panel' : 'Architect')
+// v18.2 — ONE TITLE FOR ONE STEP. This used to open 'Architect panel' at max and 'Architect'
+// at standard, so meta had to declare BOTH — and whichever one the run did not take sat in
+// the progress tree forever as a phase that never happened. Since max is now the DEFAULT,
+// that dead row appeared on almost every run. It is one step either way: decide the plan.
+// The quality only changes how many candidates are bought, which the detail string says.
+phase('Architect')
 let plan = null
 if (MAXQ) {
   const ANGLES = [
@@ -925,7 +934,7 @@ if (MAXQ) {
         ? `\nTRIAGE SIZED THIS RUN at about ${globalThis.__triage.est_agents} agents. Produce AT MOST ` +
           `${Math.max(1, Math.min(24, globalThis.__triage.est_agents))} items.\n` : '') +
       `\n${FAT_LAW}\n\nTASK: ${TASK}`,
-      { model: 'opus', effort: 'high', label: `architect:${i + 1}`, phase: 'Architect panel', schema: PLAN_SCHEMA }
+      { model: 'opus', effort: 'high', label: `architect:${i + 1}`, phase: 'Architect', schema: PLAN_SCHEMA }
     ).catch(() => null)
   ))).filter(Boolean)
   if (!candidatePlans.length) { log('No architect produced a plan.'); return bail({ error: 'no plan' }) }
@@ -938,7 +947,7 @@ if (MAXQ) {
     `"why" rather than stamping a version on a one-liner.\n\n` +
     `TASK: ${TASK}\n\nCANDIDATES:\n${candidatePlans.map((p, i) => `--- Plan ${i + 1} (${p.version_label}) ---\n` +
       (p.items || []).map(it => `- [${it.risk || '?'}] ${it.file}: ${it.instruction}`).join('\n')).join('\n\n')}`,
-    { model: 'opus', effort: 'high', phase: 'Architect panel', schema: JUDGE_SCHEMA }
+    { model: 'opus', effort: 'high', label: 'architect:judge', phase: 'Architect', schema: JUDGE_SCHEMA }
   )
   if (plan === null) { log('CEILING: no budget for the judge.'); return bail({ error: 'ceiling' }) }
 } else {
