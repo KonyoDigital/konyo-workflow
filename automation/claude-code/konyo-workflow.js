@@ -2166,7 +2166,17 @@ return emit({
      become the most-printed sentence in the system. It also contradicted TWO fields in its OWN object:
      knobs.judgePanel said 'single architect' and completeness.ran said false. Two surfaces, two
      answers, and nothing compared them. */
-  quality_label: LEANQ
+  /* v22.1 — TINY DESCRIBED ITSELF AS MAX. These report branches switch on LEANQ and fall through to
+     the MAX prose, so the very first real tiny run returned
+     quality_label:"MAX (Opus everywhere · 3-architect judge panel · loop-until-dry)" for a run that
+     built at SONNET, bought no panel and no critic. That is the v20 defect exactly, reintroduced by
+     me: v22 named the concept for the GATES (MAXONLY) and left the REPORTING switching on LEANQ, so
+     adding a quality broke every prose branch at once. A payload that misnames the run is worse than
+     a missing field — it is confidently wrong about what was bought. */
+  quality_label: TINYQ
+    ? `TINY (every ship gate · NO triage/architect/completeness/synthesizer · ${SKEPTICS}-skeptic ` +
+      `adversarial gate · sonnet builders unless risk:high · reachability ‖ render gate)`
+    : LEANQ
     ? `LEAN (every MAX gate · ONE architect, no judge panel · ${SKEPTICS}-skeptic adversarial gate · ` +
       `${MAXROUNDS} rework round(s) · NO completeness critic · ` +
       `low-risk items built at their architect's tier, floored at sonnet)`
@@ -2178,7 +2188,8 @@ return emit({
     maxRounds: MAXROUNDS,
     dryRounds: DRYROUNDS,
     floor: FLOOR,
-    tierPolicy: LEANQ ? "opus, EXCEPT risk:'low' items which build at the architect's tier floored at SONNET (never haiku)"
+    tierPolicy: TINYQ ? "sonnet, EXCEPT risk:'high' items which build at opus (the caller named the site, so the builder is not deciding WHAT to do)"
+      : LEANQ ? "opus, EXCEPT risk:'low' items which build at the architect's tier floored at SONNET (never haiku)"
       : MAXQ ? 'opus everywhere' : 'cost-scaled ladder (haiku→sonnet→opus, escalate on rework)',
     /* v20.1 — REPORT THE SIZE THAT WAS BOUGHT, not the size the flag used to imply. The panel is now
        sized from triage (see ARCH_N at the Architect phase), so a hardcoded "3 architects + judge"
@@ -2212,6 +2223,8 @@ return emit({
         stoppedBecause: critStop, unbuiltGaps }
     : { ran: false, reason: LEANQ
         ? 'quality=lean — the completeness critic was deliberately not bought (it is the run\'s longest tail). Nothing hunted for work nobody did; re-run at quality:"max" if that matters.'
+        : TINYQ
+        ? 'quality=tiny — the completeness critic is deliberately not bought: it is the longest tail in the file and a <=4-item brief has no hidden scope to hunt. Nothing looked for work nobody did.'
         : 'quality=standard — the completeness critic is a max-only phase and was never bought' },
   infeasible: globalThis.__infeasible || null,
   /* v18.4 — REPORT THE SPEND, ALWAYS. This read `budget.total ? budget.spent() : null`, so unless a
