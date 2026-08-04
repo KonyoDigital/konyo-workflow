@@ -274,6 +274,18 @@ const THIRD_EYE_SCHEMA = {
     concerns:  { type: 'array', items: { type: 'string' }, description: 'verbatim points it raised; [] if none' },
     severity:  { type: 'string', enum: ['none', 'minor', 'major', 'blocking'] },
     reason:    { type: 'string', description: 'if unreachable, the ACTUAL error text — not a guess' },
+    /* v19.3 — PROVE THE TRANSPORT RAN. Konyo, looking at a Sonnet courier on the pre-ship seat:
+       "sonnet is the right model here at the end?" Right for the ROLE — this agent relays, it does
+       not judge — but the question exposed a hole the model choice cannot fix: NOTHING verified that
+       the reply came from Grok. A courier whose CLI call failed could return reached:true with its
+       own opinion, and the payload would report an independent different-family review that never
+       happened. The prompt forbids it in capitals; an instruction is not a guarantee, and the whole
+       value of this phase is that the words are NOT Claude's. So the seat must now carry evidence:
+       the command it ran and the raw head of stdout. Checked below — reached:true without evidence
+       is downgraded to NOT reached, because an unverifiable claim of independence is worth less than
+       an honest empty seat. */
+    command:   { type: 'string', description: 'REQUIRED when reached=true: the exact command line you ran, e.g. the full grok invocation' },
+    raw_head:  { type: 'string', description: 'REQUIRED when reached=true: the first ~200 characters of the transport RAW stdout, verbatim, before any tidying' },
   },
 }
 // How every seat talks to Grok. Written once so four seats cannot drift apart.
@@ -296,7 +308,11 @@ function grokHow(question, opts = {}) {
     `empty seat honestly reported is the correct outcome when the transport is down; a Claude opinion ` +
     `wearing a Grok label is the one outcome that destroys the entire point of this phase.\n` +
     `\n──── QUESTION TO SEND ────\n${question}\n──── END QUESTION ────\n` +
-    `\nReturn Grok's answer: concerns[] verbatim from its reply (or [] if it raised none).`
+    `\nReturn Grok's answer: concerns[] verbatim from its reply (or [] if it raised none).\n` +
+    `EVIDENCE IS MANDATORY when you claim reached=true: put the EXACT command you ran in \`command\`, `+
+    `and the first ~200 characters of its RAW stdout, verbatim and untidied, in \`raw_head\`. A seat `+
+    `that claims it reached another model without showing what it ran is RECORDED AS NOT REACHED, `+
+    `because the only thing this phase sells is that the words are not yours.`
   )
 }
 // One consult. Records itself in the ledger no matter how it ends.
@@ -320,7 +336,19 @@ async function thirdEyeAsk(seat, question, phaseName, opts = {}) {
     reason: `the courier agent died: ${err && err.message ? err.message : String(err)}` }))
   const rec = { seat, ran: true, reached: !!(r && r.reached), transport: (r && r.transport) || 'none',
     verdict: (r && r.verdict) || 'unreachable', concerns: (r && r.concerns) || [],
-    severity: (r && r.severity) || 'none', reason: (r && r.reason) || '' }
+    severity: (r && r.severity) || 'none', reason: (r && r.reason) || '',
+    command: (r && r.command) || '', raw_head: (r && r.raw_head) || '' }
+  /* v19.3 — AN UNPROVEN INDEPENDENT REVIEW IS NOT AN INDEPENDENT REVIEW. If the seat claims it
+     reached a different model but cannot show the command it ran and the raw stdout it got back,
+     it is recorded as NOT reached. That is deliberately harsher than "trust the courier": the only
+     thing this phase sells is that the words came from outside Claude, so a claim of independence
+     that cannot be evidenced is exactly the proxy PROOF exists to refuse. */
+  if (rec.reached && rec.transport !== 'claude-standin' &&
+      !(String(rec.command).trim() && String(rec.raw_head).trim())) {
+    rec.reached = false
+    rec.reason = 'claimed ' + rec.transport + ' but produced no command/raw stdout as evidence — ' +
+      'an unverifiable independent review is recorded as no review. ' + (rec.reason || '')
+  }
   // A stand-in is never counted as the real thing, whatever it reports about itself.
   if (standin) { rec.reached = false; rec.transport = 'claude-standin' }
   THIRD_EYE_SEATS.push(rec)
