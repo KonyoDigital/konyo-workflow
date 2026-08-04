@@ -46,19 +46,56 @@ const LOCK_TTL_MIN = (A && A.lockTtlMinutes) || 180
 // COUNT THE SPAWNS. Check at the moment of spending, which is the only place a ceiling can hold.
 let SPENT = 0
 let CEILING_HIT = false
-function spawn(prompt, opts) {
-  if (SPENT >= MAX_AGENTS) {
+function spawn(prompt, opts, reserved) {
+  // RESERVED spawns may use the last agents (parity with konyo-workflow-max.js). A capped run that
+  // cannot afford its own lock RELEASE or its own synthesis spends everything and reports NOTHING —
+  // and worse, leaves the tree locked until the TTL expires, locking Konyo out for 180 minutes.
+  const cap = reserved ? MAX_AGENTS : Math.max(1, MAX_AGENTS - 2)
+  if (SPENT >= cap) {
     if (!CEILING_HIT) {
       CEILING_HIT = true
-      log(`⛔ CEILING: ${SPENT}/${MAX_AGENTS} agents spent — refusing every further spawn.`)
+      log(`⛔ CEILING: ${SPENT}/${MAX_AGENTS} agents spent (2 held back for the report + lock release) — refusing every further spawn.`)
     }
     return Promise.resolve(null)
   }
   SPENT++
-  return agent(String(prompt || '') + PACE, opts)
+  // v13 — a dying agent must not kill the run; see konyo-workflow-max.js for the full account.
+  // agent() can THROW (the token ceiling does, by contract), and most call sites await spawn()
+  // with no catch of their own, so one rejection unwound the entire script.
+  return agent(String(prompt || '') + PACE, opts).catch(err => {
+    SPAWN_ERRORS.push(String((err && err.message) || err).slice(0, 200))
+    log(`⚠ AGENT FAILED (${SPAWN_ERRORS.length} so far): ${String((err && err.message) || err).slice(0, 140)}`)
+    return null
+  })
 }
 
-if (!TASK) { log('No task given. Pass a task string or {task:"..."} as args.'); return { error: 'no task' } }
+// v13 — THE BLOCKER LEDGER. A gate written `if (gate && gate.failed)` does NOT block when the gate
+// is null (never ran / ceiling refused it / agent died) — every branch is skipped and the run
+// reports success. A gate that did not run is not a gate that passed.
+const BLOCKERS = []
+const SPAWN_ERRORS = []
+function blocker(what, why) {
+  BLOCKERS.push({ what, why })
+  log(`⛔ BLOCKER — ${what}: ${why}`)
+}
+// v13 — EVERY EXIT CARRIES A VERDICT. The smoke test that validated this very patch exited through
+// the "no plan" early return and came back with NO verdict and NO shippable field at all, because
+// those fields existed only on the single happy-path return at the bottom of the script. A caller
+// checking result.shippable got `undefined`. Undefined is falsy, so it happened not to read as a
+// green light — but "accidentally not wrong" is not a safeguard, and it is the same shape as the
+// bug this patch exists to kill: a fact that is true in the payload and absent from the summary.
+// Defaults first, so a caller can override the verdict for a deliberate, non-failing exit.
+function bail(o) {
+  return Object.assign({
+    blockers: BLOCKERS,
+    agent_errors: SPAWN_ERRORS,
+    ceiling: { cap: MAX_AGENTS, spent: SPENT, hit: CEILING_HIT },
+    verdict: 'ABORTED — the run exited before completing; see error/refused',
+    shippable: false,
+  }, o)
+}
+
+if (!TASK) { log('No task given. Pass a task string or {task:"..."} as args.'); return bail({ error: 'no task' }) }
 
 // v5 (Konyo: "so it doesnt get stuck hours by default too") — THE PACE CLAUSE.
 // v4 bounded how MANY agents run; nothing bounded how long each one takes, and that is where the
@@ -287,7 +324,8 @@ if (APPLY) {
     `   cwd           = the pwd from step 2\n` +
     `   task          = ${JSON.stringify(taskSnip)}\n` +
     `Return the token you wrote. Do not create, edit or delete anything outside "$LOCKDIR".`,
-    { model: 'sonnet', effort: 'low', phase: 'Preflight', label: 'lock:acquire', schema: LOCK_SCHEMA }
+    { model: 'sonnet', effort: 'low', phase: 'Preflight', label: 'lock:acquire', schema: LOCK_SCHEMA },
+    true                              // reserved: the lock is taken before anything else spends
   ).catch(() => null)
 
   if (lock && lock.acquired === false && !IGNORE_LOCK) {
@@ -298,11 +336,13 @@ if (APPLY) {
     log(`   expires  : ${lock.holder_expires || '(unknown)'} (locks self-expire after ${LOCK_TTL_MIN}m)`)
     log(`   Refusing to start. Two fleets editing one tree silently overwrite each other.`)
     log(`   Wait for it, stop it, or re-run with {ignoreLock:true} if you KNOW the holder is dead.`)
-    return {
+    // v13 defect #4 — every exit routes through bail(), or it carries no verdict and no shippable.
+    return bail({
       refused: 'workspace locked by another run',
       lock,
       fix: 'wait for the holder to finish, TaskStop it, or pass {ignoreLock:true} if it is dead',
-    }
+      verdict: 'NOT RUN — refused at preflight; another run holds this tree',
+    })
   }
   if (lock && lock.acquired === false && IGNORE_LOCK) {
     log(`⚠ WORKSPACE LOCKED but {ignoreLock:true} was passed — proceeding over ${lock.holder_token || '(unknown)'}. ` +
@@ -329,7 +369,8 @@ async function releaseLock() {
     `released or expired: change nothing and say so.\n` +
     `Return {acquired:false, key:"released"} if you deleted it, else {acquired:false, key:"not-ours"}. ` +
     `Touch nothing outside "$LOCKDIR".`,
-    { model: 'sonnet', effort: 'low', phase: 'Synthesize', label: 'lock:release', schema: LOCK_SCHEMA }
+    { model: 'sonnet', effort: 'low', phase: 'Synthesize', label: 'lock:release', schema: LOCK_SCHEMA },
+    true                              // reserved: a ceiling that eats the release locks the tree for the whole TTL
   ).catch(() => null)
 }
 
@@ -338,7 +379,7 @@ if (!APPLY && wantsAFile(TASK)) {
   log('⚠ TRIAGE REFUSED: this is a DRY-RUN (apply:false) but the task asks agents to WRITE A FILE.')
   log('  Nothing can satisfy that, so every item would fail its gate and rework would multiply.')
   log('  Re-run with apply:true, or ask for the content in the RESULT instead of on disk.')
-  return { refused: 'dry-run with a file-shaped deliverable', fix: 'apply:true, or drop the file deliverable' }
+  return bail({ refused: 'dry-run with a file-shaped deliverable', fix: 'apply:true, or drop the file deliverable' })
 }
 
 const triage = await spawn(
@@ -366,7 +407,7 @@ if (triage) {
     log(`  ${triage.why}`)
     log('  If you disagree, re-run with force:true.')
     await releaseLock()          // never hold the tree on a path that does no work
-    return { refused: 'triage says direct', triage, advice: 'do it in the main loop; a fleet would be slower and dearer here' }
+    return bail({ refused: 'triage says direct', triage, advice: 'do it in the main loop; a fleet would be slower and dearer here', verdict: 'NOT RUN — triage judged this cheaper in the main loop; nothing was attempted' })
   }
   globalThis.__triage = { ...triage, skeptics: sk }
 }
@@ -393,18 +434,22 @@ const plan = await spawn(
   `\nTASK: ${TASK}`,
   { model: 'opus', effort: 'high', phase: 'Architect', schema: PLAN_SCHEMA }
 )
-if (plan === null) { log('CEILING: no budget for the plan.'); return { error: 'ceiling', ceiling: { cap: MAX_AGENTS, spent: SPENT, hit: CEILING_HIT } } }
-if (!plan || !plan.items) { log('Architect produced no plan.'); return { error: 'no plan' } }
+if (plan === null) { log('CEILING: no budget for the plan.'); return bail({ error: 'ceiling' }) }
+if (!plan || !plan.items) { log('Architect produced no plan.'); return bail({ error: 'no plan' }) }
 
 // one-owner-per-file guarantee
 const seen = new Set()
 let items = plan.items.filter(it => { const k = it.file; if (seen.has(k)) return false; seen.add(k); return it })
 // Triage's number is a CEILING, not a suggestion — an architect that returns 23 items for a job
 // triaged at 6 is how a planning doc turns into a hundred agents. Trim, and say so out loud.
+// Saying it out loud in the LOG is not saying it in the SUMMARY: a trimmed plan used to return
+// ceiling.complete=true, so a run that dropped planned work read as a run that finished it.
+const trimmedFromPlan = []
 if (globalThis.__triage && globalThis.__triage.est_agents) {
   const cap = Math.max(1, Math.min(24, globalThis.__triage.est_agents))
   if (items.length > cap) {
     log(`TRIAGE CAP: architect returned ${items.length} items, triage sized this at ${cap} — trimming to ${cap}.`)
+    for (const dropped of items.slice(cap)) trimmedFromPlan.push(dropped.file)
     items = items.slice(0, cap)
   }
 }
@@ -427,9 +472,17 @@ if (USE_GROK) {
 // 3) BUILD + GATE (pipeline, no barrier — each item gates the moment its build lands)
 // Skeptics ride along ONLY when triage judged the cost of being wrong high. On the run that found
 // two real counting bugs in a time-tracker they earned their keep; on a CSS fix they are pure spend.
-const SKEPTICS = (globalThis.__triage && globalThis.__triage.skeptics) || 0
+// An EXPLICIT {skeptics:N} must survive a dead triage agent: SKEPTICS_OVERRIDE is only folded into
+// __triage inside `if (triage)`, so when triage returned null the user's own request evaporated and
+// the run bought no adversarial gate at all — silently.
+const SKEPTICS = SKEPTICS_OVERRIDE != null
+  ? SKEPTICS_OVERRIDE
+  : ((globalThis.__triage && globalThis.__triage.skeptics) || 0)
+const SKEPTICS_SOURCE = SKEPTICS_OVERRIDE != null ? 'explicit'
+  : ((globalThis.__triage && typeof globalThis.__triage.skeptics === 'number') ? 'triage' : 'default')
 phase('Build+Gate')
-if (SKEPTICS > 0) log(`Cost-of-wrong is high → ${SKEPTICS} skeptic(s) will try to REFUTE each passing item.`)
+if (SKEPTICS > 0) log(`Cost-of-wrong is high → ${SKEPTICS} skeptic(s) will try to REFUTE each passing item (source: ${SKEPTICS_SOURCE}).`)
+else log(`No skeptics this run (source: ${SKEPTICS_SOURCE}) — NOTHING will try to refute a passing item.`)
 let results = await pipeline(
   items,
   it => buildAgent(it),
@@ -444,12 +497,25 @@ let results = await pipeline(
       { model: 'opus', effort: 'high', phase: 'Build+Gate', label: `skeptic${i + 1}:${gated.item.file}`,
         schema: { type: 'object', additionalProperties: false, required: ['refuted', 'why'],
           properties: { refuted: { type: 'boolean' }, why: { type: 'string' } } } }
-    ).catch(() => ({ refuted: false, why: 'skeptic errored' })))
+    // A skeptic that DIES must not count as APPROVAL. Failing open here is backwards: skeptics are
+    // only bought when being wrong is expensive, which is exactly when an unverified change must
+    // not pass by default. (konyo-workflow-max.js defaults the same way.)
+    ).catch(() => ({ refuted: true, why: 'skeptic errored — an unverified change is refuted by default' })))
     ).then(votes => {
-      const kills = votes.filter(Boolean).filter(v => v.refuted)
-      if (kills.length > SKEPTICS / 2) {
-        log(`SKEPTICS KILLED ${gated.item.file}: ${kills[0].why.slice(0, 140)}`)
-        return { ...gated, gate: { verdict: 'rework', severity: 'major', reason: `majority of skeptics refuted it: ${kills[0].why}` } }
+      // Count votes actually CAST, not votes BOUGHT. spawn() returns null on a ceiling refusal
+      // WITHOUT throwing, so neither the .catch above nor SPAWN_ERRORS fires — measuring the
+      // threshold against SKEPTICS let an item pass "skeptic-approved" having faced nobody.
+      const cast = votes.filter(Boolean)
+      if (cast.length === 0) {
+        log(`SKEPTIC PANEL PRODUCED NO VOTES for ${gated.item.file} (refused or died) — not approved.`)
+        return { ...gated, gate: { verdict: 'rework', severity: 'major',
+          reason: 'the skeptic panel produced no votes (refused or died) — unreviewed is not approved' } }
+      }
+      if (cast.length < SKEPTICS) log(`⚠ THIN SKEPTIC PANEL on ${gated.item.file}: ${cast.length}/${SKEPTICS} vote(s) cast.`)
+      const kills = cast.filter(v => v.refuted)
+      if (kills.length * 2 > cast.length) {
+        log(`SKEPTICS KILLED ${gated.item.file}: ${String((kills[0] && kills[0].why) || 'no reason given').slice(0, 140)}`)
+        return { ...gated, gate: { verdict: 'rework', severity: 'major', reason: `majority of skeptics refuted it: ${(kills[0] && kills[0].why) || 'no reason given'}` } }
       }
       return gated
     })
@@ -459,6 +525,9 @@ results = results.filter(Boolean)
 
 // 4) REWORK loop — escalate failures one tier up, re-gate. version-per-round, budget-aware.
 let round = 1
+// The bound is enforced but was never REPORTED: `rounds: 2` read identically whether the loop went
+// clean or was cut off by the round cap / budget floor with items still failing.
+let reworkStop = 'clean'
 while (round < MAXROUNDS && budgetOK()) {
   const failing = results.filter(r => r.gate && r.gate.verdict === 'rework')
   if (!failing.length) break
@@ -474,6 +543,10 @@ while (round < MAXROUNDS && budgetOK()) {
   const byFile = new Map(results.map(r => [r.item.file, r]))
   for (const r of redone.filter(Boolean)) byFile.set(r.item.file, r)
   results = [...byFile.values()]
+}
+if (results.some(r => r.gate && r.gate.verdict === 'rework')) {
+  reworkStop = !budgetOK() ? 'budget-floor' : 'round-cap'
+  log(`⚠ REWORK STOPPED (${reworkStop}) with item(s) still failing after ${round}/${MAXROUNDS} round(s).`)
 }
 
 // ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -525,11 +598,19 @@ const reach = await spawn(
       },
     } }
 ).catch(() => null)
+// v13 wired blocker() only into the DID-NOT-RUN branches; a gate that RAN AND FAILED printed
+// "SHIP BLOCKER" and then blocked nothing, so verdict computed 'OK' over a refused ship.
 if (reach && (reach.dead || []).length) {
-  log(`⛔ REACHABILITY FAILED — ${reach.dead.length} dead seam(s). This is a SHIP BLOCKER.`)
-  reach.dead.slice(0, 8).forEach(d => log(`   · ${d}`))
+  log(`⛔ REACHABILITY FAILED — ${(reach.dead || []).length} dead seam(s). This is a SHIP BLOCKER.`)
+  ;(reach.dead || []).slice(0, 8).forEach(d => log(`   · ${d}`))
+  blocker('LAW19 REACHABILITY FAILED',
+    `${(reach.dead || []).length} dead seam(s): ${(reach.dead || []).slice(0, 3).join('; ')}`)
 } else if (reach && reach.tests_added && !reach.tests_proven_run) {
   log(`⛔ REACHABILITY FAILED — tests were added and NOT proven to run. SHIP BLOCKER.`)
+  blocker('LAW19 REACHABILITY FAILED', 'tests were added and were not proven to run')
+} else if (!reach) {
+  blocker('LAW19 REACHABILITY DID NOT RUN',
+    'no symbol added by this run was traced to a caller and a writer')
 } else if (reach) {
   log(`✅ Reachability: ${reach.checked} symbol(s) traced to a caller and a writer.`)
 }
@@ -573,6 +654,29 @@ if (APPLY) {
     `overflows the viewport horizontally (scrollingElement.scrollWidth <= innerWidth+1); (d) computed ` +
     `text colour differs from its own resolved background (catches white-on-white); (e) no two ` +
     `sibling panels overlap (rect intersection area === 0). This ADDS to the hit-testing above — it ` +
+    /* v15 — THE GATE MUST LOOK AT THE PICTURE, NOT JUST MEASURE IT.
+       Konyo, 2026-08-04: "why do i need eye on it? as part of the workflow system isnt it verified
+       and checked visually from a user-experience side also?" He was right, and the hole was real:
+       every assertion above is STRUCTURAL, and all of them pass on a perfectly rendered picture of
+       the WRONG THING. `naturalWidth > 0` proves a file LOADED, not that it shows what its name
+       claims. Real case: art/mephisto_graphic.png contains his SOULSTONE and diablo_graphic.png
+       contains a BOOK. Both survived months of green gates, three separate "fixes", and a
+       measurement pass that confirmed the correct FILENAME was being served.
+       Cheap proxies were tried and PROVEN INSUFFICIENT — do not substitute them for looking:
+       md5 against the whole art corpus found zero duplicates; file size flags Mephisto (10KB vs
+       Andariel 160KB) but misses Diablo (46KB, and it is a book). Only LOOKING works, and agents
+       are multimodal, so looking is a few seconds of work. */
+    `5b. LOOK AT THE PICTURES — THIS IS NOT OPTIONAL WHEN ART, ICONS OR THUMBNAILS CHANGED, and it `
+    + `is the one check no geometry assertion can stand in for. For every image surface this change `
+    + `touches or claims: OPEN IT (Read the asset file directly, or crop it out of the screenshot you `
+    + `just captured) and say IN WORDS what the picture actually DEPICTS. Then compare that against `
+    + `what the UI CLAIMS it is — the filename, the alt text, the label beside it, the hover card. A `
+    + `thumbnail labelled with a BOSS that depicts an ITEM is a BLOCKER, not a note; so is a tab logo `
+    + `showing the wrong concept, or a gem/rune icon that is not that gem. Report each as `
+    + `"<surface>: claims X, depicts Y" in failures[] when they disagree, and list what you actually `
+    + `looked at in visual[]. NEVER infer this from a path resolving, a hash, a file size, or a `
+    + `non-zero naturalWidth — every one of those has already passed over a wrong picture in this `
+    + `project. If you did not open the image, say so plainly rather than implying you checked it.\n` +
     `does not replace it. SAVE THE SCREENSHOT TO A FILE and report every absolute path in ` +
     `screenshots[]; a gate whose evidence nobody can open is a gate you have to take on faith. ` +
     `SCREENSHOT TRAP: page.screenshot() WAITS ON FONTS — a route handler that route.abort()s ` +
@@ -582,7 +686,9 @@ if (APPLY) {
     `Never bind a port the user's own app uses; kill anything you start.`,
     { effort: 'medium', phase: 'Render gate', schema: {
         type: 'object', additionalProperties: false,
-        required: ['available', 'ran', 'passed', 'failures', 'screenshots', 'visual'],
+        // 'notes' is REQUIRED because the synthesizer prompt below reads renderGate.notes — a field
+        // the reader depends on but the schema does not demand is the same bug in another costume.
+        required: ['available', 'ran', 'passed', 'failures', 'notes', 'screenshots', 'visual'],
         properties: {
           available: { type: 'boolean' },
           ran:       { type: 'string' },
@@ -594,10 +700,16 @@ if (APPLY) {
         } } }
   ).catch(() => null)
   if (renderGate && renderGate.available && !renderGate.passed) {
-    log(`⛔ RENDER GATE FAILED — ${renderGate.failures.length} failure(s). SHIP BLOCKER.`)
-    renderGate.failures.slice(0, 6).forEach(f => log(`   · ${f}`))
+    // `.failures` is guarded: a truncated agent return used to throw a TypeError at top level here,
+    // AFTER the entire run had finished, destroying the report it was about to write.
+    log(`⛔ RENDER GATE FAILED — ${(renderGate.failures || []).length} failure(s). SHIP BLOCKER.`)
+    ;(renderGate.failures || []).slice(0, 6).forEach(f => log(`   · ${f}`))
+    blocker('RENDER GATE FAILED',
+      `${(renderGate.failures || []).length} failure(s): ${(renderGate.failures || []).slice(0, 3).join('; ')}`)
   } else if (renderGate && !renderGate.available) {
     log('⚠ RENDER GATE: no UI verification in this project — nothing was seen painted.')
+  } else if (!renderGate) {
+    blocker('RENDER GATE DID NOT RUN', 'nothing in this run was seen painted')
   }
   // The screenshot is the gate's EVIDENCE — print the paths whatever the verdict, and say so loudly
   // when there are none, because "passed with no pixels captured" is a DOM-only pass wearing a badge.
@@ -651,10 +763,18 @@ if (APPLY) {
   ).catch(() => null)
   if (fatBar && fatBar.applicable && !fatBar.passes) {
     log('⛔ LAW17 FAT VERSION BAR FAILED — ' + fatBar.reason + ' SHIP BLOCKER.')
+    blocker('LAW17 FAT VERSION BAR FAILED', String(fatBar.reason || 'no reason given'))
   } else if (fatBar && !fatBar.applicable) {
+    // The prompt REQUIRES na_evidence and calls N/A-without-evidence a fail; this branch used to
+    // print "treat as a fail" and then treat it as a pass.
     log('⚠ LAW17 N/A (no version stamp this run) — ' + (fatBar.na_evidence || 'NO EVIDENCE GIVEN — treat as a fail.'))
+    if (!fatBar.na_evidence) blocker('LAW17 N/A WITHOUT EVIDENCE',
+      'the bar declared itself not applicable and named nothing it inspected')
   } else if (fatBar) {
     log(`✅ Fat version bar passed (${fatBar.kind}, ${(fatBar.outcomes || []).length} user-visible outcome(s)).`)
+  } else {
+    blocker('LAW17 FAT VERSION BAR DID NOT RUN',
+      'the version stamp was never checked for substance')
   }
 }
 
@@ -678,9 +798,28 @@ const final = await spawn(
     ((fatBar.outcomes || []).length ? `\n  OUTCOMES:\n` + fatBar.outcomes.map(o => '  - ' + o).join('\n') : '') +
     (fatBar.reason ? `\n  reason: ${fatBar.reason}` : '') +
     `\nIf the fat version bar FAILED, the headline must say the ship is BLOCKED as a thin version and name what would make it fat.` : '\nFAT VERSION BAR: not run (dry-run).') +
+  // THE RUN'S OWN HONESTY, handed to the only agent that writes the line a human actually reads.
+  // Without this the synthesizer saw passed/failed/render/fat and nothing else, so its headline
+  // could announce a clean ship while blockers[] was non-empty.
+  `\n\n── THIS RUN'S OWN INTEGRITY (you MUST reflect this in the headline) ──\n` +
+  `BLOCKERS (${BLOCKERS.length}): ` + (BLOCKERS.length ? '\n' + BLOCKERS.map(b => `  - ${b.what}: ${b.why}`).join('\n') : 'none') + `\n` +
+  `AGENTS THAT DIED (${SPAWN_ERRORS.length}): ` + (SPAWN_ERRORS.length ? SPAWN_ERRORS.slice(0, 5).join(' | ') : 'none') + `\n` +
+  `AGENT CEILING: ${SPENT}/${MAX_AGENTS} spent, hit=${CEILING_HIT}\n` +
+  `TRIMMED FROM THE PLAN (${trimmedFromPlan.length}): ` + (trimmedFromPlan.length ? trimmedFromPlan.slice(0, 8).join(', ') : 'none') + `\n` +
+  `REWORK: ${round}/${MAXROUNDS} round(s), stopped_because=${reworkStop}\n` +
+  `SKEPTICS: ${SKEPTICS} per passing item (source: ${SKEPTICS_SOURCE})\n` +
+  `RULES, not suggestions: a NON-EMPTY blockers list forces the headline to LEAD with "BLOCKED" and ` +
+  `name the blocker. A HIT CEILING forces "UNVERIFIED". A NON-EMPTY trimmed list forces "PARTIAL" and ` +
+  `the headline must say planned work was dropped. A dead agent means planned work silently did not ` +
+  `happen — say so. You may NEVER report success over a blocker, and you may never describe work that ` +
+  `was trimmed, refused or never gated as done.\n` +
   `\nWrite the single final report: headline is the ONE-line ping Konyo reads.`,
-  { model: 'opus', effort: 'high', phase: 'Synthesize', schema: FINAL_SCHEMA }
+  { model: 'opus', effort: 'high', phase: 'Synthesize', schema: FINAL_SCHEMA },
+  true                                // reserved: a run that cannot afford its own report reports nothing
 )
+// A missing synthesis is not a quiet detail: passed/failed are then raw counts nobody reviewed.
+if (!final) blocker('SYNTHESIS DID NOT RUN',
+  'the final report agent returned nothing — passed/failed counts are raw and unreviewed')
 
 const released = await releaseLock()
 const didRelease = !!(released && released.key === 'released')
@@ -696,8 +835,23 @@ return {
   lock: lock ? { acquired: !!lock.acquired, key: lock.key, released: didRelease } : null,
   triage: globalThis.__triage || null,   // what this run was sized at, and why — visible after the fact
   rounds: round,
+  rework: { rounds: round, maxRounds: MAXROUNDS, stopped_because: reworkStop },
+  skeptics: { used: SKEPTICS, source: SKEPTICS_SOURCE },
   tokens_spent: budget.total ? budget.spent() : null,
-  ceiling: { cap: MAX_AGENTS, spent: SPENT, hit: CEILING_HIT, complete: !CEILING_HIT },
+  ceiling: { cap: MAX_AGENTS, spent: SPENT, hit: CEILING_HIT, trimmedFromPlan,
+             complete: !CEILING_HIT && !trimmedFromPlan.length },
+  // v13 — the one field that answers "is this safe to have shipped". Every fact below was already
+  // in the payload before; none of it reached the summary, so a capped run with skipped gates read
+  // as a clean one.
+  blockers: BLOCKERS,
+  agent_errors: SPAWN_ERRORS,
+  verdict: BLOCKERS.length ? 'BLOCKED — see blockers[]'
+    : CEILING_HIT ? 'UNVERIFIED — the agent ceiling stopped the run early'
+    : trimmedFromPlan.length ? 'PARTIAL — ' + trimmedFromPlan.length + ' item(s) were trimmed from the plan to fit the triage cap'
+    : failed.length ? 'INCOMPLETE — ' + failed.length + ' item(s) never passed the gate'
+    : SPAWN_ERRORS.length ? 'DEGRADED — some agents died; their work is missing, not failed'
+    : 'OK',
+  shippable: !BLOCKERS.length && !CEILING_HIT && !trimmedFromPlan.length && !failed.length && !SPAWN_ERRORS.length,
   passed: passed.length,
   failed: failed.length,
   render_gate: renderGate,

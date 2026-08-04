@@ -91,6 +91,7 @@ const ISOLATE = !!(A && A.isolate) && APPLY
 // of spending, which is the only place a ceiling can honestly hold.
 let SPENT = 0
 let CEILING_HIT = false
+// (BLOCKERS / SPAWN_ERRORS are declared just below spawn(); spawn only ever RUNS after that point.)
 function spawn(prompt, opts, reserved) {
   // v4 — RESERVED spawns may use the last agents. A capped run that cannot afford its own synthesis
   // spends everything and reports NOTHING, which is the worst of both: the Predicter audit burned
@@ -106,10 +107,52 @@ function spawn(prompt, opts, reserved) {
   }
   SPENT++
   if (SPENT === Math.floor(MAX_AGENTS * 0.75)) log(`CEILING: ${SPENT}/${MAX_AGENTS} agents spent (75%).`)
-  return agent(String(prompt || '') + PACE, opts)
+  // v13 — A DYING AGENT MUST NOT KILL THE RUN. This was a bare `return agent(...)`. agent() resolves
+  // to null on a terminal API error, but it can still THROW — the token ceiling throws by contract,
+  // and a subagent killed mid-flight rejects. Most call sites `await spawn(...)` directly with no
+  // catch of their own, so one rejection unwound the whole script and three hours of completed
+  // phases reported nothing. Some sites had grown their own `.catch(() => null)`; that is exactly
+  // the kind of protection that must live in ONE place, because the site that forgets it is the
+  // site that takes the run down. Callers already treat null as "this one produced nothing".
+  return agent(String(prompt || '') + PACE, opts).catch(err => {
+    SPAWN_ERRORS.push(String((err && err.message) || err).slice(0, 200))
+    log(`⚠ AGENT FAILED (${SPAWN_ERRORS.length} so far): ${String((err && err.message) || err).slice(0, 140)}`)
+    return null
+  })
 }
 
-if (!TASK) { log('No task. Pass {task:"..."} as args.'); return { error: 'no task' } }
+// v13 — THE BLOCKER LEDGER. Three phases in this script are documented as SHIP BLOCKERS (render
+// gate, LAW17 fat bar, LAW19 reachability), and every one of them was written as
+// `if (gate && gate.failed) { log('⛔ BLOCKER') }`. That reads correctly and behaves wrongly: when
+// the gate is NULL — it never ran, the ceiling refused it, or the agent died — the condition is
+// false, every `else if` is skipped, NOTHING is logged, and the run reports success. On 2026-08-04
+// a run shipped v1634 with render_gate:null, merge:null and fat_version:null while reporting
+// "7 passed, 0 failed". A gate that did not run is not a gate that passed; it is an UNVERIFIED
+// ship, and the difference has to survive all the way into the returned object.
+const BLOCKERS = []
+const SPAWN_ERRORS = []
+function blocker(what, why) {
+  BLOCKERS.push({ what, why })
+  log(`⛔ BLOCKER — ${what}: ${why}`)
+}
+// v13 — EVERY EXIT CARRIES A VERDICT. The smoke test that validated this very patch exited through
+// the "no plan" early return and came back with NO verdict and NO shippable field at all, because
+// those fields existed only on the single happy-path return at the bottom of the script. A caller
+// checking result.shippable got `undefined`. Undefined is falsy, so it happened not to read as a
+// green light — but "accidentally not wrong" is not a safeguard, and it is the same shape as the
+// bug this patch exists to kill: a fact that is true in the payload and absent from the summary.
+// Defaults first, so a caller can override the verdict for a deliberate, non-failing exit.
+function bail(o) {
+  return Object.assign({
+    blockers: BLOCKERS,
+    agent_errors: SPAWN_ERRORS,
+    ceiling: { cap: MAX_AGENTS, spent: SPENT, hit: CEILING_HIT },
+    verdict: 'ABORTED — the run exited before completing; see error/refused',
+    shippable: false,
+  }, o)
+}
+
+if (!TASK) { log('No task. Pass {task:"..."} as args.'); return bail({ error: 'no task' }) }
 
 const budgetOK = () => !budget.total || budget.remaining() > FLOOR
 const mode = APPLY ? 'APPLY (agents edit files)' : 'DRY-RUN (propose diffs, nothing written)'
@@ -376,11 +419,28 @@ function adversarialGate(built) {
       { model: 'opus', effort: 'high', label: `skeptic:${i + 1}:${built.item.file}`, phase: 'Adversarial gate', schema: SKEPTIC_SCHEMA }
     ).catch(() => ({ refuted: true, severity: 'major', reason: 'skeptic errored' }))
   )).then(votes => {
+    // v14 — MAJORITY OF THE VOTES ACTUALLY CAST, not of the constant 2. `refutedN >= 2` measured
+    // against a hardcoded panel of 3, but activeLenses() can legitimately return 1 (triage's own
+    // number, or {skeptics:1} — a real 1-skeptic MAX run happened 2026-08-03). On such a run a single
+    // skeptic could NEVER reach 2, so the flagship gate was structurally incapable of refusing
+    // anything and every item auto-passed while the payload still advertised an adversarial gate.
+    // Strict majority preserves today's behaviour for a full panel: 3 cast needs 2, 2 cast needs 2,
+    // 1 cast needs 1. And ZERO votes is REWORK, not pass — spawn() returns null on a ceiling refusal
+    // WITHOUT throwing, so .catch never fires and SPAWN_ERRORS stays empty; an empty panel used to
+    // read as unanimous approval. Unreviewed is not approved.
     const v = votes.filter(Boolean)
-    const refutedN = v.filter(x => x.refuted).length
-    const verdict = refutedN >= 2 ? 'rework' : 'pass'
+    const cast = v.length
     const reasons = v.filter(x => x.refuted).map(x => x.reason)
-    return { ...built, gate: { verdict, refutedN, reasons } }
+    if (cast === 0) {
+      return { ...built, gate: { verdict: 'rework', refutedN: 0, votes: 0, panel: lenses.length,
+        reasons: ['adversarial gate produced NO votes — the panel was refused or died; unreviewed is not approved'] } }
+    }
+    if (cast < lenses.length) {
+      log(`⚠ Adversarial gate on ${built.item.file}: only ${cast}/${lenses.length} skeptic(s) voted — thin panel.`)
+    }
+    const refutedN = v.filter(x => x.refuted).length
+    const verdict = refutedN * 2 > cast ? 'rework' : 'pass'
+    return { ...built, gate: { verdict, refutedN, votes: cast, panel: lenses.length, reasons } }
   })
 }
 
@@ -427,7 +487,7 @@ function wantsAFile(task) {
 if (!APPLY && wantsAFile(TASK)) {
   log('⚠ REFUSED: DRY-RUN (apply:false) with a file-shaped deliverable — nothing could satisfy it.');
   log('  Re-run with apply:true, or ask for the content in the RESULT instead of on disk.');
-  return { refused: 'dry-run with a file-shaped deliverable', fix: 'apply:true, or drop the file deliverable' }
+  return bail({ refused: 'dry-run with a file-shaped deliverable', fix: 'apply:true, or drop the file deliverable' })
 }
 
 // ================= RUN =================
@@ -475,11 +535,14 @@ if (APPLY) {
     log(`   expires  : ${lock.holder_expires || '(unknown)'} (locks self-expire after ${LOCK_TTL_MIN}m)`)
     log(`   Refusing to start. Two fleets editing one tree silently overwrite each other.`)
     log(`   Wait for it, stop it, or re-run with {ignoreLock:true} if you KNOW the holder is dead.`)
-    return {
+    // v14 — this was a RAW return: no verdict, no shippable, no blockers. v13's defect #4 surviving
+    // in the one exit nobody re-read. Route it through bail() like every other exit.
+    return bail({
       refused: 'workspace locked by another run',
       lock,
       fix: 'wait for the holder to finish, TaskStop it, or pass {ignoreLock:true} if it is dead',
-    }
+      verdict: 'NOT RUN — refused at preflight; another run holds this tree',
+    })
   }
   if (lock && lock.acquired === false && IGNORE_LOCK) {
     log(`⚠ WORKSPACE LOCKED but {ignoreLock:true} was passed — proceeding over the lock held by ` +
@@ -520,7 +583,7 @@ if (!APPLY && wantsAFile(TASK)) {
   log('⚠ TRIAGE REFUSED: this is a DRY-RUN (apply:false) but the task asks agents to WRITE A FILE.')
   log('  Nothing can satisfy that, so every item would fail its gate and rework would multiply.')
   log('  Re-run with apply:true, or ask for the content in the RESULT instead of on disk.')
-  return { refused: 'dry-run with a file-shaped deliverable', fix: 'apply:true, or drop the file deliverable' }
+  return bail({ refused: 'dry-run with a file-shaped deliverable', fix: 'apply:true, or drop the file deliverable' })
 }
 
 const triage = await spawn(
@@ -548,7 +611,7 @@ if (triage) {
     log(`  ${triage.why}`)
     log('  If you disagree, re-run with force:true.')
     await releaseLock()          // v10 — never hold the tree on a path that does no work
-    return { refused: 'triage says direct', triage, advice: 'do it in the main loop; a fleet would be slower and dearer here' }
+    return bail({ refused: 'triage says direct', triage, advice: 'do it in the main loop; a fleet would be slower and dearer here', verdict: 'NOT RUN — triage judged this cheaper in the main loop; nothing was attempted' })
   }
   globalThis.__triage = { ...triage, skeptics: sk }
   // v12 — SAY THE DOWNGRADE OUT LOUD. A MAX run whose triage quietly buys 1 skeptic instead of 3 is
@@ -587,7 +650,7 @@ const candidatePlans = (await parallel(ANGLES.map((angle, i) => () =>
   ).catch(() => null)
 ))).filter(Boolean)
 
-if (!candidatePlans.length) { log('No architect produced a plan.'); return { error: 'no plan' } }
+if (!candidatePlans.length) { log('No architect produced a plan.'); return bail({ error: 'no plan' }) }
 
 const plan = await spawn(
   `JUDGE + MERGE. You are given ${candidatePlans.length} candidate decomposition plans for the same task. ` +
@@ -596,10 +659,10 @@ const plan = await spawn(
   `${FAT_LAW}\nThe merged plan must clear this bar; if the candidates together are still thin, say so in "why" ` +
   `rather than stamping a version on a one-liner.\n\n` +
   `TASK: ${TASK}\n\nCANDIDATES:\n${candidatePlans.map((p, i) => `--- Plan ${i + 1} (${p.version_label}) ---\n` +
-    p.items.map(it => `- [${it.risk || '?'}] ${it.file}: ${it.instruction}`).join('\n')).join('\n\n')}`,
+    (p.items || []).map(it => `- [${it.risk || '?'}] ${it.file}: ${it.instruction}`).join('\n')).join('\n\n')}`,
   { model: 'opus', effort: 'high', phase: 'Architect panel', schema: JUDGE_SCHEMA }
 )
-if (!plan || !plan.items) { log(plan === null ? 'CEILING: no budget for the judge.' : 'Judge produced no plan.'); return { error: 'no plan', ceiling: { cap: MAX_AGENTS, spent: SPENT, hit: CEILING_HIT } } }
+if (!plan || !plan.items) { log(plan === null ? 'CEILING: no budget for the judge.' : 'Judge produced no plan.'); return bail({ error: 'no plan' }) }
 
 // one owner per file
 const seen = new Set()
@@ -680,6 +743,10 @@ if (ISOLATE) {
   if (noPatch.length) {
     log(`⛔ MERGE: ${noPatch.length} passing item(s) returned NO PATCH — their work is in a discarded worktree and is LOST:`)
     noPatch.forEach(r => log(`   · ${r.item.file}`))
+    // v14 — these items still count as `passed`. Lost work that reads as shipped work is the whole
+    // defect class; the log alone never reached the summary.
+    blocker('MERGE: WORK LOST — NO PATCH RETURNED',
+      `${noPatch.length} passing item(s) produced no patch: ${noPatch.map(r => r.item.file).join(', ')}`)
   }
   if (!passing.length) {
     log(`MERGE: nothing to apply.`)
@@ -711,12 +778,16 @@ if (ISOLATE) {
         } }
     ).catch(() => null)
     if (merge && (merge.failed || []).length) {
-      log(`⛔ MERGE: ${merge.applied.length} applied, ${merge.failed.length} FAILED — those changes are NOT in the repo:`)
+      log(`⛔ MERGE: ${(merge.applied || []).length} applied, ${merge.failed.length} FAILED — those changes are NOT in the repo:`)
       merge.failed.slice(0, 8).forEach(x => log(`   · ${x}`))
+      blocker('MERGE FAILED — CHANGES NOT IN THE REPO',
+        `${merge.failed.length} patch(es) did not apply: ${merge.failed.slice(0, 3).join('; ')}`)
     } else if (merge) {
-      log(`✅ Merge: ${merge.applied.length}/${passing.length} patches applied to the real repo.`)
+      log(`✅ Merge: ${(merge.applied || []).length}/${passing.length} patches applied to the real repo.`)
     } else {
       log(`⛔ MERGE AGENT DIED — ${passing.length} patch(es) were NOT applied. The repo is unchanged.`)
+      blocker('MERGE AGENT DID NOT RUN',
+        `${passing.length} patch(es) were never applied — the repo is unchanged while the results say passed`)
     }
   }
 }
@@ -724,10 +795,20 @@ if (ISOLATE) {
 // 6) COMPLETENESS CRITIC — loop until DRYROUNDS consecutive "nothing missing"
 phase('Completeness')
 let dry = 0, critRound = 0
+// v14 — THE LOOP HAS THREE NON-DRY EXITS AND ONLY ONE OF THEM USED TO BE VISIBLE. The hard 3-round
+// cap and budgetOK() going false both left ceiling.complete true and verdict 'OK' — a loop that
+// stopped early read exactly like a loop that went dry. critStop records WHICH exit was taken.
+// NOTE: if DRYROUNDS >= 3 the loop can never satisfy its own dry condition (the 3-round cap always
+// bites first) — that is now REPORTED as 'hard 3-round cap' rather than silently read as complete.
+let critStop = null
+// Gaps the critic raised on a file already owned by an earlier item. They were filtered out and the
+// round was then counted DRY — i.e. a critic shouting "that file is STILL broken" was recorded as
+// "nothing missing". They no longer make a round dry, and they are carried into the summary.
+const unbuiltGaps = []
 while (dry < DRYROUNDS && critRound < 3 && budgetOK()) {   // v5 — 6 rounds was hours of tail for diminishing finds
   // the critic can always find one more thing, and each gap costs a builder plus its skeptics —
   // so the loop asks the REAL counter, not an estimate of it
-  if (SPENT >= MAX_AGENTS) { log(`CEILING: stopping the completeness loop at ${SPENT}/${MAX_AGENTS}.`); break }
+  if (SPENT >= MAX_AGENTS) { log(`CEILING: stopping the completeness loop at ${SPENT}/${MAX_AGENTS}.`); critStop = 'ceiling'; break }
   critRound++
   const passed = results.filter(r => r && r.item && r.gate && r.gate.verdict === 'pass')
   const crit = await spawn(
@@ -737,16 +818,45 @@ while (dry < DRYROUNDS && critRound < 3 && budgetOK()) {   // v5 — 6 rounds wa
     `an edge case no item covered, a claim not yet verified, a follow-on the changes now require. ` +
     `If nothing material is missing, done=true with empty missing[]. Only list REAL, actionable gaps (one owner per file).`,
     { model: 'opus', effort: 'medium', phase: 'Completeness', schema: CRITIC_SCHEMA }   // v5 — it hunts GAPS, not proofs
-  ).catch(() => ({ done: true, missing: [] }))
-  if (!crit) { log('CEILING: no budget left for the completeness critic — stopping.'); break }
-  const fresh = (crit.missing || []).filter(m => !seen.has(m.file))
-  if (crit.done || !fresh.length) { dry++; log(`Completeness: dry round ${dry}/${DRYROUNDS}`); continue }
+  // v14 — this used to be `.catch(() => ({ done:true, missing:[] }))`: a critic FAILURE converted
+  // into "nothing is missing", which then incremented `dry` and declared the run complete. It was
+  // unreachable (spawn swallows rejections) but it was aimed straight at the completeness verdict.
+  ).catch(() => null)
+  if (!crit) {
+    // v14 — the old log blamed the ceiling for EVERY null, including an agent that simply died.
+    critStop = SPENT >= MAX_AGENTS ? 'ceiling'
+      : 'the completeness critic returned nothing (ceiling refused it or the agent died)'
+    log(`Completeness: stopping — ${critStop}.`)
+    break
+  }
+  const missing = crit.missing || []
+  const fresh = missing.filter(m => !seen.has(m.file))
+  const filteredOut = missing.filter(m => seen.has(m.file))
+  if (filteredOut.length) {
+    log(`⚠ Completeness: ${filteredOut.length} gap(s) named a file an earlier item already owned — NOT rebuilt:`)
+    filteredOut.slice(0, 8).forEach(m => log(`   · ${m.file}: ${m.instruction}`))
+    filteredOut.forEach(m => unbuiltGaps.push(`${m.file}: ${m.instruction}`))
+  }
+  // A round only counts as DRY when the critic itself found nothing. Gaps that were merely FILTERED
+  // are unbuilt work, not silence.
+  if ((crit.done || !missing.length) && !filteredOut.length) {
+    dry++; log(`Completeness: dry round ${dry}/${DRYROUNDS}`); continue
+  }
+  if (!fresh.length) { log(`Completeness: no NEW files to own this round.`); continue }
   dry = 0
   fresh.forEach(m => seen.add(m.file))
   log(`Completeness: critic found ${fresh.length} gap(s) — building`)
   const more = await buildAndGate(fresh.map((m, i) => ({ id: `crit${critRound}-${i}`, file: m.file, instruction: m.instruction })), 'Completeness')
   results = results.concat(more)
 }
+// v14 — name the exit. Without this, "stopped at the 3-round cap with gaps outstanding" and "went
+// dry" were the same silent outcome. critRound is bounded by the cap, so this cannot spin.
+if (dry < DRYROUNDS && !critStop) {
+  critStop = !budgetOK() ? 'budget floor reached'
+    : critRound >= 3 ? 'hard 3-round cap'
+    : 'unknown'
+}
+if (critStop) log(`Completeness: NEVER WENT DRY (${dry}/${DRYROUNDS} dry rounds) — stopped because: ${critStop}`)
 
 // 6.5) THE RENDER GATE — v6 (Konyo, 2026-08-02: "why is the no rendered-UI check?")
 // ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -797,6 +907,29 @@ if (APPLY) {
     `(d) computed text colour differs from its own resolved background (catches white-on-white); ` +
     `(e) no two sibling panels overlap (rect intersection area === 0). This ADDS to the hit-testing ` +
     `above — it does not replace it.\n` +
+    /* v15 — THE GATE MUST LOOK AT THE PICTURE, NOT JUST MEASURE IT.
+       Konyo, 2026-08-04: "why do i need eye on it? as part of the workflow system isnt it verified
+       and checked visually from a user-experience side also?" He was right, and the hole was real:
+       every assertion above is STRUCTURAL, and all of them pass on a perfectly rendered picture of
+       the WRONG THING. `naturalWidth > 0` proves a file LOADED, not that it shows what its name
+       claims. Real case: art/mephisto_graphic.png contains his SOULSTONE and diablo_graphic.png
+       contains a BOOK. Both survived months of green gates, three separate "fixes", and a
+       measurement pass that confirmed the correct FILENAME was being served.
+       Cheap proxies were tried and PROVEN INSUFFICIENT — do not substitute them for looking:
+       md5 against the whole art corpus found zero duplicates; file size flags Mephisto (10KB vs
+       Andariel 160KB) but misses Diablo (46KB, and it is a book). Only LOOKING works, and agents
+       are multimodal, so looking is a few seconds of work. */
+    `5b. LOOK AT THE PICTURES — THIS IS NOT OPTIONAL WHEN ART, ICONS OR THUMBNAILS CHANGED, and it `
+    + `is the one check no geometry assertion can stand in for. For every image surface this change `
+    + `touches or claims: OPEN IT (Read the asset file directly, or crop it out of the screenshot you `
+    + `just captured) and say IN WORDS what the picture actually DEPICTS. Then compare that against `
+    + `what the UI CLAIMS it is — the filename, the alt text, the label beside it, the hover card. A `
+    + `thumbnail labelled with a BOSS that depicts an ITEM is a BLOCKER, not a note; so is a tab logo `
+    + `showing the wrong concept, or a gem/rune icon that is not that gem. Report each as `
+    + `"<surface>: claims X, depicts Y" in failures[] when they disagree, and list what you actually `
+    + `looked at in visual[]. NEVER infer this from a path resolving, a hash, a file size, or a `
+    + `non-zero naturalWidth — every one of those has already passed over a wrong picture in this `
+    + `project. If you did not open the image, say so plainly rather than implying you checked it.\n` +
     `6. SAVE THE SCREENSHOT TO A FILE and report every absolute path in screenshots[]. A gate whose ` +
     `evidence nobody can open is a gate you have to take on faith.\n` +
     `7. SCREENSHOT TRAP — page.screenshot() WAITS ON FONTS. A route handler that route.abort()s ` +
@@ -821,12 +954,25 @@ if (APPLY) {
       } }
   ).catch(() => null)
   if (renderGate && renderGate.available && !renderGate.passed) {
-    log(`⛔ RENDER GATE FAILED — ${renderGate.failures.length} failure(s). This is a SHIP BLOCKER.`)
-    renderGate.failures.slice(0, 8).forEach(f => log(`   · ${f}`))
+    // v14 — `failures` is schema-required, but a truncated/non-compliant agent return made this
+    // an unguarded .length: a TypeError at top level AFTER the whole run, destroying the report.
+    const rgf = renderGate.failures || []
+    log(`⛔ RENDER GATE FAILED — ${rgf.length} failure(s). This is a SHIP BLOCKER.`)
+    rgf.slice(0, 8).forEach(f => log(`   · ${f}`))
+    // v14 — v13 wired blocker() only into the DID-NOT-RUN branch. A gate that ran and REFUSED the
+    // ship still computed verdict 'OK' / shippable true. A refusal is the strongest blocker there is.
+    blocker('RENDER GATE FAILED', `${rgf.length} failure(s): ${rgf.slice(0, 3).join('; ')}`)
   } else if (renderGate && !renderGate.available) {
     log(`⚠ RENDER GATE: the project has no UI verification. Nothing here has been seen painted.`)
   } else if (renderGate) {
     log(`✅ Render gate passed (${renderGate.ran}).`)
+  } else {
+    // v13 — the silent hole. null here means the ceiling refused the spawn or the agent died, and
+    // the old chain fell straight through to "ship it".
+    blocker('RENDER GATE DID NOT RUN',
+      SPENT >= MAX_AGENTS - 2
+        ? `the ${MAX_AGENTS}-agent ceiling was already spent, so nothing was ever seen painted`
+        : 'the gate agent returned nothing (died or was skipped) — nothing was seen painted')
   }
   // The screenshot is the gate's EVIDENCE — print the paths whatever the verdict, and say so loudly
   // when there are none, because "passed with no pixels captured" is a DOM-only pass wearing a badge.
@@ -882,11 +1028,20 @@ if (APPLY) {
   if (fatBar && fatBar.applicable && !fatBar.passes) {
     log(`⛔ LAW17 FAT VERSION BAR FAILED — ${fatBar.reason}. This is a SHIP BLOCKER.`)
     ;(fatBar.outcomes || []).slice(0, 8).forEach(o => log(`   · ${o}`))
+    blocker('LAW17 FAT VERSION BAR FAILED', fatBar.reason)   // v14 — a refused thin ship must reach the summary
   } else if (fatBar && !fatBar.applicable) {
     log(`⚠ LAW17 N/A — no version stamp in this run. Evidence: ${fatBar.na_evidence || '(none given — that is itself a fail)'}`)
+    // v14 — the prompt says "N/A without evidence is a FAIL"; the code only logged it. Now they agree.
+    if (!fatBar.na_evidence) {
+      blocker('LAW17 N/A WITHOUT EVIDENCE',
+        'the bar declared itself not applicable and named nothing it inspected')
+    }
   } else if (fatBar) {
     log(`✅ Fat version bar passed (${(fatBar.outcomes || []).length} outcomes).`)
     ;(fatBar.outcomes || []).slice(0, 8).forEach(o => log(`   · ${o}`))
+  } else {
+    blocker('LAW17 FAT VERSION BAR DID NOT RUN',
+      'the version stamp was never checked for substance — a thin ship could not have been caught')
   }
 }
 
@@ -940,10 +1095,16 @@ const reach = await spawn(
     } }
 ).catch(() => null)
 if (reach && (reach.dead || []).length) {
-  log(`⛔ REACHABILITY FAILED — ${reach.dead.length} dead seam(s). This is a SHIP BLOCKER.`)
-  reach.dead.slice(0, 8).forEach(d => log(`   · ${d}`))
+  const rd = reach.dead || []
+  log(`⛔ REACHABILITY FAILED — ${rd.length} dead seam(s). This is a SHIP BLOCKER.`)
+  rd.slice(0, 8).forEach(d => log(`   · ${d}`))
+  blocker('LAW19 REACHABILITY FAILED', `${rd.length} dead seam(s): ${rd.slice(0, 3).join('; ')}`)
 } else if (reach && reach.tests_added && !reach.tests_proven_run) {
   log(`⛔ REACHABILITY FAILED — tests were added and NOT proven to run. SHIP BLOCKER.`)
+  blocker('LAW19 REACHABILITY FAILED', 'tests were added and were not proven to run')
+} else if (!reach) {
+  blocker('LAW19 REACHABILITY DID NOT RUN',
+    'no symbol added by this run was traced to a caller and a writer — a dead feature could not have been caught')
 } else if (reach) {
   log(`✅ Reachability: ${reach.checked} symbol(s) traced to a caller and a writer.`)
 }
@@ -958,7 +1119,7 @@ const final = await spawn(
   `PASSED the 3-skeptic panel (${passed.length}):\n` + passed.map(r => `- ${r.item.file}: ${r.build && r.build.summary}`).join('\n') +
   `\nSTILL FAILING (${failed.length}):\n` + failed.map(r => `- ${r.item.file}: ${(r.gate && r.gate.reasons || []).join('; ')}`).join('\n') +
   (renderGate ? `\nRENDER GATE: available=${renderGate.available} ran=${renderGate.ran} passed=${renderGate.passed}` +
-    (renderGate.failures.length ? `\n  FAILURES:\n` + renderGate.failures.map(f => '  - ' + f).join('\n') : '') +
+    ((renderGate.failures || []).length ? `\n  FAILURES:\n` + (renderGate.failures || []).map(f => '  - ' + f).join('\n') : '') +
     (renderGate.notes ? `\n  eyeball: ${renderGate.notes}` : '') +
     `\n  SCREENSHOTS (${(renderGate.screenshots||[]).length}): ` + ((renderGate.screenshots||[]).join(', ') || 'NONE — nothing was captured, so this was a DOM-only pass') +
     ((renderGate.visual||[]).length ? `\n  VISUAL GEOMETRY:\n` + renderGate.visual.map(v => '  - ' + v).join('\n') : '\n  VISUAL GEOMETRY: none reported') +
@@ -972,9 +1133,35 @@ const final = await spawn(
     `\nIf the fat version bar FAILED, the headline must say the ship is BLOCKED as a THIN VERSION under LAW17, ` +
     `and must name what would make it fat (which additional user-visible outcomes, or which structural bug ` +
     `with root cause + verification + prevention).` : '\nFAT VERSION BAR: not run (dry-run).') +
+  // v14 — THE SUMMARY A HUMAN ACTUALLY READS NEVER SAW THE BLOCKERS. This agent was handed
+  // passed/failed/render/fat and nothing else — not BLOCKERS, not the agent errors, not the ceiling,
+  // not the trimmed items, not the completeness record. So `headline`, the ONE line Konyo reads,
+  // could announce a clean ship while blockers[] was non-empty. Everything below is already in scope.
+  `\n\n══ RUN INTEGRITY — THIS OUTRANKS EVERYTHING ABOVE ══\n` +
+  `SHIP BLOCKERS (${BLOCKERS.length}):\n` +
+  (BLOCKERS.length ? BLOCKERS.map(b => `  - ${b.what}: ${b.why}`).join('\n') : '  (none)') +
+  `\nAGENT ERRORS (${SPAWN_ERRORS.length}): ` + (SPAWN_ERRORS.slice(0, 5).join(' | ') || '(none)') +
+  `\nAGENT CEILING: ${SPENT}/${MAX_AGENTS} spent; hit=${CEILING_HIT}` +
+  `\nTRIMMED FROM PLAN (${(globalThis.__trimmed || []).length}): ` + ((globalThis.__trimmed || []).join(', ') || '(none)') +
+  `\nINFEASIBILITY: ${globalThis.__infeasible ? JSON.stringify(globalThis.__infeasible).slice(0, 400) : '(none flagged)'}` +
+  `\nCOMPLETENESS: ${critRound} round(s), ${dry}/${DRYROUNDS} dry, wentDry=${dry >= DRYROUNDS}` +
+  `, stoppedBecause=${critStop || '(went dry)'}` +
+  `\nGAPS RAISED BUT NEVER BUILT (${unbuiltGaps.length}): ` + (unbuiltGaps.slice(0, 5).join(' | ') || '(none)') +
+  `\nRULES FOR THE HEADLINE, NOT SUGGESTIONS:\n` +
+  `  · If ANY blocker is listed above, the headline MUST LEAD with "BLOCKED" and name the blocker. ` +
+  `You may NEVER claim a clean ship over a non-empty blockers list, however good the passed count looks.\n` +
+  `  · If the ceiling was hit, or items were trimmed, or completeness never went dry, or gaps were ` +
+  `raised and never built, the headline MUST LEAD with "UNVERIFIED" or "PARTIAL" and say which.\n` +
+  `  · If agents died, say so — their planned work silently did not happen; that is missing, not passed.\n` +
+  `  · Only a run with no blockers, no ceiling hit, no trims, no dead agents and a dry completeness ` +
+  `critic may be described as clean.\n` +
   `\nWrite the single final report. headline = the ONE-line ping for Konyo.`,
   { model: 'opus', effort: 'high', phase: 'Synthesize', schema: FINAL_SCHEMA }
 , true)
+// v14 — a dead synthesizer used to return final:null with verdict 'OK'. BLOCKERS is read when the
+// return literal below evaluates, so pushing here lands in the returned object.
+if (!final) blocker('SYNTHESIS DID NOT RUN',
+  'the final report agent returned nothing — passed/failed counts are raw and unreviewed')
 
 // v10 — hand the tree back before reporting. If this never runs (killed run, crash), the TTL does it.
 const released = await releaseLock()
@@ -1013,6 +1200,38 @@ return {
     trimmedFromPlan: globalThis.__trimmed || [],
     complete: !CEILING_HIT && !(globalThis.__trimmed || []).length,
   },
+  // v14 — the loop's OWN account of itself. `ceiling.complete` only ever saw the ceiling exit; the
+  // 3-round cap and the budget floor both stopped the critic early and still read as complete.
+  completeness: {
+    rounds: critRound,
+    dry,
+    required: DRYROUNDS,
+    wentDry: dry >= DRYROUNDS,
+    stoppedBecause: critStop,
+    unbuiltGaps,
+  },
+  // v13 — THE VERDICT, AND IT IS NOT A VIBE. Everything above is data a reader has to assemble
+  // themselves; this is the one field that answers "is this safe to have shipped". A run that hit
+  // its ceiling mid-completeness, or skipped a blocking gate, or lost agents to errors, is
+  // UNVERIFIED — not passed. On 2026-08-04 a run returned passed:7 failed:0 while render_gate,
+  // merge and fat_version were all null and the completeness loop had been cut off by the cap;
+  // every one of those facts was present in the payload and none of them reached the summary.
+  blockers: BLOCKERS,
+  agent_errors: SPAWN_ERRORS,
+  verdict: BLOCKERS.length ? 'BLOCKED — see blockers[]'
+    : CEILING_HIT ? 'UNVERIFIED — the agent ceiling stopped the run before the completeness critic went dry'
+    // v14 — the completeness loop has three non-dry exits and only the ceiling one used to show here.
+    : (dry < DRYROUNDS || unbuiltGaps.length) ? 'UNVERIFIED — the completeness critic never went dry (' + (critStop || 'gaps raised but never built') + ')'
+    : (globalThis.__trimmed || []).length ? 'PARTIAL — items were trimmed from the plan to fit the ceiling'
+    // v14 — `failed` was computed and reported as a count and read by NOTHING: passed:1 failed:6
+    // returned verdict 'OK', shippable true. An item that never cleared the panel is not shipped.
+    : failed.length ? 'INCOMPLETE — ' + failed.length + ' item(s) never passed the skeptic panel'
+    : SPAWN_ERRORS.length ? 'DEGRADED — some agents died; their work is missing, not failed'
+    : 'OK',
+  // A dead agent means planned work silently did not happen — that is missing work, not a
+  // transient blip, so it costs the shippable flag too. Erring toward telling him.
+  shippable: !BLOCKERS.length && !CEILING_HIT && !(globalThis.__trimmed || []).length && !SPAWN_ERRORS.length
+    && !failed.length && dry >= DRYROUNDS && !unbuiltGaps.length,
   triage: globalThis.__triage || null,
   render_gate: renderGate,
   merge: merge,
