@@ -320,10 +320,21 @@ const bump = (tier) => LADDER[Math.min(LADDER.indexOf(tier) + 1, LADDER.length -
 // forces Opus everywhere, which is what konyo-workflow-max.js did by hardcoding 'opus' at every call
 // site. Note bump('opus') === 'opus', so at max the escalation ladder is a harmless no-op and needs
 // no branch of its own — the rework round still happens, it just cannot escalate further.
+/* v19.1 — FAST FLOORS AT SONNET. Konyo: "we want it smart.. like why not sonnet". He is right, and
+   the harness had already shown the failure: a risk:'low' item built at HAIKU. Two reasons that is
+   the wrong floor for this path specifically:
+     1. COMPETENCE. Fast's builders edit the same real files max's do — a 40k-line control_ui.html is
+        a 40k-line file whatever the item's blast radius. "Low risk" describes what breaks if the
+        change is WRONG, not how hard the change is to MAKE.
+     2. ONE ATTEMPT. Fast runs maxRounds:1, so a failed build is reported, not retried. On the cost
+        ladder a haiku miss is cheap because Fable gates every merge and the ladder escalates on
+        rework; here the same miss burns the item for the whole run.
+   So fast reads the architect's tier as a CEILING, never below sonnet. Haiku stays available on the
+   cost-scaled path, where the ladder and the retry exist to catch it. */
 const tierFor = (t, risk) => FASTQ
   // fast: honour the architect's tier ONLY where it also called the blast radius low. No risk tag
   // means no permission — an untagged item is treated as risky, because "unknown" is not "low".
-  ? (risk === 'low' ? (t || 'sonnet') : 'opus')
+  ? (risk === 'low' ? (!t || t === 'haiku' ? 'sonnet' : t) : 'opus')
   : MAXQ ? 'opus' : (t || 'sonnet')
 const effortFor = (tier) => (MAXQ && !FASTQ) ? 'high'
   : tier === 'opus' ? 'high' : tier === 'sonnet' ? 'medium' : 'low'
@@ -1724,7 +1735,7 @@ return emit({
   quality: QUALITY,
   quality_label: FASTQ
     ? `FAST (every MAX gate · 3-architect judge panel · ${SKEPTICS}-skeptic adversarial gate · loop-until-dry · ` +
-      `low-risk items built at the architect's tier instead of Opus)`
+      `low-risk items built at their architect's tier, floored at sonnet)`
     : MAXQ
     ? `MAX (Opus everywhere · 3-architect judge panel · ${SKEPTICS}-skeptic adversarial gate · loop-until-dry)`
     : `STANDARD (cost-scaled ladder · single Opus architect · Fable merge gate${SKEPTICS ? ` · ${SKEPTICS}-skeptic panel` : ' · no skeptics'})`,
@@ -1733,7 +1744,7 @@ return emit({
     maxRounds: MAXROUNDS,
     dryRounds: DRYROUNDS,
     floor: FLOOR,
-    tierPolicy: FASTQ ? "opus, EXCEPT risk:'low' items which build at the architect's tier (escalate on rework)"
+    tierPolicy: FASTQ ? "opus, EXCEPT risk:'low' items which build at the architect's tier floored at SONNET (never haiku)"
       : MAXQ ? 'opus everywhere' : 'cost-scaled ladder (haiku→sonnet→opus, escalate on rework)',
     judgePanel: (MAXQ && !FASTQ) ? '3 architects + judge' : 'single architect',
     gateKind: MAXQ ? 'adversarial skeptic panel (the panel IS the gate)' : 'fable merge gate + skeptic panel behind it',

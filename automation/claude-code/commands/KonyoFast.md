@@ -24,9 +24,12 @@ ceiling, and the workspace lock.
 - **No completeness critic.** It is the run's longest tail, and it can add whole build+gate rounds
   after every item has already passed. `completeness.ran:false` carries the reason, so "no gaps
   found" can never be confused with "nobody looked".
-- **Low-risk items build at the tier their architect asked for**, not at Opus. Anything tagged
-  medium/high risk — or untagged, because unknown is not low — still gets Opus, and a cheap build
-  that fails its gate escalates on rework. The skeptics reading the diff are Opus either way.
+- **Low-risk items build at their architect's tier, floored at SONNET — never haiku.** Anything
+  tagged medium/high risk, or untagged (unknown is not low), still gets Opus. The floor exists
+  because fast's builders edit the same real files max's do — "low risk" describes what breaks if
+  the change is wrong, not how hard it is to make — and because fast runs one round, so a weak
+  build burns the item instead of escalating. Haiku stays on `/KonyoCost`, where the ladder, the
+  Fable gate and the retry exist to catch it. The skeptics reading the diff are Opus either way.
 
 Use it when the work is well-specified and you want it soon. When being wrong is expensive, use
 `/KonyoMax` — fast cannot claim completeness, by construction.
