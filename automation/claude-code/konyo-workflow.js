@@ -1,7 +1,7 @@
 export const meta = {
   name: 'konyo-workflow',
-  description: 'KONYO WORKFLOW — ONE body, three paths (max | fast | standard). RUNS AT MAX BY DEFAULT: Opus everywhere, a 3-architect judge panel, a diverse-lens skeptic panel as THE gate, a loop-until-dry completeness critic, and the third eye (Grok — a different model family) ON. Pass {quality:"fast"} to keep EVERY max gate while building risk:"low" items at the tier its architect asked for instead of Opus (the review is Opus either way; a failed cheap build escalates on rework). Pass {quality:"standard"} to opt DOWN to the cost-scaled ladder (Haiku/Sonnet build, Fable gates every merge, ONE architect, no completeness critic). Pass {thirdEye:false} to run without an independent reviewer. Every safeguard (agent ceiling, blockers, bail, render gate, LAW17, LAW19, workspace lock, skeptic floor) runs at BOTH qualities — the flag only buys model tier, panel size and extra phases.',
-  whenToUse: 'ANY multi-step task you want orchestrated — it is MAX unless you say otherwise, because being wrong usually costs more than tokens. It TRIAGES itself first, so a serial diagnosis is sent back to be done directly instead of spawning a fleet, and the ceiling + budget floor still bound every run. {quality:"fast"} = same gates, cheaper builders on low-risk items only. Opt all the way down with {quality:"standard"} for routine, low-cost-of-wrong, easily reversible work (~10-15x cheaper). Pass {task, quality, thirdEye, apply, maxRounds, dryRounds, budgetFloor, force, skeptics, maxAgents, isolate}. `grok:false` still works as the old name for thirdEye:false.',
+  description: 'KONYO WORKFLOW — ONE body, three paths (max | lean | standard). RUNS AT MAX BY DEFAULT: Opus everywhere, a 3-architect judge panel, a diverse-lens skeptic panel as THE gate, a loop-until-dry completeness critic, and the third eye (Grok — a different model family) ON. Pass {quality:"lean"} — same gates, ~62% fewer tokens — for ONE architect instead of a panel, one rework round, no completeness critic, and risk:"low" items built at the tier their architect asked for (floored at sonnet) instead of Opus (the review is Opus either way; a failed cheap build escalates on rework). Pass {quality:"standard"} to opt DOWN to the cost-scaled ladder (Haiku/Sonnet build, Fable gates every merge, ONE architect, no completeness critic). Pass {thirdEye:false} to run without an independent reviewer. Every safeguard (agent ceiling, blockers, bail, render gate, LAW17, LAW19, workspace lock, skeptic floor) runs at BOTH qualities — the flag only buys model tier, panel size and extra phases.',
+  whenToUse: 'ANY multi-step task you want orchestrated — it is MAX unless you say otherwise, because being wrong usually costs more than tokens. It TRIAGES itself first, so a serial diagnosis is sent back to be done directly instead of spawning a fleet, and the ceiling + budget floor still bound every run. {quality:"lean"} = same gates, cheaper builders on low-risk items only. Opt all the way down with {quality:"standard"} for routine, low-cost-of-wrong, easily reversible work (~10-15x cheaper). Pass {task, quality, thirdEye, apply, maxRounds, dryRounds, budgetFloor, force, skeptics, maxAgents, isolate}. `grok:false` still works as the old name for thirdEye:false.',
   phases: [
     { title: 'Preflight',   detail: 'workspace lock — refuse to start if another run is already editing this tree' },
     { title: 'Triage',      detail: 'right-size the run BEFORE spending: shape · parallelism · cost-of-wrong', model: 'opus' },
@@ -43,15 +43,24 @@ if (typeof A === 'string') { try { A = JSON.parse(A) } catch { A = { task: A } }
    always as main.. the cost-scaling is optional and only if asked for manually." A bare invocation
    therefore buys the full adversarial path; the cheap ladder is an explicit opt-in and nothing else.
    FAIL SAFE TOWARD QUALITY: only the exact string 'standard' downgrades. A typo ('MAXX', 'standrd',
-   'cheap', 'fast') resolves to MAX — the failure mode of a misread flag must be an expensive run,
+   'cheap', 'quik') resolves to MAX — the failure mode of a misread flag must be an expensive run,
    never a quiet one that the caller believes was maxed. And the fallback is SAID OUT LOUD below:
    a quality you did not ask for is exactly the kind of fact that reads as consent when it is silent. */
 const QUALITY_ASKED = (A && typeof A.quality === 'string') ? A.quality.trim().toLowerCase()
                     : (typeof globalThis.__KONYO_QUALITY === 'string' ? globalThis.__KONYO_QUALITY : null)
-const KNOWN_QUALITIES = ['max', 'fast', 'standard']
-const QUALITY = KNOWN_QUALITIES.includes(QUALITY_ASKED) ? QUALITY_ASKED : 'max'
-const QUALITY_TYPO = !!(QUALITY_ASKED && !KNOWN_QUALITIES.includes(QUALITY_ASKED))
-/* v19 — FAST IS MAX WITH ITS EYES OPEN ABOUT TIER, NOT MAX WITH FEWER GATES.
+/* v19.2 — IT IS CALLED LEAN, BECAUSE IT IS NOT FAST. Two real runs, measured: max took 53.7min and
+   1.42M tokens; this path took ~46min and ~540k. That is ~15% quicker and ~62% cheaper — so the name
+   "fast" promised the number it is worst at and hid the one it is excellent at. Konyo, watching it:
+   "nothing here is fast though.. just maybe token optimized.. maybe it should be called something
+   else". He is right, and the reason is structural: wall-clock is set by the single owner walking the
+   biggest file, which no flag can shorten, while tokens scale with agent count and tier — exactly
+   what this path cuts. `fast` still resolves, silently, so no saved invocation breaks. */
+const QUALITY_ALIAS = { fast: 'lean' }
+const KNOWN_QUALITIES = ['max', 'lean', 'standard']
+const QUALITY_RESOLVED = QUALITY_ALIAS[QUALITY_ASKED] || QUALITY_ASKED
+const QUALITY = KNOWN_QUALITIES.includes(QUALITY_RESOLVED) ? QUALITY_RESOLVED : 'max'
+const QUALITY_TYPO = !!(QUALITY_ASKED && !KNOWN_QUALITIES.includes(QUALITY_RESOLVED))
+/* v19 — LEAN IS MAX WITH ITS EYES OPEN ABOUT TIER, NOT MAX WITH FEWER GATES.
    Measured on the first real max run (D2R console queue, 2026-08-04): the ceremony everyone assumes
    is the overhead — lock, triage, three architects — took 3.5 minutes of a 36-minute run. Cutting it
    would buy nothing. The time is in BUILDERS and SKEPTICS, and the critical path is whichever agent
@@ -59,23 +68,23 @@ const QUALITY_TYPO = !!(QUALITY_ASKED && !KNOWN_QUALITIES.includes(QUALITY_ASKED
    What max actually wastes is INFORMATION IT ALREADY HAS: the architect tags every item with a
    `risk`, and then tierFor() overrides all of it to Opus-everywhere, so a `#hd-forge-chips` grid
    fix and a CASC binary re-extraction are built identically.
-   So `fast` keeps EVERY gate max has — the 3-architect panel, the skeptic panel AS the gate, the
+   So `lean` keeps EVERY gate max has — the 3-architect panel, the skeptic panel AS the gate, the
    completeness critic, the render gate, LAW17, LAW19, feasibility — and changes exactly one thing:
    a `risk:'low'` item is built at the tier its architect asked for instead of at Opus. Anything
    medium or high risk, and anything with no risk tag at all, still gets Opus. A low-risk item that
    FAILS its gate escalates on rework like any other, so the cheap tier is a first attempt, never a
    final answer. Nothing about the review changes — the skeptics reading the diff are Opus either way. */
-const MAXQ    = QUALITY === 'max' || QUALITY === 'fast'   // every max-only GATE applies to fast too
-const FASTQ   = QUALITY === 'fast'
+const MAXQ    = QUALITY === 'max' || QUALITY === 'lean'   // every max-only GATE applies to lean too
+const LEANQ   = QUALITY === 'lean'
 const TASK      = typeof A === 'string' ? A : (A && A.task) || ''
 const APPLY     = !!(A && A.apply)                 // false = dry-run (propose diffs, write nothing). true = agents edit files.
 // Quality-dependent DEFAULTS preserve each original script's default exactly; an explicit caller arg
 // always wins over both.
-/* v19 — FAST BUYS ONE ATTEMPT, NOT TWO. Rework is the single biggest multiplier on wall-clock:
-   every item can be built, gated, and built again. At fast the first failure is REPORTED instead of
+/* v19 — LEAN BUYS ONE ATTEMPT, NOT TWO. Rework is the single biggest multiplier on wall-clock:
+   every item can be built, gated, and built again. At lean the first failure is REPORTED instead of
    retried, which is honest (failed items already force an INCOMPLETE verdict) and halves the worst
    case. Max keeps its second attempt. */
-const MAXROUNDS = (A && A.maxRounds) || (FASTQ ? 1 : MAXQ ? 2 : 3)
+const MAXROUNDS = (A && A.maxRounds) || (LEANQ ? 1 : MAXQ ? 2 : 3)
 const DRYROUNDS = (A && A.dryRounds) || 1          // consumed only by the max-only completeness loop
 const FLOOR     = (A && A.budgetFloor) || (MAXQ ? 120_000 : 60_000)  // stop opening new rounds under this many tokens remaining
 /* v18 — THE THIRD EYE IS A FIRST-CLASS FLAG, ON BY DEFAULT, AND IT MEANS A DIFFERENT MODEL FAMILY.
@@ -328,7 +337,7 @@ const bump = (tier) => LADDER[Math.min(LADDER.indexOf(tier) + 1, LADDER.length -
 // forces Opus everywhere, which is what konyo-workflow-max.js did by hardcoding 'opus' at every call
 // site. Note bump('opus') === 'opus', so at max the escalation ladder is a harmless no-op and needs
 // no branch of its own — the rework round still happens, it just cannot escalate further.
-/* v19.1 — FAST FLOORS AT SONNET. Konyo: "we want it smart.. like why not sonnet". He is right, and
+/* v19.1 — LEAN FLOORS AT SONNET. Konyo: "we want it smart.. like why not sonnet". He is right, and
    the harness had already shown the failure: a risk:'low' item built at HAIKU. Two reasons that is
    the wrong floor for this path specifically:
      1. COMPETENCE. Fast's builders edit the same real files max's do — a 40k-line control_ui.html is
@@ -337,14 +346,14 @@ const bump = (tier) => LADDER[Math.min(LADDER.indexOf(tier) + 1, LADDER.length -
      2. ONE ATTEMPT. Fast runs maxRounds:1, so a failed build is reported, not retried. On the cost
         ladder a haiku miss is cheap because Fable gates every merge and the ladder escalates on
         rework; here the same miss burns the item for the whole run.
-   So fast reads the architect's tier as a CEILING, never below sonnet. Haiku stays available on the
+   So lean reads the architect's tier as a CEILING, never below sonnet. Haiku stays available on the
    cost-scaled path, where the ladder and the retry exist to catch it. */
-const tierFor = (t, risk) => FASTQ
+const tierFor = (t, risk) => LEANQ
   // fast: honour the architect's tier ONLY where it also called the blast radius low. No risk tag
   // means no permission — an untagged item is treated as risky, because "unknown" is not "low".
   ? (risk === 'low' ? (!t || t === 'haiku' ? 'sonnet' : t) : 'opus')
   : MAXQ ? 'opus' : (t || 'sonnet')
-const effortFor = (tier) => (MAXQ && !FASTQ) ? 'high'
+const effortFor = (tier) => (MAXQ && !LEANQ) ? 'high'
   : tier === 'opus' ? 'high' : tier === 'sonnet' ? 'medium' : 'low'
 const budgetOK = () => !budget.total || budget.remaining() > FLOOR
 const mode = APPLY ? 'APPLY (agents edit files)' : 'DRY-RUN (agents propose diffs, nothing written)'
@@ -807,7 +816,7 @@ log(`KONYO WORKFLOW [${QUALITY.toUpperCase()}] · ${mode} · budget floor ${Math
 // v18 — a flag we did not understand must never be a silent downgrade.
 if (QUALITY_TYPO) log(`⚠ quality:"${QUALITY_ASKED}" is not a quality this workflow knows ` +
     `(max | fast | standard). Ran at MAX — an unrecognised flag fails EXPENSIVE, never quiet.`)
-if (MAXQ && !FASTQ && !A?.quality) log('   (max is the default — {quality:"fast"} keeps every gate but builds low-risk items cheaper; {quality:"standard"} is the cost-scaled ladder)')
+if (MAXQ && !LEANQ && !A?.quality) log('   (max is the default — {quality:"lean"} keeps every gate but builds low-risk items cheaper; {quality:"standard"} is the cost-scaled ladder)')
 
 // 0) TRIAGE — decide the size of the run before buying any of it.
 //
@@ -981,13 +990,13 @@ if (triage) {
 // The quality only changes how many candidates are bought, which the detail string says.
 phase('Architect')
 let plan = null
-/* v19 — THE PANEL IS A BARRIER, AND FAST DOES NOT PAY FOR IT. Three architects plus a judge is four
+/* v19 — THE PANEL IS A BARRIER, AND LEAN DOES NOT PAY FOR IT. Three architects plus a judge is four
    agents and a serial round: nothing starts building until the slowest candidate AND the judge are
-   done (measured 13:14:50 -> 13:17:46 on the first max run). Fast buys ONE architect — and the plan
+   done (measured 13:14:50 -> 13:17:46 on the first max run). Lean buys ONE architect — and the plan
    is still independently read, because the third eye reviews it before a builder spends anything.
    That is a different MODEL FAMILY looking at the plan, which is a stronger check than a second
    Claude candidate anyway. */
-if (MAXQ && !FASTQ) {
+if (MAXQ && !LEANQ) {
   const ANGLES = [
     'RISK-FIRST: order items by blast radius; isolate the highest-risk change and make it the most defensively specified.',
     'CORRECTNESS-FIRST: decompose so each item has a single, testable, unambiguous fix; no item bundles two concerns.',
@@ -1262,13 +1271,13 @@ const unbuiltGaps = []
    CONVERGENCE (why this cannot spin): a round that surfaces no NEW file counts as DRY instead of
    continuing forever on gaps already owned. CRIT_MAX is an absurd backstop far above any real run. */
 const CRIT_MAX = 12
-/* v19 — THE COMPLETENESS LOOP IS THE OTHER LONG TAIL, AND FAST DOES NOT BUY IT. On the measured max
+/* v19 — THE COMPLETENESS LOOP IS THE OTHER LONG TAIL, AND LEAN DOES NOT BUY IT. On the measured max
    run it opened at 13:39 of a run that started at 13:14 and can add whole build+gate rounds after
    every item has already passed. It is the right thing to buy when being wrong is expensive; it is
-   the wrong thing to buy when the caller asked for speed. Skipped at fast, and REPORTED as skipped
+   the wrong thing to buy when the caller asked for speed. Skipped at lean, and REPORTED as skipped
    with its reason — never silently, because "no gaps found" and "nobody looked for gaps" must not
-   read the same. Fast therefore cannot claim completeness, and its verdict clause below reflects it. */
-if (MAXQ && !FASTQ) {
+   read the same. Lean therefore cannot claim completeness, and its verdict clause below reflects it. */
+if (MAXQ && !LEANQ) {
   phase('Completeness')
   while (dry < DRYROUNDS && critRound < CRIT_MAX && budgetOK()) {
     // the critic can always find one more thing, and each gap costs a builder plus its skeptics —
@@ -1741,8 +1750,8 @@ return emit({
      ABORTED. A field that answers correctly only on failure is the null-reads-as-pass defect wearing
      a different hat. The token is now the field; the prose is a separate label. */
   quality: QUALITY,
-  quality_label: FASTQ
-    ? `FAST (every MAX gate · 3-architect judge panel · ${SKEPTICS}-skeptic adversarial gate · loop-until-dry · ` +
+  quality_label: LEANQ
+    ? `LEAN (every MAX gate · 3-architect judge panel · ${SKEPTICS}-skeptic adversarial gate · loop-until-dry · ` +
       `low-risk items built at their architect's tier, floored at sonnet)`
     : MAXQ
     ? `MAX (Opus everywhere · 3-architect judge panel · ${SKEPTICS}-skeptic adversarial gate · loop-until-dry)`
@@ -1752,9 +1761,9 @@ return emit({
     maxRounds: MAXROUNDS,
     dryRounds: DRYROUNDS,
     floor: FLOOR,
-    tierPolicy: FASTQ ? "opus, EXCEPT risk:'low' items which build at the architect's tier floored at SONNET (never haiku)"
+    tierPolicy: LEANQ ? "opus, EXCEPT risk:'low' items which build at the architect's tier floored at SONNET (never haiku)"
       : MAXQ ? 'opus everywhere' : 'cost-scaled ladder (haiku→sonnet→opus, escalate on rework)',
-    judgePanel: (MAXQ && !FASTQ) ? '3 architects + judge' : 'single architect',
+    judgePanel: (MAXQ && !LEANQ) ? '3 architects + judge' : 'single architect',
     gateKind: MAXQ ? 'adversarial skeptic panel (the panel IS the gate)' : 'fable merge gate + skeptic panel behind it',
     isolate: ISOLATE,
     skeptics: { used: SKEPTICS, of: LENSES.length, source: SKEPTICS_SOURCE },
@@ -1765,11 +1774,11 @@ return emit({
   rework: { rounds: round, maxRounds: MAXROUNDS, stopped_because: reworkStop },
   skeptics: { used: SKEPTICS, of: LENSES.length, source: SKEPTICS_SOURCE,
               opted_out: !!globalThis.__skepticsOptedOut, floored: !!globalThis.__skepticFloored },
-  completeness: (MAXQ && !FASTQ)
+  completeness: (MAXQ && !LEANQ)
     ? { ran: true, rounds: critRound, dry, required: DRYROUNDS, wentDry: dry >= DRYROUNDS,
         stoppedBecause: critStop, unbuiltGaps }
-    : { ran: false, reason: FASTQ
-        ? 'quality=fast — the completeness critic was deliberately not bought (it is the run\'s longest tail). Nothing hunted for work nobody did; re-run at quality:"max" if that matters.'
+    : { ran: false, reason: LEANQ
+        ? 'quality=lean — the completeness critic was deliberately not bought (it is the run\'s longest tail). Nothing hunted for work nobody did; re-run at quality:"max" if that matters.'
         : 'quality=standard — the completeness critic is a max-only phase and was never bought' },
   infeasible: globalThis.__infeasible || null,
   /* v18.4 — REPORT THE SPEND, ALWAYS. This read `budget.total ? budget.spent() : null`, so unless a
@@ -1792,13 +1801,13 @@ return emit({
   // above says so out loud, so it cannot be mistaken for a loop that ran and went dry.
   verdict: BLOCKERS.length ? 'BLOCKED — see blockers[]'
     : CEILING_HIT ? 'UNVERIFIED — the agent ceiling stopped the run early'
-    : (MAXQ && !FASTQ && (dry < DRYROUNDS || unbuiltGaps.length)) ? 'UNVERIFIED — the completeness critic never went dry (' + (critStop || 'gaps raised but never built') + ')'
+    : (MAXQ && !LEANQ && (dry < DRYROUNDS || unbuiltGaps.length)) ? 'UNVERIFIED — the completeness critic never went dry (' + (critStop || 'gaps raised but never built') + ')'
     : trimmedFromPlan.length ? 'PARTIAL — ' + trimmedFromPlan.length + ' item(s) were trimmed from the plan to fit the ceiling'
     : failed.length ? 'INCOMPLETE — ' + failed.length + ' item(s) never passed the gate'
     : SPAWN_ERRORS.length ? 'DEGRADED — some agents died; their work is missing, not failed'
     : 'OK',
   shippable: !BLOCKERS.length && !CEILING_HIT && !trimmedFromPlan.length && !failed.length
-    && !SPAWN_ERRORS.length && (!MAXQ || FASTQ || (dry >= DRYROUNDS && !unbuiltGaps.length)),
+    && !SPAWN_ERRORS.length && (!MAXQ || LEANQ || (dry >= DRYROUNDS && !unbuiltGaps.length)),
   passed: passed.length,
   failed: failed.length,
   render_gate: renderGate,
