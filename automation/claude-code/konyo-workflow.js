@@ -169,11 +169,22 @@ if (!TASK) { log('No task given. Pass a task string or {task:"..."} as args.'); 
 // hours actually went: an Opus agent told to be exhaustive on a 38k-line file will happily spend
 // forty tool calls on it. Agents honour an explicit budget when given one, so every prompt carries
 // the same sentence — attached inside spawn(), so no call site can forget it.
-const PACE = '\n\nWORK BRISKLY — this run is budgeted. Prefer targeted grep/sed over reading whole '
-  + 'files; stop at the FIRST solid answer rather than the exhaustive one; aim for roughly 12-18 tool '
-  + 'calls. A good answer now beats a perfect one in twenty minutes. If you genuinely cannot settle a '
-  + 'point inside that budget, SAY SO in your result instead of spending more — an honest "not '
-  + 'established" is worth more than a slow guess.'
+/* v18.4 — PACE NOW EXPLAINS ITS OWN MECHANIC, because "work briskly" reads as a style note and the
+   real reason is arithmetic. Measured on this machine 2026-08-04: one session showed 843K output
+   tokens against 117.6M CONTEXT READS. Nobody wrote 117M tokens — that is the same context re-read
+   on every tool round-trip, and it grows monotonically, so a file you read early is paid for again
+   on every call you make afterwards. That is why a whole-file read is expensive in a way its own
+   size does not show, and why a script that prints a verdict beats a file that prints its contents. */
+const PACE = '\n\nWORK BRISKLY — this run is budgeted, and the budget works in a way worth knowing: '
+  + 'EVERY tool call re-reads your whole context, so anything you pull in early you pay for again on '
+  + 'every call after it. A 2,000-line file read once is not read once. So: prefer targeted grep/sed '
+  + 'over reading whole files, and prefer running a small script that PRINTS A VERDICT over reading '
+  + 'the material and judging it yourself. Stop at the FIRST solid answer rather than the exhaustive '
+  + 'one; aim for roughly 12-18 tool calls. A good answer now beats a perfect one in twenty minutes. '
+  + 'If you genuinely cannot settle a point inside that budget, SAY SO in your result instead of '
+  + 'spending more — an honest "not established" is worth more than a slow guess. '
+  + 'NONE OF THIS APPLIES TO EVIDENCE: never skip opening an image, running the test, or fetching the '
+  + 'real remote state to save a call. Cheap is not a reason to verify a proxy.'
 
 // v16 — THE PROXY BAN, attached to EVERY agent prompt beside PACE. Three separate bugs in one day
 // were the same mistake wearing different clothes: checking a cheap stand-in for a fact instead of
@@ -1698,7 +1709,13 @@ return emit({
         stoppedBecause: critStop, unbuiltGaps }
     : { ran: false, reason: 'quality=standard — the completeness critic is a max-only phase and was never bought' },
   infeasible: globalThis.__infeasible || null,
-  tokens_spent: budget.total ? budget.spent() : null,
+  /* v18.4 — REPORT THE SPEND, ALWAYS. This read `budget.total ? budget.spent() : null`, so unless a
+     caller had set an explicit token target the run reported tokens_spent:null — while budget.spent()
+     answers perfectly well with no target set. A number that exists and is withheld is the same
+     defect this ledger exists to kill, just pointed at the bill instead of the work. */
+  tokens_spent: budget.spent(),
+  budget: { target: budget.total, spent: budget.spent(),
+            remaining: budget.total ? budget.remaining() : null },
   ceiling: { cap: MAX_AGENTS, spent: SPENT, hit: CEILING_HIT, hitDuringCompleteness: CEILING_HIT,
              trimmedFromPlan, complete: !CEILING_HIT && !trimmedFromPlan.length },
   // v13 — the one field that answers "is this safe to have shipped". Every fact below was already
