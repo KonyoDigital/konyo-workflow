@@ -1,14 +1,18 @@
 export const meta = {
   name: 'konyo-workflow',
-  description: 'KONYO WORKFLOW, cost-scaled: Opus architects, Haiku/Sonnet build one-owner-per-file, Fable gates every merge, failed items escalate up the ladder, Opus synthesizes ONE final report.',
-  whenToUse: 'ANY multi-step task you want orchestrated. It TRIAGES itself first — serial diagnosis is sent back to be done directly instead of spawning a fleet, and skeptics are only bought when being wrong is expensive. Pass {task, apply, maxRounds, budgetFloor, grok, force, skeptics}.',
+  description: 'KONYO WORKFLOW — ONE body. RUNS AT MAX BY DEFAULT: Opus everywhere, a 3-architect judge panel, a diverse-lens skeptic panel as THE gate, a loop-until-dry completeness critic, and the third eye (Grok — a different model family) ON. Pass {quality:"standard"} — and only that exact word — to opt DOWN to the cost-scaled ladder (Haiku/Sonnet build, Fable gates every merge, escalate on rework). Pass {thirdEye:false} to run without an independent reviewer. Every safeguard (agent ceiling, blockers, bail, render gate, LAW17, LAW19, workspace lock, skeptic floor) runs at BOTH qualities — the flag only buys model tier, panel size and extra phases.',
+  whenToUse: 'ANY multi-step task you want orchestrated — it is MAX unless you say otherwise, because being wrong usually costs more than tokens. It TRIAGES itself first, so a serial diagnosis is sent back to be done directly instead of spawning a fleet, and the ceiling + budget floor still bound every run. Opt down with {quality:"standard"} for routine, low-cost-of-wrong, easily reversible work (~10-15x cheaper). Pass {task, quality, thirdEye, apply, maxRounds, dryRounds, budgetFloor, force, skeptics, maxAgents, isolate}. `grok:false` still works as the old name for thirdEye:false.',
   phases: [
     { title: 'Preflight',   detail: 'workspace lock — refuse to start if another run is already editing this tree' },
     { title: 'Triage',      detail: 'right-size the run BEFORE spending: shape · parallelism · cost-of-wrong', model: 'opus' },
     { title: 'Architect',   detail: 'Opus decomposes the task into one-owner-per-file work items + tier',   model: 'opus' },
-    { title: 'Third-eye',   detail: 'optional Grok consult on the plan' },
-    { title: 'Build+Gate',  detail: 'Haiku/Sonnet build each item; Fable gates it immediately (no barrier)' },
+    { title: 'Architect panel', detail: '(max only) 3 Opus architects (risk / correctness / simplest lenses) + Opus judge → one plan', model: 'opus' },
+    { title: 'Third-eye',   detail: 'seat 1 of 4 — Grok (a DIFFERENT model family) reviews the chosen plan before a builder spends anything; seats 2-4 sit on the skeptic panel, the render gate and the pre-ship verdict' },
+    { title: 'Build+Gate',  detail: 'Haiku/Sonnet (Opus at max) build each item; Fable gates it immediately (no barrier)' },
+    { title: 'Adversarial gate', detail: '(max only) diverse-lens Opus skeptics ARE the gate; majority-refute kills the change', model: 'opus' },
     { title: 'Rework',      detail: 'failed items escalate one tier up and re-gate, version-per-round' },
+    { title: 'Merge',       detail: '(isolate mode only) applies each worktree patch to the REAL repo, one at a time, git apply --check first', model: 'opus' },
+    { title: 'Completeness',detail: '(max only) Opus critic hunts for missed work; loop until N dry rounds', model: 'opus' },
     { title: 'Render gate', detail: 'drives the REAL UI — hit-testable controls + SCREENSHOT-BACKED geometry (non-zero boxes, no clipping/overflow, text vs background, no overlap); failure BLOCKS the ship' },
     { title: 'Fat version bar', detail: 'LAW17 — >=3 user-visible outcomes in one theme OR one structural bug with root cause+verify+prevention; a thin ship BLOCKS' },
     { title: 'Reachability',   detail: 'LAW19 — every symbol the change added has a caller AND a writer; added tests proven to have RUN; failure BLOCKS', model: 'opus' },
@@ -19,13 +23,55 @@ export const meta = {
 // ---------- inputs ----------
 // args may arrive as a real object OR as a JSON-encoded string (the harness sometimes
 // stringifies it, which silently dropped apply/maxRounds before). Normalize to an object.
-let A = args
+// A sibling entry point (konyo-workflow-max) may drive this same body without an `args` binding of
+// its own, so fall back to globalThis.__KONYO_ARGS. The string/JSON normalisation below is unchanged.
+let A = (typeof args !== 'undefined' ? args : null) || globalThis.__KONYO_ARGS || null
 if (typeof A === 'string') { try { A = JSON.parse(A) } catch { A = { task: A } } }
+/* ── THE QUALITY KNOB (2026-08-04 — THE MERGE) ───────────────────────────────────────────────────
+   konyo-workflow.js and konyo-workflow-max.js were TWO copies of one workflow. Safeguards v13-v17
+   were hand-applied to both and had ALREADY DRIFTED: the base stored trimmed items in a local
+   `trimmedFromPlan` while max stored them in `globalThis.__trimmed`; the base returned a
+   `rework:{rounds,maxRounds,stopped_because}` block max lacked; max returned `completeness`,
+   `merge`, `infeasible` and `quality` blocks the base lacked. Every future safeguard was one more
+   chance to fix one file and forget the other. So: ONE body, and the quality is a flag.
+
+   THE LAW THAT MAKES THE FLAG SAFE: `MAXQ` may only choose (a) a model tier, (b) an effort level,
+   (c) a panel/loop SIZE, or (d) whether an EXTRA PHASE runs. It may NEVER decide whether a
+   SAFEGUARD runs. No blocker(), no bail(), no ceiling check, no lock, no gate may live inside
+   `if (MAXQ)`. Every max-only phase pushes into the SAME BLOCKERS ledger, the same SPAWN_ERRORS
+   array, and exits through the same bail(). */
+/* v18 — MAX IS THE DEFAULT. Konyo, 2026-08-04: "i want the MAX version to be the defaulted one
+   always as main.. the cost-scaling is optional and only if asked for manually." A bare invocation
+   therefore buys the full adversarial path; the cheap ladder is an explicit opt-in and nothing else.
+   FAIL SAFE TOWARD QUALITY: only the exact string 'standard' downgrades. A typo ('MAXX', 'standrd',
+   'cheap', 'fast') resolves to MAX — the failure mode of a misread flag must be an expensive run,
+   never a quiet one that the caller believes was maxed. And the fallback is SAID OUT LOUD below:
+   a quality you did not ask for is exactly the kind of fact that reads as consent when it is silent. */
+const QUALITY_ASKED = (A && typeof A.quality === 'string') ? A.quality.trim().toLowerCase() : null
+const QUALITY = (QUALITY_ASKED === 'standard' || globalThis.__KONYO_QUALITY === 'standard') ? 'standard' : 'max'
+const QUALITY_TYPO = !!(QUALITY_ASKED && QUALITY_ASKED !== 'standard' && QUALITY_ASKED !== 'max')
+const MAXQ    = QUALITY === 'max'
 const TASK      = typeof A === 'string' ? A : (A && A.task) || ''
 const APPLY     = !!(A && A.apply)                 // false = dry-run (propose diffs, write nothing). true = agents edit files.
-const MAXROUNDS = (A && A.maxRounds) || 3
-const FLOOR     = (A && A.budgetFloor) || 60_000   // stop opening new rounds under this many tokens remaining
-const USE_GROK  = !(A && A.grok === false)
+// Quality-dependent DEFAULTS preserve each original script's default exactly; an explicit caller arg
+// always wins over both.
+const MAXROUNDS = (A && A.maxRounds) || (MAXQ ? 2 : 3)
+const DRYROUNDS = (A && A.dryRounds) || 1          // consumed only by the max-only completeness loop
+const FLOOR     = (A && A.budgetFloor) || (MAXQ ? 120_000 : 60_000)  // stop opening new rounds under this many tokens remaining
+/* v18 — THE THIRD EYE IS A FIRST-CLASS FLAG, ON BY DEFAULT, AND IT MEANS A DIFFERENT MODEL FAMILY.
+   Konyo, 2026-08-04: "grok should be turned on for now until i say turn it off... the whole point
+   for the third eye is a different LLM AI with a different point of view." Claude reviewing Claude
+   is not a third eye, it is the same eye twice — model diversity is the ONLY thing this phase buys,
+   so a Claude stand-in may never quietly fill a Grok seat.
+     thirdEye: true   (DEFAULT) — the real thing: Grok, a different family, via the CLI
+     thirdEye: false            — off. `grok:false` still works; it is the old name for this flag.
+     thirdEye: 'claude'         — explicit DEGRADED mode: a Claude adversary, LABELLED as a
+                                  same-family stand-in. Opt-in only, never a fallback. */
+const TE_ASKED  = (A && A.thirdEye !== undefined) ? A.thirdEye
+                : (A && A.grok !== undefined)     ? A.grok
+                : true
+const THIRD_EYE = TE_ASKED === false ? 'off' : (TE_ASKED === 'claude' ? 'claude' : 'grok')
+const USE_GROK  = THIRD_EYE !== 'off'   // legacy name kept so no existing call site changes meaning
 const FORCE     = !!(A && A.force)                 // run the fleet even if triage says do it directly
 const SKEPTICS_OVERRIDE = (A && typeof A.skeptics === 'number') ? A.skeptics : null
 const MAX_AGENTS = (A && A.maxAgents) || 24
@@ -38,6 +84,17 @@ const MAX_AGENTS = (A && A.maxAgents) || 24
    outlives its holder locks the human out of their own repo. Escape hatch {ignoreLock:true}. */
 const IGNORE_LOCK  = !!(A && A.ignoreLock)
 const LOCK_TTL_MIN = (A && A.lockTtlMinutes) || 180
+/* ── v9 — SANDBOX ISOLATION WITH A REAL MERGE (ported whole from max) ────────────────────────────
+   `isolation:'worktree'` alone does NOT give you isolation: it hands each agent an isolated COPY
+   and auto-cleans it, and nothing merges a CHANGED copy back. Switched on naively in apply mode,
+   every edit lands in a throwaway directory, never reaches the repo, and the run reports success —
+   a silent no-op dressed as a green ship. So isolation here is isolate → PATCH → merge: each
+   builder returns the complete unified diff, and ONE merge agent applies them to the real repo one
+   at a time with `git apply --check` first.
+   ARG-GATED, NOT QUALITY-GATED. This is a capability, not a rigour level: a standard run that asks
+   for {isolate:true} gets the worktree builders AND the merge phase that carries their work back.
+   Gating the merge on quality would mean a standard isolate run silently discarded every change. */
+const ISOLATE = !!(A && A.isolate) && APPLY
 
 // ── THE CEILING (2026-08-01, ported from max after it blew a 34-cap into 119 agents / 4.1 hours) ──
 // This workflow's only bound was a SENTENCE IN A PROMPT — "Produce AT MOST N items" — which asks the
@@ -85,14 +142,19 @@ function blocker(what, why) {
 // green light — but "accidentally not wrong" is not a safeguard, and it is the same shape as the
 // bug this patch exists to kill: a fact that is true in the payload and absent from the summary.
 // Defaults first, so a caller can override the verdict for a deliberate, non-failing exit.
+// THE SIBLING CONTRACT. A thin entry point (konyo-workflow-max) may execute this body without being
+// able to read its `return` value directly, so every exit also publishes the payload here. One line,
+// costs nothing, and it means the two entry points can never drift into two implementations again.
+const emit = (o) => { globalThis.__KONYO_RESULT = o; return o }
 function bail(o) {
-  return Object.assign({
+  return emit(Object.assign({
+    quality: QUALITY,
     blockers: BLOCKERS,
     agent_errors: SPAWN_ERRORS,
     ceiling: { cap: MAX_AGENTS, spent: SPENT, hit: CEILING_HIT },
     verdict: 'ABORTED — the run exited before completing; see error/refused',
     shippable: false,
-  }, o)
+  }, o))
 }
 
 if (!TASK) { log('No task given. Pass a task string or {task:"..."} as args.'); return bail({ error: 'no task' }) }
@@ -127,9 +189,102 @@ const PROOF = '\n\nVERIFY THE THING, NOT A PROXY FOR IT. Before you assert somet
   + 'so in your result — an explicit "not established" is worth more than a confident proxy.'
 
 
+/* ── v18 — THE THIRD EYE: FOUR SEATS, A TRANSPORT THAT ACTUALLY WORKS, AND IT FAILS LOUD ─────────
+   THE BUG THIS REPLACES. Until today the third eye was a single agent told to call
+   `mcp__grok-mcp__chat` and to "return grok unavailable" if it could not. That MCP transport is
+   DEAD — measured 2026-08-04, it answers INVALID_ARGUMENT / "Incorrect API key provided", because
+   the XAI_API_KEY in ~/Grok-MCP/.env is rejected by console.x.ai. Nothing read the "unavailable"
+   string, so a third eye that never spoke read as a clean pass. That is the v16 defect class
+   (a null that reads as success) living inside the safeguard machinery itself.
+   THE TRANSPORT THAT WORKS: the Grok CLI at ~/.grok/bin/grok (0.2.118) authenticates on its own
+   session, independent of that key. Measured working the same day, twice: a plain prompt, and an
+   agentic read of a repo (`--cwd`) that ran `git log` and answered correctly. It is ALSO multimodal
+   — asked what art/mephisto_graphic.png depicts, with no hint of what it should be, it answered
+   "a polished, deep-blue teardrop gemstone", independently confirming the mislabelled boss art.
+   That is why seat 4 exists.
+   ⚠ `timeout` is NOT installed on this Mac, so every call is bounded by the Bash tool's own timeout
+   parameter. Never write `timeout 120 grok ...` — it fails with command-not-found and the seat then
+   reports unreachable for the wrong reason.
+   THE RULE THAT MAKES IT WORTH HAVING: a Claude agent may NEVER fill a Grok seat. If the transport
+   is down the seat is reported EMPTY — panel 3 becomes 2, named in the payload — because a panel
+   that looks diverse while being an echo is worse than a panel that is honestly short. */
+const GROK_CLI = '/Users/konyo/.grok/bin/grok'
+const THIRD_EYE_SEATS = []            // every consult attempted, reached or not — the ledger IS the report
+const THIRD_EYE_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['reached', 'transport', 'verdict', 'concerns', 'reason'],
+  properties: {
+    reached:   { type: 'boolean', description: 'true ONLY if a non-Claude model actually answered' },
+    transport: { type: 'string', enum: ['cli', 'mcp', 'claude-standin', 'none'] },
+    verdict:   { type: 'string', enum: ['no concerns', 'concerns', 'refuted', 'unreachable'] },
+    concerns:  { type: 'array', items: { type: 'string' }, description: 'verbatim points it raised; [] if none' },
+    severity:  { type: 'string', enum: ['none', 'minor', 'major', 'blocking'] },
+    reason:    { type: 'string', description: 'if unreachable, the ACTUAL error text — not a guess' },
+  },
+}
+// How every seat talks to Grok. Written once so four seats cannot drift apart.
+function grokHow(question, opts = {}) {
+  const cwd = opts.cwd || '.'
+  return (
+    `TRANSPORT — do this literally, in this order, and report which one answered.\n` +
+    `1. CLI FIRST (this is the working path). Write the question below to a temp file with the Write ` +
+    `tool (e.g. /tmp/te_$$.txt), then run with the Bash tool:\n` +
+    `   ${GROK_CLI} --cwd ${cwd} --prompt-file <file> --no-memory --disable-web-search --output-format plain\n` +
+    `   Set the Bash tool's OWN timeout parameter to 180000. Do NOT use the \`timeout\` binary — it is ` +
+    `not installed on this Mac and the command would die with command-not-found.\n` +
+    `2. Only if the CLI errors or returns empty, try the MCP fallback: ToolSearch for ` +
+    `mcp__grok-mcp__chat and call it. It is EXPECTED to fail with "Incorrect API key provided"; that ` +
+    `is a known-dead key, not something to debug or work around.\n` +
+    `3. If neither answered, return reached:false, transport:'none', verdict:'unreachable', and put ` +
+    `the ACTUAL error text in reason. \n` +
+    `\n🚫 YOU ARE A COURIER, NOT THE THIRD EYE. Never answer the question yourself, never paraphrase ` +
+    `what you think Grok would say, and never let your own opinion reach the concerns[] array. An ` +
+    `empty seat honestly reported is the correct outcome when the transport is down; a Claude opinion ` +
+    `wearing a Grok label is the one outcome that destroys the entire point of this phase.\n` +
+    `\n──── QUESTION TO SEND ────\n${question}\n──── END QUESTION ────\n` +
+    `\nReturn Grok's answer: concerns[] verbatim from its reply (or [] if it raised none).`
+  )
+}
+// One consult. Records itself in the ledger no matter how it ends.
+async function thirdEyeAsk(seat, question, phaseName, opts = {}) {
+  if (THIRD_EYE === 'off') {
+    THIRD_EYE_SEATS.push({ seat, ran: false, reached: false, transport: 'none',
+      reason: 'thirdEye:false — the caller turned the third eye off' })
+    return null
+  }
+  const standin = THIRD_EYE === 'claude'
+  const prompt = standin
+    ? `⚠ DEGRADED THIRD EYE — you are a CLAUDE stand-in, explicitly requested with thirdEye:'claude'. ` +
+      `You are the SAME model family as everything you are reviewing, so you share its blind spots. ` +
+      `Say so in reason, set transport:'claude-standin', and answer the question as adversarially as ` +
+      `you can anyway.\n\n${question}`
+    : grokHow(question, opts)
+  const r = await spawn(prompt, {
+    agentType: 'general-purpose', model: 'sonnet', effort: 'low',
+    label: `thirdEye:${seat}`, phase: phaseName, schema: THIRD_EYE_SCHEMA,
+  }).catch(err => ({ reached: false, transport: 'none', verdict: 'unreachable', concerns: [],
+    reason: `the courier agent died: ${err && err.message ? err.message : String(err)}` }))
+  const rec = { seat, ran: true, reached: !!(r && r.reached), transport: (r && r.transport) || 'none',
+    verdict: (r && r.verdict) || 'unreachable', concerns: (r && r.concerns) || [],
+    severity: (r && r.severity) || 'none', reason: (r && r.reason) || '' }
+  // A stand-in is never counted as the real thing, whatever it reports about itself.
+  if (standin) { rec.reached = false; rec.transport = 'claude-standin' }
+  THIRD_EYE_SEATS.push(rec)
+  log(rec.reached
+    ? `👁 THIRD EYE [${seat}] via ${rec.transport}: ${rec.verdict}` +
+      (rec.concerns.length ? ` — ${rec.concerns.slice(0, 2).join(' | ').slice(0, 220)}` : '')
+    : `👁 THIRD EYE [${seat}] DID NOT SPEAK (${rec.transport}) — ${String(rec.reason).slice(0, 180)}`)
+  return rec
+}
+
 const LADDER = ['haiku', 'sonnet', 'opus']               // the cost-scaling ladder
 const bump = (tier) => LADDER[Math.min(LADDER.indexOf(tier) + 1, LADDER.length - 1)] || 'sonnet'
-const effortFor = (tier) => tier === 'opus' ? 'high' : tier === 'sonnet' ? 'medium' : 'low'
+// THE MODEL-TIER KNOB, in ONE place. Standard keeps the cost-scaling ladder exactly as it was; max
+// forces Opus everywhere, which is what konyo-workflow-max.js did by hardcoding 'opus' at every call
+// site. Note bump('opus') === 'opus', so at max the escalation ladder is a harmless no-op and needs
+// no branch of its own — the rework round still happens, it just cannot escalate further.
+const tierFor = (t) => MAXQ ? 'opus' : (t || 'sonnet')
+const effortFor = (tier) => MAXQ ? 'high' : tier === 'opus' ? 'high' : tier === 'sonnet' ? 'medium' : 'low'
 const budgetOK = () => !budget.total || budget.remaining() > FLOOR
 const mode = APPLY ? 'APPLY (agents edit files)' : 'DRY-RUN (agents propose diffs, nothing written)'
 
@@ -190,11 +345,58 @@ const PLAN_SCHEMA = {
           kind:        { type: 'string', enum: ['bulk', 'code', 'design'] },
           tier:        { type: 'string', enum: ['haiku', 'sonnet', 'opus'], description: 'cheapest model that can do it: bulk→haiku, code→sonnet, design/cross-cutting→opus' },
           instruction: { type: 'string', description: 'self-contained spec for the owner agent' },
+          risk:        { type: 'string', enum: ['low', 'medium', 'high'], description: 'blast radius if done wrong (the max architect panel tags this; optional at standard)' },
         },
       },
     },
   },
 }
+// The max architect panel merges 3 candidate plans; the judge must say WHY its merge beats them,
+// or "the best plan" is an assertion nobody can check.
+const JUDGE_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['version_label', 'summary', 'items', 'why'],
+  properties: {
+    version_label: { type: 'string' },
+    summary:       { type: 'string' },
+    why:           { type: 'string', description: 'why this merged plan beats the 3 candidates' },
+    items: PLAN_SCHEMA.properties.items,
+  },
+}
+const SKEPTIC_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['refuted', 'severity', 'reason'],
+  properties: {
+    refuted:  { type: 'boolean', description: 'true if this change is wrong/unsafe/incomplete through your lens' },
+    severity: { type: 'string', enum: ['none', 'minor', 'major', 'blocking'] },
+    reason:   { type: 'string' },
+  },
+}
+const CRITIC_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['done', 'missing'],
+  properties: {
+    done:    { type: 'boolean', description: 'true if nothing material is missing' },
+    missing: {
+      type: 'array', maxItems: 12,
+      items: {
+        type: 'object', additionalProperties: false,
+        required: ['file', 'instruction'],
+        properties: { file: { type: 'string' }, instruction: { type: 'string' } },
+      },
+    },
+  },
+}
+// LAW17 — THE FAT VERSION BAR, as one constant so the architect panel, the judge and the bar itself
+// state the same law in the same words.
+const FAT_LAW =
+  `FAT VERSION LAW (LAW17): ONE version integer must package real work — (A) >=3 user-visible ` +
+  `outcomes in one theme, OR (B) one structural bug with root cause + verification + prevention. ` +
+  `A plan whose entire content is one toast / one label / one i18n key / one CSS one-liner / docs ` +
+  `fluff does not clear the bar; expand the plan until it does, or state plainly that the work is ` +
+  `below a version stamp. Never micro-stamp one version per one-liner. This is NOT a licence to ` +
+  `inflate the fleet: the triage agent cap stands — fold MORE OUTCOMES into the SAME items, do not ` +
+  `spawn more items.`
 const BUILD_SCHEMA = {
   type: 'object', additionalProperties: false,
   required: ['file', 'summary', 'changes', 'self_check', 'files_touched'],
@@ -207,6 +409,10 @@ const BUILD_SCHEMA = {
        declaration against git now; see the MAX shipper for the full reasoning. */
     files_touched: { type: 'array', items: { type: 'string' }, maxItems: 40,
                      description: 'EVERY file you created, edited or deleted — relative paths. Do not omit files.' },
+    /* v9 — the carrier for isolated builds. Empty in shared-tree mode, where the edit is already in
+       the repo. In isolate mode this IS the work: the worktree may be cleaned up the moment the
+       agent returns, so a patch that only exists on disk is a patch that can evaporate. */
+    patch: { type: 'string', description: 'ISOLATE MODE ONLY: the complete unified diff of your change (git diff output), applyable with `git apply` from the repo root. Empty string when not in isolate mode.' },
   },
 }
 const GATE_SCHEMA = {
@@ -258,17 +464,30 @@ const CRAFT_RULES =
   `answer, because nothing catches it unless something compares them.`
 
 function buildAgent(item, reworkNote) {
-  const tier = item.tier
-  const rw = reworkNote ? `\n\nFABLE GATE REJECTED THE LAST ATTEMPT — fix this: ${reworkNote}` : ''
-  const act = APPLY
-    ? `Make the edit directly to ${item.file}. Touch NO other file — you are the sole owner of this one.`
-    : `Do NOT write anything. Return the change as a unified diff in "changes".`
+  const tier = tierFor(item.tier)          // standard: the plan's own tier. max: Opus, always.
+  const rw = reworkNote
+    ? `\n\n${MAXQ ? 'SKEPTICS REFUTED' : 'FABLE GATE REJECTED'} THE LAST ATTEMPT — address ALL of this: ${reworkNote}`
+    : ''
+  const act = !APPLY
+    ? `Do NOT write anything. Return the change as a unified diff in "changes".`
+    : ISOLATE
+      ? `You are running in your OWN GIT WORKTREE — an isolated copy of the repo. Edit ${item.file} ` +
+        `here as normal, then produce the patch that carries your work back:\n` +
+        `  git add -A && git diff --cached\n` +
+        `Return that COMPLETE unified diff in "patch". This is not bookkeeping — your worktree may ` +
+        `be discarded the moment you return, so a change that exists only on your disk is a change ` +
+        `that is LOST. Do NOT commit, push, or touch the main repo. Touch NO file but ${item.file}.`
+      : `Make the edit directly to ${item.file}. Touch NO other file — you are the sole owner of this one.`
   return spawn(
-    `KONYO WORKFLOW build agent (tier=${tier}). Task context: ${TASK}\n` +
-    `You own exactly ONE file: ${item.file} (kind=${item.kind}).\n` +
+    `${MAXQ ? 'MAX-QUALITY' : 'KONYO WORKFLOW'} build agent (tier=${tier}). Task context: ${TASK}\n` +
+    `You own exactly ONE file: ${item.file}${item.kind ? ` (kind=${item.kind})` : ''}.\n` +
     `Instruction: ${item.instruction}\n${act}${rw}\n` +
-    `Match surrounding code style. Return the structured result.` + CRAFT_RULES,
-    { model: tier, effort: effortFor(tier), label: `build:${tier}:${item.file}`, phase: 'Build+Gate', schema: BUILD_SCHEMA }
+    `Be rigorous: trace the exact failure you are fixing, handle edge cases, match surrounding style, ` +
+    `and in self_check state what you verified (compile/syntax/logic-trace). Return the structured result.` + CRAFT_RULES,
+    Object.assign(
+      { model: tier, effort: effortFor(tier), label: `${reworkNote ? 'rework' : 'build'}:${tier}:${item.file}`,
+        phase: reworkNote ? 'Rework' : 'Build+Gate', schema: BUILD_SCHEMA },
+      ISOLATE ? { isolation: 'worktree' } : {})
   ).then(b => ({ item, build: b })).catch(() => ({ item, build: null }))
 }
 
@@ -290,8 +509,222 @@ function gateAgent(built) {
   ).then(g => ({ ...built, gate: g })).catch(() => ({ ...built, gate: { verdict: 'rework', severity: 'major', reason: 'gate errored' } }))
 }
 
+/* ── THE SKEPTIC PANEL — ONE IMPLEMENTATION, BOTH QUALITIES ──────────────────────────────────────
+   Before the merge the same idea existed TWICE: this script spawned N anonymous "SKEPTIC i of N"
+   agents as a third pipeline stage, and max ran a diverse-LENS panel as the gate itself. Two copies
+   of one vote tally is exactly how the v14 threshold bug survived in one file after being fixed in
+   the other. So the lenses, the panel and the ARITHMETIC live here once; the flag only chooses how
+   many lenses are bought and whether the panel IS the gate (max) or rides behind Fable (standard). */
+const LENSES = [
+  'CORRECTNESS — does it actually work? walk the logic, hit edge cases, off-by-ones, nulls, races. Assume it is broken and try to prove it.',
+  'SAFETY & SCOPE — did it touch anything it should NOT? any regression, broken invariant, security/secret leak, or scope-creep beyond the instruction?',
+  'REPRODUCE — trace the SPECIFIC failure this change claims to fix; confirm the change truly addresses that failure and not just its symptom.',
+]
+
+// v4 — TRIAGE'S NUMBER IS AUTHORITATIVE (it asked for 1 and max bought 3, every time).
+// v12 — an EXPLICIT {skeptics:N} outranks triage.
+// v17 — THE FLOOR: a heuristic may size the panel DOWN, never to nothing.
+function activeLenses() {
+  const want = SKEPTICS_OVERRIDE !== null
+    ? SKEPTICS_OVERRIDE
+    : (globalThis.__triage && typeof globalThis.__triage.skeptics === 'number')
+      ? globalThis.__triage.skeptics
+      // No triage number at all: max is an adversarial-gate workflow by definition, so its default
+      // is the full panel. Standard's schema says "0 unless cost_of_wrong is high" — its review is
+      // the Fable gate on every merge — so its default stays 0.
+      : (MAXQ ? LENSES.length : 0)
+  const floored = Math.max(0, Math.min(LENSES.length, want))
+  /* v17 — NEVER AN EMPTY PANEL ON A RUN THAT WRITES FILES. 2026-08-04: triage returned skeptics:0
+     for a run that WAS shipping code. Defensible reasoning, wrong authority — zero lenses means
+     every built change passes unreviewed. A MAX run floors at 1 always (the adversarial gate is
+     what MAX IS, and an empty panel would make the gate structurally incapable of refusing). A
+     standard run floors at 1 whenever it is APPLYing, which is when being unreviewed can cost
+     something. An EXPLICIT {skeptics:0} from a human is still honoured — that is a person knowingly
+     opting out — and is RECORDED so the report cannot imply a gate that never sat. */
+  if (floored === 0 && SKEPTICS_OVERRIDE === null && (MAXQ || APPLY)) {
+    if (!globalThis.__skepticFloored) {
+      globalThis.__skepticFloored = true
+      log('⚠ SKEPTIC FLOOR: triage asked for 0 skeptics on a run that ' +
+          (MAXQ ? 'is MAX quality' : 'WRITES FILES') + ' — a change does not ship unreviewed. Using 1.')
+    }
+    return LENSES.slice(0, 1)
+  }
+  if (floored === 0 && SKEPTICS_OVERRIDE !== null) globalThis.__skepticsOptedOut = true
+  return LENSES.slice(0, floored)
+}
+
+/* v14 — THE VOTE TALLY, AND THERE IS EXACTLY ONE OF IT.
+   · Votes are counted as votes CAST, never votes BOUGHT. spawn() returns null on a ceiling refusal
+     WITHOUT throwing, so neither .catch nor SPAWN_ERRORS fires — measuring a threshold against the
+     panel SIZE let an item pass "skeptic-approved" having faced nobody.
+   · ZERO votes cast is REWORK, never a pass. Unreviewed is not approved.
+   · STRICT MAJORITY of the cast votes: 3 cast needs 2, 2 cast needs 2, 1 cast needs 1. The old
+     `refutedN >= 2` measured against a hardcoded 3 meant a legitimate 1-skeptic panel could NEVER
+     reach 2, so the flagship gate could not refuse anything while the payload still advertised it. */
+function tallyVotes(votes, panel, file) {
+  const v = votes.filter(Boolean)
+  const cast = v.length
+  if (cast === 0) {
+    log(`SKEPTIC PANEL PRODUCED NO VOTES for ${file} (refused or died) — not approved.`)
+    return { verdict: 'rework', refutedN: 0, votes: 0, panel,
+      reasons: ['the skeptic panel produced no votes (refused or died) — unreviewed is not approved'] }
+  }
+  if (cast < panel) log(`⚠ THIN SKEPTIC PANEL on ${file}: ${cast}/${panel} vote(s) cast.`)
+  const kills = v.filter(x => x.refuted)
+  const refutedN = kills.length
+  return { verdict: refutedN * 2 > cast ? 'rework' : 'pass', refutedN, votes: cast, panel,
+    reasons: kills.map(x => (x && x.reason) || 'no reason given') }
+}
+
+// One skeptic per lens, in parallel. A skeptic that DIES must not count as APPROVAL: skeptics are
+// only bought when being wrong is expensive, which is exactly when an unverified change must not
+// pass by default.
+function runSkeptics(built, phaseName) {
+  const lenses = activeLenses()
+  if (!lenses.length) {
+    return Promise.resolve({ verdict: 'pass', refutedN: 0, votes: 0, panel: 0,
+      reasons: ['no skeptics were bought for this run'] })
+  }
+  /* v18 — SEAT 2, AND THE STRONGEST OF THE FOUR. Konyo's own instinct: put the third eye on the
+     panel. Three Claude skeptics wear three different LENSES but carry the same PRIORS, and a
+     strict-majority vote is precisely the mechanism that correlated blind spots defeat — if the
+     failure mode is one Claude cannot see, three of them cannot see it either, and the panel votes
+     3-0 to ship a bug. Model diversity is stronger than lens diversity, so the LAST seat is served
+     by Grok reading the real diff.
+     Only when the panel has >= 2 seats: at a 1-seat floor, handing the only vote to a transport that
+     might be down would turn "Grok is unreachable" into "nothing reviewed this", and tallyVotes
+     correctly treats zero votes as REWORK. Better a Claude floor seat than an empty panel.
+     An unreachable Grok casts NO vote — it never silently becomes a Claude opinion. tallyVotes
+     counts votes CAST, so the panel honestly reads 2/3 and logs itself THIN. */
+  const grokSeat = (THIRD_EYE === 'grok' && lenses.length >= 2) ? lenses.length - 1 : -1
+  return parallel(lenses.map((lens, i) => i === grokSeat ? () => thirdEyeAsk(
+    `skeptic:${built.item.file}`,
+    `You are one seat on an adversarial review panel, and you are here because you are a DIFFERENT ` +
+    `model from the one that wrote this change and from the other reviewers. Your job is to find what ` +
+    `they cannot.\n\nTASK: ${TASK}\nFILE: ${built.item.file}\n` +
+    `INSTRUCTION IT WAS MEANT TO SATISFY: ${built.item.instruction}\n` +
+    `WHAT IT CLAIMS TO HAVE DONE: ${built.build && built.build.summary}\n` +
+    `THE ACTUAL CHANGE:\n${built.build && built.build.changes}\n` +
+    `ITS OWN SELF-CHECK: ${built.build && built.build.self_check}\n\n` +
+    `Try HARD to REFUTE it: the input that breaks it, the case it silently mishandles, the claim it ` +
+    `cannot back. You may read the files in this directory to check for yourself — do not take the ` +
+    `summary's word for what the code does. Judge the CHANGE, not the description of it.\n` +
+    `Answer refuted/not, with a concrete reason. If you are not convinced it is correct AND safe AND ` +
+    `complete, refute it — being agreeable here has no value.`,
+    phaseName, { cwd: '.' })
+    .then(rec => {
+      if (!rec || !rec.reached) return null      // an empty seat, honestly empty — never a Claude vote
+      const refuted = rec.verdict === 'refuted' ||
+        (rec.concerns.length > 0 && (rec.severity === 'major' || rec.severity === 'blocking'))
+      return { refuted, severity: rec.severity || (refuted ? 'major' : 'none'),
+        reason: `[third eye / ${rec.transport}] ${(rec.concerns[0] || rec.reason || 'no concern raised')}` }
+    }) : () => spawn(
+    `ADVERSARIAL SKEPTIC ${i + 1} of ${lenses.length} — lens: ${lens}\nTask: ${TASK}\nFile: ${built.item.file}\n` +
+    `Instruction it was meant to satisfy: ${built.item.instruction}\n` +
+    `WHAT IT CLAIMS: ${built.build && built.build.summary}\n` +
+    `Proposed change:\n${built.build && built.build.changes}\n` +
+    `Builder's self-check: ${built.build && built.build.self_check}\n` +
+    `Through YOUR lens only, try HARD to REFUTE this change — find the input that breaks it, the case ` +
+    `it silently mishandles, or the claim it cannot back. Default to refuted=true if you are not ` +
+    `convinced it is correct AND safe AND complete.\n` +
+    `OWNERSHIP — CHECK IT, DO NOT ASSUME IT. This builder owned exactly ONE file: ${built.item.file}. ` +
+    `It declared it touched: ${JSON.stringify((built.build && built.build.files_touched) || [])}. ` +
+    `Run \`git status --porcelain\` (and \`git diff --name-only\`) and compare. REFUTE as a BLOCKER if ` +
+    `any file outside its brief was created, edited or deleted, or if the declaration does not match ` +
+    `what git shows. Other agents share this tree, so ignore changes that clearly belong to another ` +
+    `item — judge only whether THIS builder went outside ${built.item.file}.\n` +
+    `Also refute micro-version inflation: one toast / one label / one i18n key / one CSS one-liner ` +
+    `claiming a full version stamp is a BLOCKER under LAW17, not a nit.`,
+    { model: 'opus', effort: 'high', phase: phaseName, label: `skeptic${i + 1}:${built.item.file}`,
+      schema: SKEPTIC_SCHEMA }
+  ).catch(() => ({ refuted: true, severity: 'major', reason: 'skeptic errored — an unverified change is refuted by default' }))
+  )).then(votes => tallyVotes(votes, lenses.length, built.item.file))
+}
+
+// MAX's gate: the panel IS the gate. Nothing else stands between a build and a pass.
+function adversarialGate(built) {
+  if (!built || !built.build) {
+    return Promise.resolve({ ...built, gate: { verdict: 'rework', severity: 'blocking',
+      reason: 'build agent produced no output', reasons: ['build produced no output'] } })
+  }
+  return runSkeptics(built, 'Adversarial gate').then(t => ({ ...built, gate: {
+    verdict: t.verdict, severity: t.verdict === 'rework' ? 'major' : 'none',
+    reason: t.reasons.join(' | ') || 'no skeptic refuted it',
+    refutedN: t.refutedN, votes: t.votes, panel: t.panel, reasons: t.reasons } }))
+}
+
+// STANDARD's third stage: Fable has already passed it; the skeptics then try to refute it.
+function skepticStage(gated) {
+  if (MAXQ) return gated                       // at max the panel already ran AS the gate
+  if (!gated || !gated.gate || gated.gate.verdict !== 'pass') return gated
+  if (!activeLenses().length) return gated
+  return runSkeptics(gated, 'Build+Gate').then(t => {
+    if (t.verdict === 'pass') return gated
+    log(`SKEPTICS KILLED ${gated.item.file}: ${String(t.reasons[0] || 'no reason given').slice(0, 140)}`)
+    return { ...gated, gate: { verdict: 'rework', severity: 'major',
+      reason: t.votes === 0 ? t.reasons[0] : `majority of skeptics refuted it: ${t.reasons[0] || 'no reason given'}`,
+      refutedN: t.refutedN, votes: t.votes, panel: t.panel, reasons: t.reasons } }
+  })
+}
+
+// THE GATE, CHOSEN ONCE. Not a ternary scattered through the pipeline.
+const gateFor = MAXQ ? adversarialGate : gateAgent
+
+/* ONE build+gate+rework body, used by the main Build phase AND by the max completeness loop. Before
+   the merge these were two loops in two files with two sets of blocker wiring; a rework round added
+   to one was a rework round missing from the other. `reworkStop` and `round` are module-level so the
+   summary can report WHICH exit the loop took — a bound that is enforced and never REPORTED reads
+   identically whether the loop went clean or was cut off with items still failing. */
+let round = 1
+let reworkStop = 'clean'
+async function buildAndGate(itemsIn, label) {
+  let res = await pipeline(
+    itemsIn,
+    it => buildAgent(it),
+    built => gateFor(built),
+    gated => skepticStage(gated)
+  )
+  res = res.filter(Boolean)
+  let r = 1
+  while (r < MAXROUNDS && budgetOK()) {
+    const failing = res.filter(x => x.gate && x.gate.verdict === 'rework')
+    if (!failing.length) break
+    r++
+    phase(`Rework r${r}`)
+    log(`${label}: round ${r} — ${failing.length} item(s) failed the gate → escalating up the ladder`)
+    const redone = await pipeline(
+      failing,
+      x => { const esc = { ...x.item, tier: bump(x.item.tier) }
+             return buildAgent(esc, (x.gate.reasons || [x.gate.reason]).filter(Boolean).join(' | ')).then(b => ({ ...b, item: esc })) },
+      built => gateFor(built),
+      gated => skepticStage(gated)
+    )
+    const byFile = new Map(res.map(x => [x.item.file, x]))
+    for (const x of redone.filter(Boolean)) byFile.set(x.item.file, x)
+    res = [...byFile.values()]
+  }
+  if (r > round) round = r
+  if (res.some(x => x.gate && x.gate.verdict === 'rework')) {
+    reworkStop = !budgetOK() ? 'budget-floor' : 'round-cap'
+    log(`⚠ REWORK STOPPED (${reworkStop}) with item(s) still failing after ${r}/${MAXROUNDS} round(s).`)
+  }
+  return res
+}
+
 // ================= RUN =================
-log(`KONYO WORKFLOW · ${mode} · budget floor ${Math.round(FLOOR/1000)}k · max ${MAXROUNDS} rounds`)
+// These globals outlive a single run inside one engine process, so a stale value from a previous
+// run would be reported as this run's. Reset them before anything reads them.
+globalThis.__infeasible = null
+globalThis.__skepticFloored = false
+globalThis.__skepticsOptedOut = false
+log(`KONYO WORKFLOW [${QUALITY.toUpperCase()}] · ${mode} · budget floor ${Math.round(FLOOR/1000)}k · ` +
+    `max ${MAXROUNDS} rework round(s)` + (MAXQ ? ` · ${DRYROUNDS} dry completeness round(s)` : '') +
+    (ISOLATE ? ' · ISOLATE+MERGE' : '') +
+    ` · third eye ${THIRD_EYE === 'off' ? 'OFF' : THIRD_EYE === 'claude' ? 'CLAUDE STAND-IN (degraded)' : 'ON (grok)'}`)
+// v18 — a flag we did not understand must never be a silent downgrade.
+if (QUALITY_TYPO) log(`⚠ quality:"${QUALITY_ASKED}" is not a quality this workflow knows. ` +
+    `Ran at MAX. The only value that buys the cheap ladder is exactly "standard".`)
+if (MAXQ && !A?.quality) log('   (max is the default — pass {quality:"standard"} for the cost-scaled run)')
 
 // 0) TRIAGE — decide the size of the run before buying any of it.
 //
@@ -429,6 +862,11 @@ if (triage) {
   if (APPLY && sk === 0 && SKEPTICS_OVERRIDE == null) {
     log('\u26a0 SKEPTIC FLOOR: triage asked for 0 skeptics on a run that WRITES FILES — using 1.')
     sk = 1
+    // The floor has TWO sites — here, and activeLenses() for the case where triage died or the run
+    // is MAX. Both must set the same flag, or the payload reports floored:false over a floored run,
+    // which is the same "true in the data, absent from the summary" defect the blocker ledger exists
+    // to kill.
+    globalThis.__skepticFloored = true
   } else if (sk === 0 && SKEPTICS_OVERRIDE != null) {
     globalThis.__skepticsOptedOut = true
   }
@@ -445,9 +883,45 @@ if (triage) {
   globalThis.__triage = { ...triage, skeptics: sk }
 }
 
-// 1) ARCHITECT (Opus, once)
-phase('Architect')
-const plan = await spawn(
+// 1) ARCHITECT — one Opus architect at standard, a 3-angle panel + judge at max.
+// BOTH branches assign the SAME `plan`, BOTH bail() when no plan comes back, and BOTH fall through
+// into the SAME one-owner-per-file dedupe and the SAME trim. The panel is an EXTRA PHASE, not a
+// different pipeline.
+phase(MAXQ ? 'Architect panel' : 'Architect')
+let plan = null
+if (MAXQ) {
+  const ANGLES = [
+    'RISK-FIRST: order items by blast radius; isolate the highest-risk change and make it the most defensively specified.',
+    'CORRECTNESS-FIRST: decompose so each item has a single, testable, unambiguous fix; no item bundles two concerns.',
+    'SIMPLEST-ROBUST: the smallest set of one-owner-per-file changes that fully solves it with no scope creep.',
+  ]
+  const candidatePlans = (await parallel(ANGLES.map((angle, i) => () =>
+    spawn(
+      `ARCHITECT (${angle}) for a MAX-QUALITY fix run. Decompose this task into independent work items, ` +
+      `ONE OWNER PER FILE (no file appears twice). Read the repo to ground paths. Tag each item's risk, ` +
+      `and give each a tier (it will be built by Opus regardless — tier is recorded for the report).\n` +
+      (globalThis.__triage && globalThis.__triage.est_agents
+        ? `\nTRIAGE SIZED THIS RUN at about ${globalThis.__triage.est_agents} agents. Produce AT MOST ` +
+          `${Math.max(1, Math.min(24, globalThis.__triage.est_agents))} items.\n` : '') +
+      `\n${FAT_LAW}\n\nTASK: ${TASK}`,
+      { model: 'opus', effort: 'high', label: `architect:${i + 1}`, phase: 'Architect panel', schema: PLAN_SCHEMA }
+    ).catch(() => null)
+  ))).filter(Boolean)
+  if (!candidatePlans.length) { log('No architect produced a plan.'); return bail({ error: 'no plan' }) }
+  plan = await spawn(
+    `JUDGE + MERGE. You are given ${candidatePlans.length} candidate decomposition plans for the same task. ` +
+    `Produce the single BEST one-owner-per-file plan: take the sharpest decomposition, graft the best items ` +
+    `from the others, drop redundancy, ensure NO file is owned twice, and every item is a self-contained fix. ` +
+    `Explain why in "why".\n\n` +
+    `${FAT_LAW}\nThe merged plan must clear this bar; if the candidates together are still thin, say so in ` +
+    `"why" rather than stamping a version on a one-liner.\n\n` +
+    `TASK: ${TASK}\n\nCANDIDATES:\n${candidatePlans.map((p, i) => `--- Plan ${i + 1} (${p.version_label}) ---\n` +
+      (p.items || []).map(it => `- [${it.risk || '?'}] ${it.file}: ${it.instruction}`).join('\n')).join('\n\n')}`,
+    { model: 'opus', effort: 'high', phase: 'Architect panel', schema: JUDGE_SCHEMA }
+  )
+  if (plan === null) { log('CEILING: no budget for the judge.'); return bail({ error: 'ceiling' }) }
+} else {
+plan = await spawn(
   `You are the ARCHITECT for the KONYO WORKFLOW. Decompose this task into independent work items, ` +
   `ONE OWNER PER FILE (no two items may name the same file). For each item pick the cheapest capable tier: ` +
   `bulk/mechanical→haiku, real implementation→sonnet, cross-cutting/architectural→opus. ` +
@@ -468,6 +942,7 @@ const plan = await spawn(
   { model: 'opus', effort: 'high', phase: 'Architect', schema: PLAN_SCHEMA }
 )
 if (plan === null) { log('CEILING: no budget for the plan.'); return bail({ error: 'ceiling' }) }
+}
 if (!plan || !plan.items) { log('Architect produced no plan.'); return bail({ error: 'no plan' }) }
 
 // one-owner-per-file guarantee
@@ -486,20 +961,63 @@ if (globalThis.__triage && globalThis.__triage.est_agents) {
     items = items.slice(0, cap)
   }
 }
+/* THE AGENT-COUNT CEILING, ENFORCED AT THE PLAN (max only — ported from konyo-workflow-max.js).
+   Each max item costs 1 Opus builder + its skeptic panel, so the fleet size is knowable BEFORE it is
+   bought, and trimming here is honest in a way that dying halfway through the build is not. It feeds
+   the SAME trimmedFromPlan array as the triage cap above, so the same PARTIAL verdict covers both.
+   NOT applied at standard on purpose: standard's per-item cost is different (it buys a Fable gate
+   too) and this second trim would silently shrink plans that run fine today. Standard is still
+   bounded — by spawn()'s runtime counter, which is the REAL ceiling, is unconditional, and forces an
+   UNVERIFIED verdict when it bites. This is a sizing heuristic, not the safeguard. */
+if (MAXQ) {
+  const RESERVE = 2                                   // synthesis + one spare
+  const perItem = 1 + activeLenses().length
+  const roomForItems = Math.max(1, Math.floor((MAX_AGENTS - SPENT - RESERVE) / Math.max(1, perItem)))
+  if (items.length > roomForItems) {
+    log(`CEILING: plan had ${items.length} items; ${roomForItems} fit under the ${MAX_AGENTS}-agent cap — the rest are REPORTED, not silently dropped.`)
+    for (const dropped of items.slice(roomForItems)) trimmedFromPlan.push(dropped.file)
+    items = items.slice(0, roomForItems)
+  }
+}
 log(`Plan "${plan.version_label}": ${items.length} items — ` +
-    `${items.filter(i=>i.tier==='haiku').length} haiku / ${items.filter(i=>i.tier==='sonnet').length} sonnet / ${items.filter(i=>i.tier==='opus').length} opus`)
+    `${items.filter(i=>i.tier==='haiku').length} haiku / ${items.filter(i=>i.tier==='sonnet').length} sonnet / ${items.filter(i=>i.tier==='opus').length} opus` +
+    (MAXQ ? ' (all built by Opus at quality=max)' : ''))
 
-// 2) THIRD-EYE (optional Grok consult on the plan)
+/* ── v11 — FEASIBILITY, ANNOUNCED BEFORE THE MONEY IS SPENT (max only) ───────────────────────────
+   The ceiling is honest but it is a TRIPWIRE: it tells you the run was truncated only once it has
+   already truncated it, three quarters of the way in. The arithmetic that predicts it is available
+   the moment the plan exists. This does NOT refuse — a truncated run is often exactly what the human
+   wants. It refuses to let the truncation be a SURPRISE. */
+if (MAXQ) {
+  const skeptN   = activeLenses().length
+  const GATES    = 5                       // completeness critic + render + fat bar + reachability + merge
+  const RESERVE2 = 2                       // synthesis + one spare, mirrors spawn()'s reserve
+  const worst    = SPENT + items.length * (1 + skeptN) * MAXROUNDS + GATES + RESERVE2
+  log(`FEASIBILITY → ${items.length} item(s) x (1 build + ${skeptN} skeptic(s)) x up to ${MAXROUNDS} round(s) ` +
+      `+ ${GATES} gates + ${RESERVE2} reserved ≈ ${worst} agents worst-case, against a ceiling of ${MAX_AGENTS}.`)
+  if (worst > MAX_AGENTS) {
+    log(`⚠ THIS PLAN CANNOT FULLY FINISH inside the ceiling. It will do the most valuable work first ` +
+        `and report what it could not reach — it will NOT quietly claim completeness.`)
+    log(`  To let it finish, re-run with {maxAgents:${worst}}. To keep the ceiling, expect a partial run.`)
+    globalThis.__infeasible = { worst, cap: MAX_AGENTS, items: items.length, skeptics: skeptN }
+  }
+}
+
+/* 2) THIRD-EYE SEAT 1 — THE PLAN, AFTER THE JUDGE HAS PICKED IT.
+   Cheapest leverage in the run: one call, before a single builder spends anything, against the plan
+   that was actually chosen (at max the judge has already collapsed three architect candidates into
+   one, so this reviews the winner rather than the shortlist). A wrong plan wastes the whole fleet. */
 if (USE_GROK) {
   phase('Third-eye')
-  const eye = await spawn(
-    `Use the Grok MCP tool (search ToolSearch for a grok chat/web tool, e.g. mcp__grok-mcp__chat) to get a ` +
-    `SECOND OPINION on this implementation plan for the task "${TASK}". Plan items:\n` +
+  await thirdEyeAsk('plan',
+    `You are the independent second opinion on an implementation plan. You are a DIFFERENT model from ` +
+    `the one that wrote it — that is exactly why you were asked.\n\nTASK: ${TASK}\n\nPLAN:\n` +
     items.map(i => `- [${i.tier}] ${i.file}: ${i.instruction}`).join('\n') +
-    `\nReturn Grok's top 3 concerns or "no concerns". If Grok is unavailable, return "grok unavailable".`,
-    { agentType: 'general-purpose', model: 'sonnet', effort: 'low', label: 'grok:third-eye', phase: 'Third-eye' }
-  ).catch(() => null)
-  if (eye) log(`Third-eye: ${String(eye).slice(0, 300)}`)
+    `\n\nWhat is wrong with this plan? Look for: the wrong problem being solved, a step that cannot ` +
+    `work as described, a missing step whose absence only shows up later, and any assumption that has ` +
+    `not been checked. Reply with your top 3 concerns, or say plainly that you have none — an empty ` +
+    `answer to be agreeable is worthless here.`,
+    'Third-eye')
 }
 
 // 3) BUILD + GATE (pipeline, no barrier — each item gates the moment its build lands)
@@ -508,78 +1026,181 @@ if (USE_GROK) {
 // An EXPLICIT {skeptics:N} must survive a dead triage agent: SKEPTICS_OVERRIDE is only folded into
 // __triage inside `if (triage)`, so when triage returned null the user's own request evaporated and
 // the run bought no adversarial gate at all — silently.
-const SKEPTICS = SKEPTICS_OVERRIDE != null
-  ? SKEPTICS_OVERRIDE
-  : ((globalThis.__triage && globalThis.__triage.skeptics) || 0)
+const SKEPTICS = activeLenses().length
 const SKEPTICS_SOURCE = SKEPTICS_OVERRIDE != null ? 'explicit'
   : ((globalThis.__triage && typeof globalThis.__triage.skeptics === 'number') ? 'triage' : 'default')
 phase('Build+Gate')
-if (SKEPTICS > 0) log(`Cost-of-wrong is high → ${SKEPTICS} skeptic(s) will try to REFUTE each passing item (source: ${SKEPTICS_SOURCE}).`)
+if (SKEPTICS > 0) log(`${SKEPTICS} skeptic(s) will try to REFUTE each ${MAXQ ? 'built change (they ARE the gate)' : 'passing item'} (source: ${SKEPTICS_SOURCE}).`)
 else log(`No skeptics this run (source: ${SKEPTICS_SOURCE}) — NOTHING will try to refute a passing item.`)
-let results = await pipeline(
-  items,
-  it => buildAgent(it),
-  built => gateAgent(built),
-  gated => {
-    if (SKEPTICS < 1 || !gated || !gated.gate || gated.gate.verdict !== 'pass') return gated
-    return parallel(Array.from({ length: SKEPTICS }, (_, i) => () => spawn(
-      `You are SKEPTIC ${i + 1} of ${SKEPTICS}. Try HARD to REFUTE this change — find the input that ` +
-      `breaks it, the case it silently mishandles, or the claim it cannot back. Default to refuted:true ` +
-      `if you are unsure.\n\nFILE: ${gated.item.file}\nWHAT IT CLAIMS: ${gated.build && gated.build.summary}\n` +
-      `SELF-CHECK IT OFFERS: ${gated.build && gated.build.self_check}`,
-      { model: 'opus', effort: 'high', phase: 'Build+Gate', label: `skeptic${i + 1}:${gated.item.file}`,
-        schema: { type: 'object', additionalProperties: false, required: ['refuted', 'why'],
-          properties: { refuted: { type: 'boolean' }, why: { type: 'string' } } } }
-    // A skeptic that DIES must not count as APPROVAL. Failing open here is backwards: skeptics are
-    // only bought when being wrong is expensive, which is exactly when an unverified change must
-    // not pass by default. (konyo-workflow-max.js defaults the same way.)
-    ).catch(() => ({ refuted: true, why: 'skeptic errored — an unverified change is refuted by default' })))
-    ).then(votes => {
-      // Count votes actually CAST, not votes BOUGHT. spawn() returns null on a ceiling refusal
-      // WITHOUT throwing, so neither the .catch above nor SPAWN_ERRORS fires — measuring the
-      // threshold against SKEPTICS let an item pass "skeptic-approved" having faced nobody.
-      const cast = votes.filter(Boolean)
-      if (cast.length === 0) {
-        log(`SKEPTIC PANEL PRODUCED NO VOTES for ${gated.item.file} (refused or died) — not approved.`)
-        return { ...gated, gate: { verdict: 'rework', severity: 'major',
-          reason: 'the skeptic panel produced no votes (refused or died) — unreviewed is not approved' } }
-      }
-      if (cast.length < SKEPTICS) log(`⚠ THIN SKEPTIC PANEL on ${gated.item.file}: ${cast.length}/${SKEPTICS} vote(s) cast.`)
-      const kills = cast.filter(v => v.refuted)
-      if (kills.length * 2 > cast.length) {
-        log(`SKEPTICS KILLED ${gated.item.file}: ${String((kills[0] && kills[0].why) || 'no reason given').slice(0, 140)}`)
-        return { ...gated, gate: { verdict: 'rework', severity: 'major', reason: `majority of skeptics refuted it: ${(kills[0] && kills[0].why) || 'no reason given'}` } }
-      }
-      return gated
-    })
+/* v12, RESTORED IN THE MERGE — SAY THE DOWNGRADE OUT LOUD. The merged file reported the skeptic
+   count and its source, which is the same FACT, but not the same WARNING: a MAX run whose triage
+   quietly bought 1 seat instead of 3 is still charged at MAX rates, and on 2026-08-03 Konyo found
+   out only by reading triage.skeptics in the final JSON — "you paid max-workflow prices for a
+   single-skeptic gate". A number in a log line is not a flag. Announce it while there is still
+   time to kill the run and re-run it properly. */
+{
+  const _tri = globalThis.__triage
+  const _sk = _tri && typeof _tri.skeptics === 'number' ? _tri.skeptics : null
+  /* The override branch must swallow the whole case, not just the case where the numbers differ:
+     a human who asked for {skeptics:1} chose it, and warning them that "triage bought 1, not 3" is
+     crying wolf at their own decision. Only an UNASKED-FOR reduction is worth a warning. */
+  if (SKEPTICS_OVERRIDE !== null) {
+    if (_sk !== null && _sk !== SKEPTICS_OVERRIDE) log(`SKEPTICS → ${SKEPTICS_OVERRIDE} by explicit override (triage wanted ${_sk}).`)
+  } else if (MAXQ && _sk !== null && _sk < LENSES.length) {
+    log(`⚠ TRIAGE BOUGHT ${_sk} SKEPTIC(S), NOT ${LENSES.length} — this is a MAX run at MAX prices ` +
+        `with a reduced adversarial gate.`)
+    log(`  Its reason: ${_tri.why || '(none given)'}`)
+    log(`  If being wrong here is expensive, stop and re-run with {skeptics:${LENSES.length}}.`)
   }
-)
-results = results.filter(Boolean)
-
-// 4) REWORK loop — escalate failures one tier up, re-gate. version-per-round, budget-aware.
-let round = 1
-// The bound is enforced but was never REPORTED: `rounds: 2` read identically whether the loop went
-// clean or was cut off by the round cap / budget floor with items still failing.
-let reworkStop = 'clean'
-while (round < MAXROUNDS && budgetOK()) {
-  const failing = results.filter(r => r.gate && r.gate.verdict === 'rework')
-  if (!failing.length) break
-  round++
-  phase(`Rework r${round}`)
-  log(`Round ${round}: ${failing.length} item(s) failed the gate → escalating up the ladder`)
-  const redone = await pipeline(
-    failing,
-    r => { const esc = { ...r.item, tier: bump(r.item.tier) }; return buildAgent(esc, r.gate.reason).then(b => ({ ...b, item: esc })) },
-    built => gateAgent(built)
-  )
-  // splice reworked results back in by file
-  const byFile = new Map(results.map(r => [r.item.file, r]))
-  for (const r of redone.filter(Boolean)) byFile.set(r.item.file, r)
-  results = [...byFile.values()]
 }
-if (results.some(r => r.gate && r.gate.verdict === 'rework')) {
-  reworkStop = !budgetOK() ? 'budget-floor' : 'round-cap'
-  log(`⚠ REWORK STOPPED (${reworkStop}) with item(s) still failing after ${round}/${MAXROUNDS} round(s).`)
+let results = await buildAndGate(items, 'Build')
+
+// 4) REWORK — the loop now lives INSIDE buildAndGate(), so the completeness critic's builds get the
+// same rework rounds, the same blocker wiring and the same reporting as the first pass. `round` and
+// `reworkStop` are set there.
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// 4.5) THE MERGE — the half `isolation:'worktree'` does not give you
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// Isolation without a merge is a silent no-op: every builder edits a throwaway copy, the run goes
+// green, and the repo never changes. ONE agent applies patches SEQUENTIALLY to the live repo, with
+// `git apply --check` first, so a conflict is REPORTED rather than forced.
+// Gated on ISOLATE (an arg), NOT on quality: a standard {isolate:true} run that skipped this would
+// discard every change it made and report success — which is the exact defect this stage exists for.
+let merge = null
+if (ISOLATE) {
+  phase('Merge')
+  const passing = results.filter(r => r && r.build && r.gate && r.gate.verdict === 'pass' && r.build.patch)
+  const noPatch = results.filter(r => r && r.build && r.gate && r.gate.verdict === 'pass' && !r.build.patch)
+  if (noPatch.length) {
+    log(`⛔ MERGE: ${noPatch.length} passing item(s) returned NO PATCH — their work is in a discarded worktree and is LOST:`)
+    noPatch.forEach(r => log(`   · ${r.item.file}`))
+    // v14 — these items still count as `passed`. Lost work that reads as shipped work is the whole
+    // defect class; the log alone never reached the summary.
+    blocker('MERGE: WORK LOST — NO PATCH RETURNED',
+      `${noPatch.length} passing item(s) produced no patch: ${noPatch.map(r => r.item.file).join(', ')}`)
+  }
+  if (!passing.length) {
+    log(`MERGE: nothing to apply.`)
+  } else {
+    const bundle = passing.map((r, i) =>
+      `--- PATCH ${i + 1} · owner: ${r.item.file} ---\n${r.build.patch}`).join('\n\n')
+    merge = await spawn(
+      `MERGE AGENT (Opus). You are in the REAL repository — not a worktree. ${passing.length} isolated ` +
+      `builders each edited their own copy and returned a patch. Apply them to this repo.\n\n` +
+      `FOR EACH patch, IN ORDER:\n` +
+      `1. Write it to a temp file.\n` +
+      `2. \`git apply --check <file>\` FIRST. If that fails, do NOT apply it — record the failure with ` +
+      `git's exact error and move to the next patch. A forced or hand-reconstructed merge is worse ` +
+      `than a reported conflict: it is a silent corruption of a file nobody is watching.\n` +
+      `3. If the check passes, \`git apply <file>\` and confirm with \`git status --porcelain\`.\n` +
+      `4. Never commit, never push, never \`git checkout\`/\`reset\` anything — you are applying work, ` +
+      `not managing history, and a reset here destroys other agents' output.\n\n` +
+      `Report applied[] and failed[] honestly. A patch you did not apply MUST appear in failed[] — ` +
+      `this is the only record that work existed, and a silent drop means a builder's change is gone ` +
+      `with the worktree that held it.\n\nPATCHES:\n${bundle}`,
+      { model: 'opus', effort: 'high', phase: 'Merge', schema: {
+          type: 'object', additionalProperties: false,
+          required: ['applied', 'failed', 'notes'],
+          properties: {
+            applied: { type: 'array', maxItems: 60, items: { type: 'string' }, description: 'file per successfully applied patch' },
+            failed:  { type: 'array', maxItems: 60, items: { type: 'string' }, description: 'file + git\'s exact reason, one line each' },
+            notes:   { type: 'string' },
+          },
+        } }
+    ).catch(() => null)
+    if (merge && (merge.failed || []).length) {
+      log(`⛔ MERGE: ${(merge.applied || []).length} applied, ${merge.failed.length} FAILED — those changes are NOT in the repo:`)
+      merge.failed.slice(0, 8).forEach(x => log(`   · ${x}`))
+      blocker('MERGE FAILED — CHANGES NOT IN THE REPO',
+        `${merge.failed.length} patch(es) did not apply: ${merge.failed.slice(0, 3).join('; ')}`)
+    } else if (merge) {
+      log(`✅ Merge: ${(merge.applied || []).length}/${passing.length} patches applied to the real repo.`)
+    } else {
+      log(`⛔ MERGE AGENT DIED — ${passing.length} patch(es) were NOT applied. The repo is unchanged.`)
+      blocker('MERGE AGENT DID NOT RUN',
+        `${passing.length} patch(es) were never applied — the repo is unchanged while the results say passed`)
+    }
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// 4.7) THE COMPLETENESS CRITIC — max only, and NOT the same thing as the rework loop above
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// Rework asks "did the item I planned come out right?". This asks "what did I never plan at all?" —
+// an untouched file that also needs the fix, an edge case no item covered, a follow-on the changes
+// now require. It loops until DRYROUNDS consecutive rounds find nothing NEW.
+// These four bindings are declared UNCONDITIONALLY, because the verdict and the returned payload
+// read them at both qualities; only the LOOP is gated.
+let dry = 0, critRound = 0
+// v14 — THE LOOP HAS THREE NON-DRY EXITS AND ONLY ONE OF THEM USED TO BE VISIBLE. The round cap and
+// budgetOK() going false both left ceiling.complete true and verdict 'OK' — a loop that stopped
+// early read exactly like a loop that went dry. critStop records WHICH exit was taken.
+let critStop = null
+// Gaps the critic raised on a file an earlier item already owned. They were filtered out and the
+// round was then counted DRY — a critic shouting "that file is STILL broken" recorded as "nothing
+// missing". They no longer make a round dry, and they are carried into the summary.
+const unbuiltGaps = []
+/* v17 — ADAPTIVE, NOT A FIXED 3. A run ended `spent 20 / cap 24, hit:false` with FOUR agents unspent
+   while completeness reported `rounds:3, wentDry:false, stoppedBecause:"hard 3-round cap"` and named
+   four real gaps on the way out. The binding limit was that number, not the budget.
+   CONVERGENCE (why this cannot spin): a round that surfaces no NEW file counts as DRY instead of
+   continuing forever on gaps already owned. CRIT_MAX is an absurd backstop far above any real run. */
+const CRIT_MAX = 12
+if (MAXQ) {
+  phase('Completeness')
+  while (dry < DRYROUNDS && critRound < CRIT_MAX && budgetOK()) {
+    // the critic can always find one more thing, and each gap costs a builder plus its skeptics —
+    // so the loop asks the REAL counter, not an estimate of it
+    if (SPENT >= Math.max(1, MAX_AGENTS - 2)) { log(`CEILING: stopping the completeness loop at ${SPENT}/${MAX_AGENTS} (2 held for the report).`); critStop = 'ceiling'; break }
+    critRound++
+    const done = results.filter(r => r && r.item && r.gate && r.gate.verdict === 'pass')
+    const crit = await spawn(
+      `COMPLETENESS CRITIC (Opus). Task: ${TASK}\nChanges made so far (passed the skeptic panel):\n` +
+      done.map(r => `- ${r.item.file}: ${r.build && r.build.summary}`).join('\n') +
+      `\nWhat is MISSING to fully and correctly satisfy the task? Look for: an untouched file that also needs the fix, ` +
+      `an edge case no item covered, a claim not yet verified, a follow-on the changes now require. ` +
+      `If nothing material is missing, done=true with empty missing[]. Only list REAL, actionable gaps (one owner per file).`,
+      { model: 'opus', effort: 'medium', phase: 'Completeness', schema: CRITIC_SCHEMA }
+    // v14 — this used to be `.catch(() => ({ done:true, missing:[] }))`: a critic FAILURE converted
+    // into "nothing is missing", which incremented `dry` and declared the run complete.
+    ).catch(() => null)
+    if (!crit) {
+      critStop = SPENT >= MAX_AGENTS ? 'ceiling'
+        : 'the completeness critic returned nothing (ceiling refused it or the agent died)'
+      log(`Completeness: stopping — ${critStop}.`)
+      break
+    }
+    const missing = crit.missing || []
+    const fresh = missing.filter(m => !seen.has(m.file))
+    const filteredOut = missing.filter(m => seen.has(m.file))
+    if (filteredOut.length) {
+      log(`⚠ Completeness: ${filteredOut.length} gap(s) named a file an earlier item already owned — NOT rebuilt:`)
+      filteredOut.slice(0, 8).forEach(m => log(`   · ${m.file}: ${m.instruction}`))
+      filteredOut.forEach(m => unbuiltGaps.push(`${m.file}: ${m.instruction}`))
+    }
+    // A round only counts as DRY when the critic itself found nothing. Gaps that were merely
+    // FILTERED are unbuilt work, not silence.
+    if ((crit.done || !missing.length) && !filteredOut.length) {
+      dry++; log(`Completeness: dry round ${dry}/${DRYROUNDS}`); continue
+    }
+    if (!fresh.length) { dry++; log(`Completeness: no NEW files to own — dry round ${dry}/${DRYROUNDS}.`); continue }
+    dry = 0
+    fresh.forEach(m => seen.add(m.file))
+    log(`Completeness: critic found ${fresh.length} gap(s) — building`)
+    const more = await buildAndGate(
+      fresh.map((m, i) => ({ id: `crit${critRound}-${i}`, file: m.file, kind: 'code', tier: 'opus', instruction: m.instruction })),
+      'Completeness')
+    results = results.concat(more)
+  }
+  // v14 — name the exit. Without this, "stopped at the cap with gaps outstanding" and "went dry"
+  // were the same silent outcome.
+  if (dry < DRYROUNDS && !critStop) {
+    critStop = !budgetOK() ? 'budget floor reached'
+      : critRound >= CRIT_MAX ? `hard ${CRIT_MAX}-round backstop`
+      : 'unknown'
+  }
+  if (critStop) log(`Completeness: NEVER WENT DRY (${dry}/${DRYROUNDS} dry rounds) — stopped because: ${critStop}`)
 }
 
 // ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -776,6 +1397,39 @@ if (APPLY) {
     } else if (_imgs.length) {
       log('\u2705 Images inspected: ' + _imgs.length + ' surface(s), all depicting what they claim.')
     }
+    /* v18 \u2014 SEAT 4: A SECOND FAMILY LOOKS AT THE PICTURE. Konyo, 2026-08-04: "grok can see... maybe
+       its good for this to be integrated in the konyo workflow too somewhere." It is, and this is
+       where. v15 made a Claude agent open the image and say what it depicts \u2014 which is Claude
+       checking Claude, on exactly the judgement call that has been wrong the longest here (v1629
+       "fixed" the boss art by pointing at a filename; the picture stayed a soulstone for months).
+       PROVEN, not assumed: asked what art/mephisto_graphic.png depicts with NO hint of what it
+       should be, the Grok CLI answered "a polished, deep-blue teardrop gemstone" \u2014 it found the bug
+       cold. Two families agreeing that a picture matches its label is worth far more than one
+       saying so; two families DISAGREEING is a signal neither can produce alone. */
+    if (_imgs.length && THIRD_EYE === 'grok') {
+      const _named = _imgs.filter(i => i && i.path).slice(0, 8)   // bounded: one call, not one per pixel
+      if (_named.length) {
+        const rec = await thirdEyeAsk('render-gate-vision',
+          `You can open image files. For EACH file below, look at it and say in a few words what the ` +
+          `picture ACTUALLY DEPICTS. Then say whether that matches the label it is shown under in the ` +
+          `UI. Judge only the picture \u2014 ignore the filename, it is frequently wrong, which is the ` +
+          `whole reason you were asked.\n\n` +
+          _named.map(i => `- FILE: ${i.path}\n  SHOWN AS: ${i.claims || i.surface || '(unlabelled)'}`).join('\n') +
+          `\n\nFor any file where the picture does not match its label, say so explicitly as ` +
+          `"<file>: claims X, depicts Y". If they all match, say so plainly.`,
+          'Render gate', { cwd: '.' })
+        if (rec && rec.reached && rec.concerns.length) {
+          /* A disagreement here is the strongest evidence this system can produce about art: the
+             first family looked and said it matched, the second looked and said it did not. That is
+             a blocker, not a note \u2014 and it names both readings so the human can settle it in one look. */
+          blocker('THE THIRD EYE DISAGREES ABOUT A PICTURE',
+            `Claude's render gate passed ${_named.length} image(s); Grok looking at the same files says: ` +
+            rec.concerns.slice(0, 3).join(' \u00b7 '))
+        } else if (rec && rec.reached) {
+          log(`   \ud83d\udc41 Second family agrees on all ${_named.length} picture(s).`)
+        }
+      }
+    }
   }
   // The screenshot is the gate's EVIDENCE — print the paths whatever the verdict, and say so loudly
   // when there are none, because "passed with no pixels captured" is a DOM-only pass wearing a badge.
@@ -873,7 +1527,15 @@ const final = await spawn(
   `AGENT CEILING: ${SPENT}/${MAX_AGENTS} spent, hit=${CEILING_HIT}\n` +
   `TRIMMED FROM THE PLAN (${trimmedFromPlan.length}): ` + (trimmedFromPlan.length ? trimmedFromPlan.slice(0, 8).join(', ') : 'none') + `\n` +
   `REWORK: ${round}/${MAXROUNDS} round(s), stopped_because=${reworkStop}\n` +
-  `SKEPTICS: ${SKEPTICS} per passing item (source: ${SKEPTICS_SOURCE})\n` +
+  `SKEPTICS: ${SKEPTICS} per item (source: ${SKEPTICS_SOURCE})\n` +
+  `QUALITY: ${QUALITY}\n` +
+  `COMPLETENESS: ` + (MAXQ
+    ? `${critRound} round(s), ${dry}/${DRYROUNDS} dry, wentDry=${dry >= DRYROUNDS}, stoppedBecause=${critStop || '(went dry)'}`
+    : 'NOT RUN (quality=standard buys no completeness critic — do not describe the work as exhaustively swept)') + `\n` +
+  `GAPS RAISED BUT NEVER BUILT (${unbuiltGaps.length}): ` + (unbuiltGaps.slice(0, 5).join(' | ') || 'none') + `\n` +
+  `INFEASIBILITY: ${globalThis.__infeasible ? JSON.stringify(globalThis.__infeasible).slice(0, 400) : '(none flagged)'}\n` +
+  `MERGE: ` + (merge ? `${(merge.applied || []).length} applied, ${(merge.failed || []).length} failed`
+    : ISOLATE ? 'isolate mode was on but no merge result came back' : 'not run (no {isolate:true})') + `\n` +
   `RULES, not suggestions: a NON-EMPTY blockers list forces the headline to LEAD with "BLOCKED" and ` +
   `name the blocker. A HIT CEILING forces "UNVERIFIED". A NON-EMPTY trimmed list forces "PARTIAL" and ` +
   `the headline must say planned work was dropped. A dead agent means planned work silently did not ` +
@@ -887,6 +1549,55 @@ const final = await spawn(
 if (!final) blocker('SYNTHESIS DID NOT RUN',
   'the final report agent returned nothing — passed/failed counts are raw and unreviewed')
 
+/* v18 — SEAT 3: THE PRE-SHIP CHALLENGE. Everything above this line was produced by one model family
+   grading its own homework: the builder wrote it, Claude skeptics reviewed it, a Claude synthesizer
+   described it. This is the last moment before `shippable` is stamped, and the only question worth
+   asking is the one a self-graded run cannot ask itself — "what would make this claim false?"
+   It CAN block, deliberately. A gate that observes and cannot refuse is decorative, and this repo has
+   already shipped one of those (the 3-skeptic gate that ran on a 1-skeptic panel and could never
+   reach its own threshold). It is instructed to reserve `blocking` for a concrete, demonstrable
+   defect — an opinion about style is a note, not a veto. */
+if (USE_GROK && APPLY) {
+  const _shipClaim =
+    `VERDICT ABOUT TO BE STAMPED: ${BLOCKERS.length ? 'BLOCKED' : 'shippable'}\n` +
+    `TASK: ${TASK}\n` +
+    `WHAT IT SAYS IT DID: ${(final && final.headline) || '(no headline)'}\n` +
+    `SHIPPED: ${JSON.stringify((final && final.shipped) || []).slice(0, 1200)}\n` +
+    `EVIDENCE THE RUN IS RELYING ON — items passed: ${passed.length}, failed: ${failed.length}; ` +
+    `skeptic panel: ${SKEPTICS} seat(s); render gate: ${renderGate ? (renderGate.passed ? 'passed' : 'FAILED') : 'not run'}` +
+    `${renderGate && (renderGate.screenshots || []).length ? ` with ${renderGate.screenshots.length} screenshot(s)` : ' with NO screenshots'}; ` +
+    `agents that died: ${SPAWN_ERRORS.length}; blockers already raised: ${BLOCKERS.length}` +
+    `${BLOCKERS.length ? ' — ' + BLOCKERS.map(b => b.what).join(', ') : ''}.`
+  const rec = await thirdEyeAsk('pre-ship',
+    `A run is about to declare itself finished. You are the last check, and you are a DIFFERENT model ` +
+    `from everyone who produced the work and everyone who reviewed it — every claim below has so far ` +
+    `only been graded by the family that wrote it.\n\n${_shipClaim}\n\n` +
+    `WHAT WOULD MAKE THIS CLAIM FALSE? Look for: a claim with no evidence behind it, evidence that ` +
+    `does not actually support the claim it is attached to, work described as done that the numbers ` +
+    `do not account for, and a gate reported as passing that never really ran. You may read files in ` +
+    `this directory to check.\n` +
+    `Set severity:'blocking' ONLY for a concrete defect you can point at — a style opinion is a note. ` +
+    `If it holds up, say so plainly; agreeing to be agreeable is worth nothing here.`,
+    'Synthesize', { cwd: '.' })
+  if (rec && rec.reached && rec.severity === 'blocking') {
+    blocker('THE THIRD EYE REFUSED THIS SHIP',
+      `pre-ship challenge (${rec.transport}): ${rec.concerns.slice(0, 2).join(' · ') || rec.reason}`)
+  }
+}
+
+/* v18 — AND IF IT NEVER SPOKE, SAY SO WHERE THE VERDICT IS READ. A third eye that was requested and
+   could not be reached is a DEGRADED run, not a clean one. It does not block by itself — the work may
+   be perfectly good — but the summary may never let silence read as approval. */
+const TE_ASKED_FOR = THIRD_EYE !== 'off'
+const TE_SPOKE = THIRD_EYE_SEATS.filter(s => s.reached)
+const TE_SILENT = THIRD_EYE_SEATS.filter(s => s.ran && !s.reached)
+if (TE_ASKED_FOR && THIRD_EYE_SEATS.length) {
+  log(TE_SPOKE.length
+    ? `👁 THIRD EYE: ${TE_SPOKE.length}/${THIRD_EYE_SEATS.length} seat(s) answered (${[...new Set(TE_SPOKE.map(s => s.transport))].join(', ')}).`
+    : `⚠ THIRD EYE NEVER SPOKE — ${THIRD_EYE_SEATS.length} seat(s) requested, 0 answered. This run had ` +
+      `NO independent model reviewing it: ${(TE_SILENT[0] && TE_SILENT[0].reason) || 'no reason recorded'}`)
+}
+
 const released = await releaseLock()
 const didRelease = !!(released && released.key === 'released')
 if (lock && lock.acquired) {
@@ -895,32 +1606,79 @@ if (lock && lock.acquired) {
                    `it self-expires after ${LOCK_TTL_MIN}m.`)
 }
 
-return {
+// THE RETURN IS A UNION OF BOTH ORIGINALS, NOT A CHOICE BETWEEN THEM. Every field either script
+// used to return is carried here at BOTH qualities. A field a standard run does not earn is
+// returned with an explicit `ran:false` + reason — NEVER a bare null a reader can mistake for a pass.
+return emit({
   version: plan.version_label,
   mode,
+  quality: MAXQ
+    ? `MAX (Opus everywhere · 3-architect judge panel · ${SKEPTICS}-skeptic adversarial gate · loop-until-dry)`
+    : `STANDARD (cost-scaled ladder · single Opus architect · Fable merge gate${SKEPTICS ? ` · ${SKEPTICS}-skeptic panel` : ' · no skeptics'})`,
+  knobs: {
+    quality: QUALITY,
+    maxRounds: MAXROUNDS,
+    dryRounds: DRYROUNDS,
+    floor: FLOOR,
+    tierPolicy: MAXQ ? 'opus everywhere' : 'cost-scaled ladder (haiku→sonnet→opus, escalate on rework)',
+    judgePanel: MAXQ ? '3 architects + judge' : 'single architect',
+    gateKind: MAXQ ? 'adversarial skeptic panel (the panel IS the gate)' : 'fable merge gate + skeptic panel behind it',
+    isolate: ISOLATE,
+    skeptics: { used: SKEPTICS, of: LENSES.length, source: SKEPTICS_SOURCE },
+  },
   lock: lock ? { acquired: !!lock.acquired, key: lock.key, released: didRelease } : null,
   triage: globalThis.__triage || null,   // what this run was sized at, and why — visible after the fact
   rounds: round,
   rework: { rounds: round, maxRounds: MAXROUNDS, stopped_because: reworkStop },
-  skeptics: { used: SKEPTICS, source: SKEPTICS_SOURCE },
+  skeptics: { used: SKEPTICS, of: LENSES.length, source: SKEPTICS_SOURCE,
+              opted_out: !!globalThis.__skepticsOptedOut, floored: !!globalThis.__skepticFloored },
+  completeness: MAXQ
+    ? { ran: true, rounds: critRound, dry, required: DRYROUNDS, wentDry: dry >= DRYROUNDS,
+        stoppedBecause: critStop, unbuiltGaps }
+    : { ran: false, reason: 'quality=standard — the completeness critic is a max-only phase and was never bought' },
+  infeasible: globalThis.__infeasible || null,
   tokens_spent: budget.total ? budget.spent() : null,
-  ceiling: { cap: MAX_AGENTS, spent: SPENT, hit: CEILING_HIT, trimmedFromPlan,
-             complete: !CEILING_HIT && !trimmedFromPlan.length },
+  ceiling: { cap: MAX_AGENTS, spent: SPENT, hit: CEILING_HIT, hitDuringCompleteness: CEILING_HIT,
+             trimmedFromPlan, complete: !CEILING_HIT && !trimmedFromPlan.length },
   // v13 — the one field that answers "is this safe to have shipped". Every fact below was already
   // in the payload before; none of it reached the summary, so a capped run with skipped gates read
   // as a clean one.
   blockers: BLOCKERS,
   agent_errors: SPAWN_ERRORS,
+  // THE VERDICT LADDER IS THE UNION OF BOTH FILES' LADDERS: every blocking condition either script
+  // could raise still forces a non-OK verdict here. The completeness clause is MAXQ-guarded because a
+  // standard run must not be marked unshippable for a loop it never bought — but `completeness.ran`
+  // above says so out loud, so it cannot be mistaken for a loop that ran and went dry.
   verdict: BLOCKERS.length ? 'BLOCKED — see blockers[]'
     : CEILING_HIT ? 'UNVERIFIED — the agent ceiling stopped the run early'
-    : trimmedFromPlan.length ? 'PARTIAL — ' + trimmedFromPlan.length + ' item(s) were trimmed from the plan to fit the triage cap'
+    : (MAXQ && (dry < DRYROUNDS || unbuiltGaps.length)) ? 'UNVERIFIED — the completeness critic never went dry (' + (critStop || 'gaps raised but never built') + ')'
+    : trimmedFromPlan.length ? 'PARTIAL — ' + trimmedFromPlan.length + ' item(s) were trimmed from the plan to fit the ceiling'
     : failed.length ? 'INCOMPLETE — ' + failed.length + ' item(s) never passed the gate'
     : SPAWN_ERRORS.length ? 'DEGRADED — some agents died; their work is missing, not failed'
     : 'OK',
-  shippable: !BLOCKERS.length && !CEILING_HIT && !trimmedFromPlan.length && !failed.length && !SPAWN_ERRORS.length,
+  shippable: !BLOCKERS.length && !CEILING_HIT && !trimmedFromPlan.length && !failed.length
+    && !SPAWN_ERRORS.length && (!MAXQ || (dry >= DRYROUNDS && !unbuiltGaps.length)),
   passed: passed.length,
   failed: failed.length,
   render_gate: renderGate,
+  merge: merge || { ran: false, reason: ISOLATE
+    ? 'isolate mode was on but the merge phase produced no result — see blockers[]'
+    : 'no {isolate:true}: builders edited the shared tree directly, so there was nothing to merge' },
   fat_version: fatBar,
+  /* v18 — THE THIRD EYE IS REPORTED WHETHER OR NOT IT SPOKE. The old phase returned nothing at all,
+     so "Grok raised no concerns" and "Grok was never reachable" were the same silence. Both are
+     answered here, per seat, with the transport that carried it and the real error if none did. */
+  thirdEye: {
+    requested: THIRD_EYE,                       // 'grok' | 'claude' | 'off'
+    seats: THIRD_EYE_SEATS,
+    reached: TE_SPOKE.length,
+    of: THIRD_EYE_SEATS.length,
+    transports: [...new Set(TE_SPOKE.map(s => s.transport))],
+    degraded: TE_ASKED_FOR && THIRD_EYE_SEATS.length > 0 && TE_SPOKE.length === 0,
+    note: !TE_ASKED_FOR ? 'thirdEye:false — no independent model was asked to review this run'
+      : THIRD_EYE === 'claude' ? 'thirdEye:"claude" — a SAME-FAMILY stand-in reviewed this run; it is not an independent eye'
+      : TE_SPOKE.length ? 'an independent model (different family) reviewed this run'
+      : 'the third eye was requested and NEVER ANSWERED — nothing outside Claude reviewed this run',
+  },
   final,
-}
+})
