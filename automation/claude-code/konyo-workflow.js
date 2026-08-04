@@ -334,6 +334,27 @@ async function thirdEyeAsk(seat, question, phaseName, opts = {}) {
     label: `thirdEye:${seat}`, phase: phaseName, schema: THIRD_EYE_SCHEMA,
   }).catch(err => ({ reached: false, transport: 'none', verdict: 'unreachable', concerns: [],
     reason: `the courier agent died: ${err && err.message ? err.message : String(err)}` }))
+  /* v19.4 — "THE RUN COULD NOT AFFORD TO ASK" IS NOT "THE TRANSPORT IS DOWN".
+     Measured on the 2026-08-04 D2R run: the pre-ship seat returned
+     {reached:false, transport:'none', verdict:'unreachable', reason:''} — an EMPTY reason, on a
+     schema whose whole point is "the ACTUAL error text, not a guess". Nothing had failed to reach
+     Grok. The ceiling was spent (24/24), so spawn() REFUSED the seat and returned null WITHOUT
+     throwing, so the .catch above never fired and there was no error to report. A reader sees an
+     unreachable third eye and goes hunting a dead API key; the true answer was that the run ran out
+     of agents before it got to the question. Same shape as the v14 skeptic bug — a null from a
+     ceiling refusal read as a verdict — so it gets the same treatment: name the refusal. */
+  if (!r) {
+    return (function () {
+      const rec = { seat, ran: true, reached: false, transport: 'none', verdict: 'unreachable',
+        concerns: [], severity: 'none',
+        reason: 'the agent ceiling refused this seat — the run could not afford to ask. This is NOT ' +
+                'a transport failure: the third eye was never contacted, so nothing here says whether ' +
+                'it is reachable. Re-run with a higher {maxAgents} to buy the seat.' }
+      THIRD_EYE_SEATS.push(rec)
+      log(`👁 THIRD EYE [${seat}] NEVER ASKED — the agent ceiling refused the seat (not a transport failure).`)
+      return rec
+    })()
+  }
   const rec = { seat, ran: true, reached: !!(r && r.reached), transport: (r && r.transport) || 'none',
     verdict: (r && r.verdict) || 'unreachable', concerns: (r && r.concerns) || [],
     severity: (r && r.severity) || 'none', reason: (r && r.reason) || '',
