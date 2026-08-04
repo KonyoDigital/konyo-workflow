@@ -74,6 +74,12 @@ const USE_GROK  = THIRD_EYE !== 'off'   // legacy name kept so no existing call 
 const FORCE     = !!(A && A.force)                 // run the fleet even if triage says do it directly
 const SKEPTICS_OVERRIDE = (A && typeof A.skeptics === 'number') ? A.skeptics : null
 const MAX_AGENTS = (A && A.maxAgents) || 24
+/* v18.3 — THE FIXED COSTS OF FINISHING, IN ONE PLACE. Every run pays for its closing gates and its
+   report whatever the plan looks like, so both the plan trim and the feasibility line must subtract
+   the SAME numbers. They used to keep separate copies (2 vs 5+2), which is how a plan got waved
+   through the trim and then declared infeasible twelve lines later. */
+const GATE_COST    = 5    // completeness critic + render gate + fat version bar + reachability + merge
+const RESERVE_COST = 2    // synthesis + one spare, mirroring spawn()'s reserve
 /* ── THE WORKSPACE LOCK (ported from max, 2026-08-03) ────────────────────────────────────────────
    A lock only ONE of the two workflows respects is not a lock. The collision that prompted this was
    max-vs-max on site/index.html, but a cost-scaled run editing the same tree as a max run loses work
@@ -1000,11 +1006,24 @@ if (globalThis.__triage && globalThis.__triage.est_agents) {
    bounded — by spawn()'s runtime counter, which is the REAL ceiling, is unconditional, and forces an
    UNVERIFIED verdict when it bites. This is a sizing heuristic, not the safeguard. */
 if (MAXQ) {
-  const RESERVE = 2                                   // synthesis + one spare
+  /* v18.3 — THE TRIM MUST RESERVE THE GATES, OR IT FUNDS BUILDING AND STARVES VERIFYING.
+     Measured on the 2026-08-04 merge run: this trim reserved 2 agents while the FEASIBILITY block
+     twelve lines below counted 5 gates + 2. Two formulas for one decision, and the OPTIMISTIC one
+     was the one that bound. So nothing was trimmed (trimmedFromPlan: []), feasibility then announced
+     worst 21 > cap 20, the run spent all 20 agents on builds — and its three closing blockers were
+     all the same sentence: "the ceiling was already spent, so this gate never ran." Render gate,
+     LAW17 and LAW19, the three things that decide whether a ship is trustworthy, all unfunded.
+     Building more than you can verify is NEGATIVE value: it produces unreviewed edits and a verdict
+     of UNVERIFIED. One item built and fully gated beats two built and none gated, every time.
+     GATES and RESERVE now live in ONE place and are read by both the trim and the feasibility line,
+     so the two can no longer drift apart. The rework MULTIPLIER stays out of the trim on purpose —
+     rework is conditional, and folding it in here would halve every plan for a cost most runs never
+     pay. Feasibility still warns about that worst case; this guarantees the FIXED costs. */
   const perItem = 1 + activeLenses().length
-  const roomForItems = Math.max(1, Math.floor((MAX_AGENTS - SPENT - RESERVE) / Math.max(1, perItem)))
+  const roomForItems = Math.max(1, Math.floor((MAX_AGENTS - SPENT - GATE_COST - RESERVE_COST) / Math.max(1, perItem)))
   if (items.length > roomForItems) {
-    log(`CEILING: plan had ${items.length} items; ${roomForItems} fit under the ${MAX_AGENTS}-agent cap — the rest are REPORTED, not silently dropped.`)
+    log(`CEILING: plan had ${items.length} items; ${roomForItems} fit under the ${MAX_AGENTS}-agent cap ` +
+        `once ${GATE_COST} gate(s) + ${RESERVE_COST} reserved are paid for — the rest are REPORTED, not silently dropped.`)
     for (const dropped of items.slice(roomForItems)) trimmedFromPlan.push(dropped.file)
     items = items.slice(0, roomForItems)
   }
@@ -1020,8 +1039,8 @@ log(`Plan "${plan.version_label}": ${items.length} items — ` +
    wants. It refuses to let the truncation be a SURPRISE. */
 if (MAXQ) {
   const skeptN   = activeLenses().length
-  const GATES    = 5                       // completeness critic + render + fat bar + reachability + merge
-  const RESERVE2 = 2                       // synthesis + one spare, mirrors spawn()'s reserve
+  const GATES    = GATE_COST               // v18.3 — the SAME number the trim reserved, not a second copy
+  const RESERVE2 = RESERVE_COST
   const worst    = SPENT + items.length * (1 + skeptN) * MAXROUNDS + GATES + RESERVE2
   log(`FEASIBILITY → ${items.length} item(s) x (1 build + ${skeptN} skeptic(s)) x up to ${MAXROUNDS} round(s) ` +
       `+ ${GATES} gates + ${RESERVE2} reserved ≈ ${worst} agents worst-case, against a ceiling of ${MAX_AGENTS}.`)
