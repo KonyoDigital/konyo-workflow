@@ -1,17 +1,17 @@
 export const meta = {
   name: 'konyo-workflow',
-  description: 'KONYO WORKFLOW — ONE body, three paths (max | lean | standard). RUNS AT MAX BY DEFAULT: Opus everywhere, a 3-architect judge panel, a diverse-lens skeptic panel as THE gate, a loop-until-dry completeness critic, and the third eye (Grok — a different model family) ON. Pass {quality:"lean"} — same gates, ~62% fewer tokens — for ONE architect instead of a panel, one rework round, no completeness critic, and risk:"low" items built at the tier their architect asked for (floored at sonnet) instead of Opus (the review is Opus either way; a failed cheap build escalates on rework). Pass {quality:"standard"} to opt DOWN to the cost-scaled ladder (Haiku/Sonnet build, Fable gates every merge, ONE architect, no completeness critic). Pass {thirdEye:false} to run without an independent reviewer. Every safeguard (agent ceiling, blockers, bail, render gate, LAW17, LAW19, workspace lock, skeptic floor) runs at BOTH qualities — the flag only buys model tier, panel size and extra phases.',
-  whenToUse: 'ANY multi-step task you want orchestrated — it is MAX unless you say otherwise, because being wrong usually costs more than tokens. It TRIAGES itself first, so a serial diagnosis is sent back to be done directly instead of spawning a fleet, and the ceiling + budget floor still bound every run. {quality:"lean"} = same gates, cheaper builders on low-risk items only. Opt all the way down with {quality:"standard"} for routine, low-cost-of-wrong, easily reversible work (~10-15x cheaper). Pass {task, quality, thirdEye, apply, maxRounds, dryRounds, budgetFloor, force, skeptics, maxAgents, isolate}. `grok:false` still works as the old name for thirdEye:false.',
+  description: 'KONYO WORKFLOW — ONE body, three paths (lean | max | standard). RUNS AT LEAN BY DEFAULT (his instruction, 2026-08-04): EVERY gate max runs — diverse-lens skeptic panel, render gate with vision, LAW17, LAW19, workspace lock, agent ceiling — at ~62% of the tokens, by buying ONE architect instead of a judge panel, one rework round, no completeness critic, and risk:"low" items at the tier their own architect asked for (floored at sonnet; the review is Opus either way, and a failed cheap build escalates on rework). The third eye (Grok — a different model family) is ON at every quality. Pass {quality:"max"} to add the 3-architect judge panel, Opus builders everywhere and the loop-until-dry completeness critic — worth it when being wrong costs more than tokens. Pass {quality:"standard"} to opt DOWN to the cost-scaled ladder (Haiku/Sonnet build, Fable gates every merge, ONE architect, no completeness critic). Pass {thirdEye:false} to run without an independent reviewer. LEAN IS NOT MAX-WITH-FEWER-SAFEGUARDS: the flag buys model tier, panel size and extra phases, never a gate.',
+  whenToUse: 'ANY multi-step task you want orchestrated — it is LEAN unless you say otherwise, because lean already runs every gate and max only buys a judge panel, Opus builders and the completeness critic. It TRIAGES itself first, so a serial diagnosis is sent back to be done directly instead of spawning a fleet, and the ceiling + budget floor still bound every run. Reach for {quality:"max"} when the cost of being wrong is high — irreversible edits, data migrations, anything shipping unattended. Opt all the way down with {quality:"standard"} for routine, low-cost-of-wrong, easily reversible work (~10-15x cheaper). Pass {task, quality, thirdEye, apply, maxRounds, dryRounds, budgetFloor, force, skeptics, maxAgents, isolate}. `grok:false` still works as the old name for thirdEye:false; `fast` still resolves to `lean`.',
   phases: [
     { title: 'Preflight',   detail: 'workspace lock — refuse to start if another run is already editing this tree' },
     { title: 'Triage',      detail: 'right-size the run BEFORE spending: shape · parallelism · cost-of-wrong', model: 'opus' },
-    { title: 'Architect',   detail: 'decide the plan — 3 Opus architects (risk / correctness / simplest lenses) + an Opus judge by default; ONE architect at quality:"standard". One owner per file either way.', model: 'opus' },
+    { title: 'Architect',   detail: 'decide the plan — ONE Opus architect by default (lean/standard); 3 Opus architects (risk / correctness / simplest lenses) + an Opus judge at quality:"max". One owner per file either way.', model: 'opus' },
     { title: 'Third-eye',   detail: 'seat 1 of 4 — Grok (a DIFFERENT model family) reviews the chosen plan before a builder spends anything; seats 2-4 sit on the skeptic panel, the render gate and the pre-ship verdict' },
-    { title: 'Build+Gate',  detail: 'Opus builds each item (Haiku/Sonnet at quality:"standard"); one owner per file, gated immediately, no barrier' },
+    { title: 'Build+Gate',  detail: 'each item built at its architect-assigned tier, sonnet floor (default lean); Opus everywhere at quality:"max", Haiku/Sonnet at quality:"standard". One owner per file, gated immediately, no barrier' },
     { title: 'Adversarial gate', detail: 'THE DEFAULT PATH — diverse-lens Opus skeptics ARE the gate (floor 2, one seat is the third eye); majority-refute kills the change', model: 'opus' },
     { title: 'Rework',      detail: 'failed items escalate one tier up and re-gate, version-per-round' },
     { title: 'Merge',       detail: '(isolate mode only) applies each worktree patch to the REAL repo, one at a time, git apply --check first', model: 'opus' },
-    { title: 'Completeness',detail: 'THE DEFAULT PATH — an Opus critic hunts for work nobody did; loops until N dry rounds (skipped at quality:"standard")', model: 'opus' },
+    { title: 'Completeness',detail: 'quality:"max" ONLY — an Opus critic hunts for work nobody did; loops until N dry rounds. NOT bought at the lean default or at standard, and the report says so rather than implying the sweep happened', model: 'opus' },
     { title: 'Render gate', detail: 'drives the REAL UI — hit-testable controls + SCREENSHOT-BACKED geometry (non-zero boxes, no clipping/overflow, text vs background, no overlap); failure BLOCKS the ship' },
     { title: 'Fat version bar', detail: 'LAW17 — >=3 user-visible outcomes in one theme OR one structural bug with root cause+verify+prevention; a thin ship BLOCKS' },
     { title: 'Reachability',   detail: 'LAW19 — every symbol the change added has a caller AND a writer; added tests proven to have RUN; failure BLOCKS', model: 'opus' },
@@ -58,8 +58,27 @@ const QUALITY_ASKED = (A && typeof A.quality === 'string') ? A.quality.trim().to
 const QUALITY_ALIAS = { fast: 'lean' }
 const KNOWN_QUALITIES = ['max', 'lean', 'standard']
 const QUALITY_RESOLVED = QUALITY_ALIAS[QUALITY_ASKED] || QUALITY_ASKED
-const QUALITY = KNOWN_QUALITIES.includes(QUALITY_RESOLVED) ? QUALITY_RESOLVED : 'max'
+/* v20 — LEAN IS NOW THE DEFAULT. Konyo, 2026-08-04, having watched a max run open on the D2R
+   console queue: "by default make it LEAN". This REVERSES the v18 default (max) — and it reverses
+   only the DEFAULT, deliberately nothing else.
+
+   Why this is safe to flip and was always the better default: MAXQ is `max || lean`, so EVERY
+   max-only gate already applies to lean. Lean does not buy fewer safeguards; it buys one architect
+   instead of a judge panel, one rework round, no completeness critic, and low-risk items built at
+   the tier their own architect asked for. Measured across two real runs: max 53.7min / 1.42M tokens
+   vs lean ~46min / ~540k — ~15% quicker and ~62% cheaper for the same gates.
+
+   TWO DISTINCT CASES, AND THEY MUST NOT COLLAPSE (they did until now — both fell to 'max'):
+     · NOTHING ASKED  -> LEAN. The new default. A bare invocation is the cheap-but-fully-gated path.
+     · ASKED AND UNRECOGNISED ('MAXX', 'standrd', 'cheap') -> still MAX, still shouted.
+   The v18 safeguard is INTACT AND UNWEAKENED: a flag we failed to parse still fails EXPENSIVE,
+   because the danger there is a caller who believes they bought max and quietly did not. That
+   danger does not exist for a bare call — a caller who passed no flag is claiming nothing. */
+const QUALITY_DEFAULT = 'lean'
+const QUALITY = KNOWN_QUALITIES.includes(QUALITY_RESOLVED) ? QUALITY_RESOLVED
+              : (QUALITY_ASKED ? 'max' : QUALITY_DEFAULT)
 const QUALITY_TYPO = !!(QUALITY_ASKED && !KNOWN_QUALITIES.includes(QUALITY_RESOLVED))
+const QUALITY_DEFAULTED = !QUALITY_ASKED
 /* v19 — LEAN IS MAX WITH ITS EYES OPEN ABOUT TIER, NOT MAX WITH FEWER GATES.
    Measured on the first real max run (D2R console queue, 2026-08-04): the ceremony everyone assumes
    is the overhead — lock, triage, three architects — took 3.5 minutes of a 36-minute run. Cutting it
@@ -420,6 +439,14 @@ const LOCK_SCHEMA = {
   properties: {
     acquired:      { type: 'boolean', description: 'true = this run now owns the tree' },
     key:           { type: 'string',  description: 'the working tree this lock covers' },
+    /* v20.1 — THE KEY IS DERIVED FROM AN INVISIBLE INPUT. It is `pwd -P` of the agent's shell, which
+       the caller may have changed for an unrelated reason and which nothing announces. The SAFE
+       direction already misfired live (the shell sat in another repo, so the run tried to lock that
+       repo, collided with its live holder and refused at preflight — correct fail-safe). The
+       DANGEROUS direction is the mirror image: if the shell sits in a tree the run will NOT edit,
+       the lock lands on the wrong tree and the real target is left completely unprotected. The path
+       must therefore come BACK, verbatim, so a human can see which tree was locked. */
+    cwd:           { type: 'string',  description: 'REQUIRED: the ABSOLUTE path that `pwd -P` printed, verbatim (not the slug) — the tree this lock covers. Return it whether you acquired the lock or not.' },
     token:         { type: 'string',  description: 'unique id written into our lock file; needed to release it' },
     purged_stale:  { type: 'number',  description: 'how many expired locks were cleaned up' },
     holder_token:  { type: 'string',  description: 'if not acquired: the token of the live lock' },
@@ -598,7 +625,8 @@ function buildAgent(item, reworkNote) {
         `that is LOST. Do NOT commit, push, or touch the main repo. Touch NO file but ${item.file}.`
       : `Make the edit directly to ${item.file}. Touch NO other file — you are the sole owner of this one.`
   return spawn(
-    `${MAXQ ? 'MAX-QUALITY' : 'KONYO WORKFLOW'} build agent (tier=${tier}). Task context: ${TASK}\n` +
+    // v20 — a lean builder was told it was a "MAX-QUALITY build agent". Name the quality that ran.
+    `${MAXQ ? `${QUALITY.toUpperCase()}-QUALITY` : 'KONYO WORKFLOW'} build agent (tier=${tier}). Task context: ${TASK}\n` +
     `You own exactly ONE file: ${item.file}${item.kind ? ` (kind=${item.kind})` : ''}.\n` +
     `Instruction: ${item.instruction}\n${act}${rw}\n` +
     `Be rigorous: trace the exact failure you are fixing, handle edge cases, match surrounding style, ` +
@@ -643,9 +671,20 @@ const LENSES = [
 // v4 — TRIAGE'S NUMBER IS AUTHORITATIVE (it asked for 1 and max bought 3, every time).
 // v12 — an EXPLICIT {skeptics:N} outranks triage.
 // v17 — THE FLOOR: a heuristic may size the panel DOWN, never to nothing.
+/* v20.1 — THE FLOOR IS A CONSTANT NOW, NOT A LOCAL. It used to live inside activeLenses(), where the
+   ceiling-aware sizer below could not read it — and a second copy of a safeguard's number is exactly
+   the two-formula bug v18.3 was fixed for. The VALUE is unchanged: 2 at max AND lean, 1 at standard.
+   SKEPTIC_PIN is the ceiling-aware seat count, decided ONCE (see the sizer at the plan) so that the
+   trim, the feasibility line, the announced count and the panel that actually sits are all the same
+   number. It can only ever sit BETWEEN the floor and what triage asked for; it can never lower the
+   floor, and an explicit {skeptics:N} outranks it. */
+const SKEPTIC_FLOOR = MAXQ ? Math.min(2, LENSES.length) : 1
+let SKEPTIC_PIN = null
 function activeLenses() {
   const want = SKEPTICS_OVERRIDE !== null
     ? SKEPTICS_OVERRIDE
+    : SKEPTIC_PIN !== null
+      ? SKEPTIC_PIN
     : (globalThis.__triage && typeof globalThis.__triage.skeptics === 'number')
       ? globalThis.__triage.skeptics
       // No triage number at all: max is an adversarial-gate workflow by definition, so its default
@@ -675,13 +714,18 @@ function activeLenses() {
      its whole point is to be cheap.
      An EXPLICIT {skeptics:N} from a human ALWAYS wins, including 0 and 1 — a person knowingly
      opting out is not a heuristic under-buying, and it is RECORDED either way. */
-  const FLOOR_N = MAXQ ? Math.min(2, LENSES.length) : 1
+  const FLOOR_N = SKEPTIC_FLOOR   // v20.1 — ONE floor constant, shared with the ceiling-aware sizer
   if (SKEPTICS_OVERRIDE === null && floored < FLOOR_N && (MAXQ || APPLY)) {
     if (!globalThis.__skepticFloored) {
       globalThis.__skepticFloored = true
+      /* v20 — THE FLOOR MESSAGE MUST NAME THE QUALITY THAT ACTUALLY RAN. MAXQ is `max || lean`,
+         so this line said "is MAX quality" on every LEAN run — and lean is now the default, which
+         would have made the most common run in the system describe itself as something it is not.
+         Same defect class as the alvl on a terrorized card: every word true of SOME run, and the
+         conclusion the reader draws is false. */
       log(`⚠ SKEPTIC FLOOR: triage asked for ${floored} skeptic(s) on a run that ` +
-          (MAXQ ? 'is MAX quality' : 'WRITES FILES') + ` — a change does not ship unreviewed. Using ${FLOOR_N}.` +
-          (MAXQ && FLOOR_N === 2 ? ' (2 is the MAX floor: a refusal needs corroboration, and the third eye needs a seat.)' : ''))
+          (MAXQ ? `is ${QUALITY.toUpperCase()} quality` : 'WRITES FILES') + ` — a change does not ship unreviewed. Using ${FLOOR_N}.` +
+          (MAXQ && FLOOR_N === 2 ? ' (2 is the floor for max AND lean: a refusal needs corroboration, and the third eye needs a seat.)' : ''))
     }
     return LENSES.slice(0, FLOOR_N)
   }
@@ -697,15 +741,36 @@ function activeLenses() {
    · STRICT MAJORITY of the cast votes: 3 cast needs 2, 2 cast needs 2, 1 cast needs 1. The old
      `refutedN >= 2` measured against a hardcoded 3 meant a legitimate 1-skeptic panel could NEVER
      reach 2, so the flagship gate could not refuse anything while the payload still advertised it. */
+/* v21 — THE THIN-PANEL LEDGER: SEATS BOUGHT IS NOT VOTES CAST, AND ONLY ONE OF THEM WAS REPORTED.
+   ROOT CAUSE (same class as v14's "votes cast, never votes bought", one level up): tallyVotes was
+   already careful to count CAST votes for the threshold — but the number that reached the human was
+   `SKEPTICS`, the seats BOUGHT, in every surface that matters: the announcement, the payload's
+   skeptics.used, the quality_label, and the pre-ship third-eye claim ("skeptic panel: N seat(s)").
+   So the arithmetic below is honest and the report above it is not. The live failure mode is exact
+   and cheap to hit: at the 2-seat FLOOR, seat 2 is Grok; an unreachable Grok casts NO vote (by
+   design — it must never become a Claude opinion), so cast=1, `refutedN * 2 > cast` lets ONE Claude
+   approval ship the change, and the payload still says a 2-seat adversarial panel reviewed it.
+   The safeguard is NOT touched: the threshold, the floor and the zero-votes-is-REWORK rule are
+   unchanged. What changes is that a panel that came up short is now RECORDED, surfaced in the
+   payload, put in front of the pre-ship third eye, and forces a DEGRADED verdict — exactly the
+   treatment an agent that died already gets, because that is exactly what an empty seat is.
+   PREVENTION: one ledger, written at the ONLY place votes are counted, so a future surface cannot
+   re-derive "how many reviewed this" from the seat count again. */
+const THIN_PANELS = []
 function tallyVotes(votes, panel, file) {
   const v = votes.filter(Boolean)
   const cast = v.length
   if (cast === 0) {
     log(`SKEPTIC PANEL PRODUCED NO VOTES for ${file} (refused or died) — not approved.`)
+    THIN_PANELS.push({ file, cast: 0, panel })
     return { verdict: 'rework', refutedN: 0, votes: 0, panel,
       reasons: ['the skeptic panel produced no votes (refused or died) — unreviewed is not approved'] }
   }
-  if (cast < panel) log(`⚠ THIN SKEPTIC PANEL on ${file}: ${cast}/${panel} vote(s) cast.`)
+  if (cast < panel) {
+    THIN_PANELS.push({ file, cast, panel })
+    log(`⚠ THIN SKEPTIC PANEL on ${file}: ${cast}/${panel} vote(s) cast — the seats bought are NOT ` +
+        `the reviews received; this is recorded and forces a DEGRADED verdict.`)
+  }
   const kills = v.filter(x => x.refuted)
   const refutedN = kills.length
   return { verdict: refutedN * 2 > cast ? 'rework' : 'pass', refutedN, votes: cast, panel,
@@ -859,13 +924,23 @@ globalThis.__infeasible = null
 globalThis.__skepticFloored = false
 globalThis.__skepticsOptedOut = false
 log(`KONYO WORKFLOW [${QUALITY.toUpperCase()}] · ${mode} · budget floor ${Math.round(FLOOR/1000)}k · ` +
-    `max ${MAXROUNDS} rework round(s)` + (MAXQ ? ` · ${DRYROUNDS} dry completeness round(s)` : '') +
+    /* v20 — THE BANNER ADVERTISED A PHASE THE RUN WOULD NEVER BUY. This was gated on MAXQ
+       (`max || lean`) while the completeness loop is gated on `MAXQ && !LEANQ`, so every LEAN run
+       opened by promising "N dry completeness round(s)" and then never ran one. Harmless-looking,
+       and lean is now the DEFAULT, so it would have become the most-printed line in the system. */
+    `max ${MAXROUNDS} rework round(s)` + ((MAXQ && !LEANQ) ? ` · ${DRYROUNDS} dry completeness round(s)` : '') +
     (ISOLATE ? ' · ISOLATE+MERGE' : '') +
     ` · third eye ${THIRD_EYE === 'off' ? 'OFF' : THIRD_EYE === 'claude' ? 'CLAUDE STAND-IN (degraded)' : 'ON (grok)'}`)
 // v18 — a flag we did not understand must never be a silent downgrade.
 if (QUALITY_TYPO) log(`⚠ quality:"${QUALITY_ASKED}" is not a quality this workflow knows ` +
-    `(max | fast | standard). Ran at MAX — an unrecognised flag fails EXPENSIVE, never quiet.`)
-if (MAXQ && !LEANQ && !A?.quality) log('   (max is the default — {quality:"lean"} keeps every gate but builds low-risk items cheaper; {quality:"standard"} is the cost-scaled ladder)')
+    `(max | lean | standard). Ran at MAX — an unrecognised flag fails EXPENSIVE, never quiet. ` +
+    `Note this is NOT the default: a bare call runs LEAN.`)
+/* v20 — say the default out loud on the path that takes it. The old line fired on `!A?.quality`,
+   which missed a quality arriving via globalThis.__KONYO_QUALITY; QUALITY_DEFAULTED is the same
+   fact computed once, at the site that decided it. */
+if (QUALITY_DEFAULTED) log('   (lean is the default — EVERY gate max runs, at ~62% of the tokens: one architect ' +
+    'instead of a judge panel, one rework round, no completeness critic, low-risk items built at their ' +
+    'architect\'s tier. Pass {quality:"max"} for the judge panel + completeness critic; {quality:"standard"} for the cost-scaled ladder)')
 
 // 0) TRIAGE — decide the size of the run before buying any of it.
 //
@@ -916,7 +991,10 @@ if (APPLY) {
     `                   compares. MUST be present and numeric or the lock is unpurgeable.\n` +
     `   cwd           = the pwd from step 2\n` +
     `   task          = ${JSON.stringify(taskSnip)}\n` +
-    `Return the token you wrote. Do not create, edit or delete anything outside "$LOCKDIR".`,
+    `Return the token you wrote, AND the absolute path from step 2 verbatim in \`cwd\` — on BOTH ` +
+    `outcomes, acquired or not. That path is the only way a human can see WHICH tree this run locked; ` +
+    `it is derived from your shell's working directory, which nobody declared. Do not create, edit or ` +
+    `delete anything outside "$LOCKDIR".`,
     { model: 'sonnet', effort: 'low', phase: 'Preflight', label: 'lock:acquire', schema: LOCK_SCHEMA },
     true                              // reserved: the lock is taken before anything else spends
   ).catch(() => null)
@@ -942,10 +1020,41 @@ if (APPLY) {
         `If that run is alive, one of you will lose work.`)
   }
   if (lock && lock.acquired) {
-    log(`🔒 Workspace lock taken on ${lock.key} (expires in ${LOCK_TTL_MIN}m).` +
+    log(`🔒 Workspace lock taken on ${lock.cwd || lock.key} (expires in ${LOCK_TTL_MIN}m).` +
         (lock.purged_stale ? ` Purged ${lock.purged_stale} stale lock(s).` : ''))
   }
-  if (!lock) log(`⚠ Preflight lock could not be established — proceeding UNLOCKED.`)
+  /* ── v20.1 — ANNOUNCE THE TREE, AND CROSS-CHECK IT AGAINST THE TASK ──────────────────────────────
+     The lock key is `pwd -P` of the lock agent's shell. Nothing chose it, nothing declared it and
+     until now nothing PRINTED it in a form you could compare to anything. Two failure directions:
+       · shell sits in a tree ANOTHER run holds  -> preflight refuses. Loud, safe, already handled.
+       · shell sits in a tree this run will NOT touch -> the lock lands somewhere irrelevant and the
+         REAL target is unprotected, so a second fleet can edit it concurrently. That is precisely
+         the lost-update this lock exists to prevent, and it is SILENT.
+     BEHAVIOUR CHANGE, STATED PLAINLY: this WARNS, it does not refuse, and it changes no locking
+     semantics — the same lock is taken on the same key, {ignoreLock:true} is untouched, and nothing
+     new can abort a run. It is deliberately not a blocker: task text legitimately names absolute
+     paths in trees the run must NOT edit (backups, installed copies, "do not touch X"), so a hard
+     block here would fire on correct runs. The signal that IS worth shouting is the strict one:
+     the task named absolute paths and NOT ONE of them lives under the tree that got locked. */
+  const LOCKED_TREE = (lock && String(lock.cwd || lock.key || '').trim()) || ''
+  if (LOCKED_TREE) {
+    const declared = String(TASK).match(/\/(?:Users|home|opt|srv|private|var|workspace)\/[^\s'"`,;:)\]]{3,}/g) || []
+    const inside = declared.filter(p => p.indexOf(LOCKED_TREE) === 0)
+    globalThis.__lockCheck = { tree: LOCKED_TREE, declared_paths: declared.length,
+      inside_locked_tree: inside.length, mismatch: !!(declared.length && !inside.length) }
+    if (declared.length && !inside.length) {
+      log(`⚠⚠ LOCK-TREE MISMATCH — the workspace lock was taken on ${LOCKED_TREE}, but NONE of the ` +
+          `${declared.length} absolute path(s) named in the task live under it.`)
+      log(`   e.g. ${declared.slice(0, 3).join(' · ')}`)
+      log(`   The lock key is the SHELL's working directory, which nobody declared. If the files this ` +
+          `run edits are not under the locked tree, THEY ARE NOT PROTECTED and a second run can edit ` +
+          `them at the same time.`)
+      log(`   If that is wrong, stop this run and re-launch it from the tree it is meant to edit.`)
+    } else if (declared.length) {
+      log(`   lock cross-check: ${inside.length}/${declared.length} absolute path(s) named in the task live under the locked tree.`)
+    }
+  }
+  if (!lock) log(`⚠ Preflight lock could not be established — proceeding UNLOCKED (no tree is protected).`)
 } else {
   log('Preflight: dry-run writes nothing, so no workspace lock is needed.')
 }
@@ -1039,19 +1148,45 @@ if (triage) {
 // The quality only changes how many candidates are bought, which the detail string says.
 phase('Architect')
 let plan = null
+/* ── v20.1 — RIGHT-SIZE THE PANEL, AND REPORT THE SIZE ───────────────────────────────────────────
+   MEASURED, v1635: the 20+ agent ceiling went entirely to the architect panel, the builders and the
+   skeptics, and all three closing blockers were the same sentence — "the ceiling was already spent,
+   so this gate never ran" (render gate, LAW17, LAW19). One of the two fixed-size spends is right
+   here: 3 architects + 1 judge = FOUR agents, paid identically for a 2-item mechanical job and for a
+   cross-cutting rewrite.
+   THE PANEL RUNS BEFORE `items` EXISTS, so it cannot be sized by planned-item count. The only
+   signals that exist at this moment are triage's: cost_of_wrong, est_agents, tier. Size off those.
+   A judge is only worth an agent when there is MORE THAN ONE candidate to merge — a judge over a
+   single candidate is pure spend — so ARCH_N === 1 takes the single-architect branch that standard
+   and lean already run every day, which is the best-tested path in the file.
+   THIS TRIMS THE COUNT, NEVER THE TIER: every architect and the judge stay Opus/high at max, which
+   Konyo explicitly declined to change. And it is REPORTED — a bound that is enforced but never
+   announced is the same defect as no bound at all. */
+const ARCH_TRIAGE = globalThis.__triage || {}
+const ARCH_N = !(MAXQ && !LEANQ) ? 1
+  : (ARCH_TRIAGE.cost_of_wrong === 'high' && (ARCH_TRIAGE.est_agents || 0) >= 3) ? 3
+  : (ARCH_TRIAGE.cost_of_wrong === 'high' || (ARCH_TRIAGE.est_agents || 0) >= 3) ? 2
+  : 1
+if (MAXQ && !LEANQ) {
+  log(`ARCHITECT PANEL → ${ARCH_N} candidate plan(s)` +
+      (ARCH_N > 1 ? ' + 1 judge to merge them' : ' + NO judge (a judge over a single candidate is pure spend)') +
+      ` = ${ARCH_N + (ARCH_N > 1 ? 1 : 0)} agent(s), sized from triage ` +
+      `(cost_of_wrong=${ARCH_TRIAGE.cost_of_wrong || '?'}, est_agents=${ARCH_TRIAGE.est_agents || '?'}). ` +
+      `Every seat is still Opus/high — this trims the COUNT, never the tier.`)
+}
 /* v19 — THE PANEL IS A BARRIER, AND LEAN DOES NOT PAY FOR IT. Three architects plus a judge is four
    agents and a serial round: nothing starts building until the slowest candidate AND the judge are
    done (measured 13:14:50 -> 13:17:46 on the first max run). Lean buys ONE architect — and the plan
    is still independently read, because the third eye reviews it before a builder spends anything.
    That is a different MODEL FAMILY looking at the plan, which is a stronger check than a second
    Claude candidate anyway. */
-if (MAXQ && !LEANQ) {
+if (MAXQ && !LEANQ && ARCH_N > 1) {
   const ANGLES = [
     'RISK-FIRST: order items by blast radius; isolate the highest-risk change and make it the most defensively specified.',
     'CORRECTNESS-FIRST: decompose so each item has a single, testable, unambiguous fix; no item bundles two concerns.',
     'SIMPLEST-ROBUST: the smallest set of one-owner-per-file changes that fully solves it with no scope creep.',
   ]
-  const candidatePlans = (await parallel(ANGLES.map((angle, i) => () =>
+  const candidatePlans = (await parallel(ANGLES.slice(0, ARCH_N).map((angle, i) => () =>
     spawn(
       `ARCHITECT (${angle}) for a MAX-QUALITY fix run. Decompose this task into independent work items, ` +
       `ONE OWNER PER FILE (no file appears twice). Read the repo to ground paths. Tag each item's risk, ` +
@@ -1064,6 +1199,15 @@ if (MAXQ && !LEANQ) {
     ).catch(() => null)
   ))).filter(Boolean)
   if (!candidatePlans.length) { log('No architect produced a plan.'); return bail({ error: 'no plan' }) }
+  /* v20.1 — A JUDGE OVER ONE CANDIDATE IS AN AGENT SPENT TO AGREE WITH ITSELF. When two of three
+     architects die (they .catch(() => null), so this is a normal outcome, not an exception) the run
+     used to buy a "JUDGE + MERGE" of a single plan — the merge is a no-op and the ceiling is one
+     agent poorer at exactly the moment the run is already degraded. Take the survivor and say so. */
+  if (candidatePlans.length === 1) {
+    log(`ARCHITECT PANEL: only 1 of ${ARCH_N} candidate plan(s) came back — taking it directly, ` +
+        `skipping the judge (there is nothing to merge, and the agent is worth more to the closing gates).`)
+    plan = candidatePlans[0]
+  } else {
   plan = await spawn(
     `JUDGE + MERGE. You are given ${candidatePlans.length} candidate decomposition plans for the same task. ` +
     `Produce the single BEST one-owner-per-file plan: take the sharpest decomposition, graft the best items ` +
@@ -1076,6 +1220,7 @@ if (MAXQ && !LEANQ) {
     { model: 'opus', effort: 'high', label: 'architect:judge', phase: 'Architect', schema: JUDGE_SCHEMA }
   )
   if (plan === null) { log('CEILING: no budget for the judge.'); return bail({ error: 'ceiling' }) }
+  }
 } else {
 plan = await spawn(
   `You are the ARCHITECT for the KONYO WORKFLOW. Decompose this task into independent work items, ` +
@@ -1139,6 +1284,32 @@ if (MAXQ) {
      so the two can no longer drift apart. The rework MULTIPLIER stays out of the trim on purpose —
      rework is conditional, and folding it in here would halve every plan for a cost most runs never
      pay. Feasibility still warns about that worst case; this guarantees the FIXED costs. */
+  /* v20.1 — CEILING-AWARE PANEL SIZING, DECIDED ONCE, AND IT CAN ONLY ADD COVERAGE.
+     The other fixed-size spend: skeptics are a PER-ITEM multiplier, so items x seats dominates any
+     multi-item run and the trim below then throws whole ITEMS away to pay for depth on the few that
+     survive. When the two do not both fit, coverage is worth more than the 3rd seat: an item that is
+     never built is never reviewed at all, while an item reviewed by 2 seats still faces a panel that
+     can refuse (2 votes to refute, one of them the third eye). So: drop seats ONE at a time, ONLY
+     while that buys at least one more item, and NEVER below SKEPTIC_FLOOR.
+     GUARANTEES, deliberately narrow: it never seats fewer than the floor (the safeguard is untouched);
+     it never seats MORE than triage/default asked for; an explicit {skeptics:N} skips it entirely; and
+     it is pinned so the trim, the feasibility line, the announcement and the panel that actually sits
+     all read the SAME number through activeLenses() — the v18.3 two-formula bug cannot come back
+     through this door, because there is still only one door. */
+  if (SKEPTICS_OVERRIDE === null) {
+    const room   = Math.max(0, MAX_AGENTS - SPENT - GATE_COST - RESERVE_COST)
+    const wantN  = activeLenses().length
+    const fitsAt = n => Math.floor(room / (1 + n))
+    let seats = wantN
+    while (seats > SKEPTIC_FLOOR && fitsAt(seats) < items.length) seats--
+    if (seats < wantN) {
+      SKEPTIC_PIN = seats
+      log(`SKEPTIC SIZING: ${wantN} seat(s) x ${items.length} item(s) did not fit under the ${MAX_AGENTS}-agent ` +
+          `cap once ${GATE_COST} gate(s) + ${RESERVE_COST} reserved are paid for. Seating ${seats} per item ` +
+          `(floor is ${SKEPTIC_FLOOR} and is NEVER lowered) — that funds ${fitsAt(seats)} fully-reviewed item(s) ` +
+          `instead of ${fitsAt(wantN)}. Pass {skeptics:${wantN}} to force the full panel and trim items instead.`)
+    }
+  }
   const perItem = 1 + activeLenses().length
   const roomForItems = Math.max(1, Math.floor((MAX_AGENTS - SPENT - GATE_COST - RESERVE_COST) / Math.max(1, perItem)))
   if (items.length > roomForItems) {
@@ -1148,21 +1319,43 @@ if (MAXQ) {
     items = items.slice(0, roomForItems)
   }
 }
+/* v21.1 — COUNT THE TIERS THAT WILL ACTUALLY BE BOUGHT, NOT THE ONES THAT WERE ASKED FOR.
+   v20 fixed the GATING of the parenthetical (it no longer claims quality=max on a lean run) and
+   left the halves of the line contradicting each other anyway: the counts came straight off
+   `item.tier` — the ARCHITECT'S REQUEST — while the parenthetical described the EFFECTIVE tier. On
+   a max run that printed, in one breath, `1 haiku / 0 sonnet / 0 opus (all built by Opus at
+   quality=max)`. Both halves true, read together nonsense — the same defect class as the terrorized
+   alvl on a TZ card, and as the four MAXQ strings v20 fixed, one layer down. Found by the round-2
+   audit critic; the fix is to route the counts through tierFor(), the SAME function the spawn uses,
+   so the log cannot drift from the spend. One function, one answer. */
+const _effTier = it => tierFor(it.tier, it.risk)
+const _tierN   = t  => items.filter(i => _effTier(i) === t).length
 log(`Plan "${plan.version_label}": ${items.length} items — ` +
-    `${items.filter(i=>i.tier==='haiku').length} haiku / ${items.filter(i=>i.tier==='sonnet').length} sonnet / ${items.filter(i=>i.tier==='opus').length} opus` +
-    (MAXQ ? ' (all built by Opus at quality=max)' : ''))
+    `${_tierN('haiku')} haiku / ${_tierN('sonnet')} sonnet / ${_tierN('opus')} opus` +
+    ((MAXQ && !LEANQ) ? ' (effective tiers — quality=max builds everything at Opus)'
+      : LEANQ ? " (effective tiers — quality=lean honours the architect's tier on risk:low items, floored at sonnet; opus otherwise)"
+      : ' (effective tiers — cost-scaled ladder, escalates on rework)'))
 
 /* ── v11 — FEASIBILITY, ANNOUNCED BEFORE THE MONEY IS SPENT (max only) ───────────────────────────
    The ceiling is honest but it is a TRIPWIRE: it tells you the run was truncated only once it has
    already truncated it, three quarters of the way in. The arithmetic that predicts it is available
    the moment the plan exists. This does NOT refuse — a truncated run is often exactly what the human
-   wants. It refuses to let the truncation be a SURPRISE. */
-if (MAXQ) {
+   wants. It refuses to let the truncation be a SURPRISE.
+   v21 — AND IT IS ANNOUNCED AT EVERY QUALITY NOW, NOT ONLY AT MAX. Standard deliberately does not
+   take the plan-level TRIM (see the comment above it: its per-item cost is different and shrinking
+   its plans would be a behaviour change nobody asked for) — but that decision was silently also
+   withholding the WARNING, which costs nothing and refuses nothing. So a standard run whose plan
+   could never fit found out the same way v1635 did: three closing gates reporting "the ceiling was
+   already spent". This changes NO behaviour at standard — it prints the arithmetic, with standard's
+   real per-item cost (1 build + 1 Fable gate + its skeptics), and sets __infeasible so the payload
+   carries it. Nothing is trimmed here that was not trimmed before. */
+{
   const skeptN   = activeLenses().length
+  const FABLE    = MAXQ ? 0 : 1            // standard buys a Fable merge gate per item; max's panel IS the gate
   const GATES    = GATE_COST               // v18.3 — the SAME number the trim reserved, not a second copy
   const RESERVE2 = RESERVE_COST
-  const worst    = SPENT + items.length * (1 + skeptN) * MAXROUNDS + GATES + RESERVE2
-  log(`FEASIBILITY → ${items.length} item(s) x (1 build + ${skeptN} skeptic(s)) x up to ${MAXROUNDS} round(s) ` +
+  const worst    = SPENT + items.length * (1 + FABLE + skeptN) * MAXROUNDS + GATES + RESERVE2
+  log(`FEASIBILITY → ${items.length} item(s) x (1 build${FABLE ? ' + 1 Fable gate' : ''} + ${skeptN} skeptic(s)) x up to ${MAXROUNDS} round(s) ` +
       `+ ${GATES} gates + ${RESERVE2} reserved ≈ ${worst} agents worst-case, against a ceiling of ${MAX_AGENTS}.`)
   if (worst > MAX_AGENTS) {
     log(`⚠ THIS PLAN CANNOT FULLY FINISH inside the ceiling. It will do the most valuable work first ` +
@@ -1220,7 +1413,11 @@ else log(`No skeptics this run (source: ${SKEPTICS_SOURCE}) — NOTHING will try
   if (SKEPTICS_OVERRIDE !== null) {
     if (_sk !== null && _sk !== SKEPTICS_OVERRIDE) log(`SKEPTICS → ${SKEPTICS_OVERRIDE} by explicit override (triage wanted ${_sk}).`)
   } else if (MAXQ && _sk !== null && _sk < LENSES.length) {
-    log(`⚠ TRIAGE ASKED FOR ${_sk} SKEPTIC(S), NOT ${LENSES.length} — this is a MAX run at MAX prices ` +
+    /* v20.1 — MAXQ is `max || lean`, so this warning said "a MAX run at MAX prices" on every LEAN
+       run. Lean is the default; the sentence was false on the most common run in the system. Same
+       class as the v20 four. */
+    log(`⚠ TRIAGE ASKED FOR ${_sk} SKEPTIC(S), NOT ${LENSES.length} — this is a ${QUALITY.toUpperCase()} run ` +
+        `at ${QUALITY.toUpperCase()} prices ` +
         `with a reduced adversarial gate. The floor seated ${SKEPTICS}.`)
     log(`  Its reason: ${_tri.why || '(none given)'}`)
     log(`  If being wrong here is expensive, stop and re-run with {skeptics:${LENSES.length}}.`)
@@ -1708,9 +1905,19 @@ const final = await spawn(
   `REWORK: ${round}/${MAXROUNDS} round(s), stopped_because=${reworkStop}\n` +
   `SKEPTICS: ${SKEPTICS} per item (source: ${SKEPTICS_SOURCE})\n` +
   `QUALITY: ${QUALITY}\n` +
-  `COMPLETENESS: ` + (MAXQ
+  /* v20 — THE WORST OF THE MAXQ/LEANQ CONFUSIONS, BECAUSE THIS STRING IS THE SYNTHESIZER'S INPUT.
+     The completeness loop runs under `MAXQ && !LEANQ`; this line asked only `MAXQ`. So on a LEAN run
+     — now the DEFAULT — the synthesizer was handed
+       "COMPLETENESS: 0 round(s), 0/2 dry, wentDry=false, stoppedBecause=(went dry)"
+     because critStop is null when the loop never opened and `|| '(went dry)'` then invented a reason.
+     The structured `completeness` field said `ran:false` the whole time. A payload that knows the
+     truth and a summary that contradicts it is the exact defect class this ledger exists to kill,
+     and it would have taught the final report that nothing was left unswept. */
+  `COMPLETENESS: ` + ((MAXQ && !LEANQ)
     ? `${critRound} round(s), ${dry}/${DRYROUNDS} dry, wentDry=${dry >= DRYROUNDS}, stoppedBecause=${critStop || '(went dry)'}`
-    : 'NOT RUN (quality=standard buys no completeness critic — do not describe the work as exhaustively swept)') + `\n` +
+    : LEANQ
+      ? 'NOT RUN (quality=lean buys no completeness critic — it is the run\'s longest tail). NOBODY hunted for work nobody did, which is NOT the same as finding none. You may NOT describe this run as exhaustive, complete or fully swept; say plainly that completeness was not checked.'
+      : 'NOT RUN (quality=standard buys no completeness critic — do not describe the work as exhaustively swept)') + `\n` +
   `GAPS RAISED BUT NEVER BUILT (${unbuiltGaps.length}): ` + (unbuiltGaps.slice(0, 5).join(' | ') || 'none') + `\n` +
   `INFEASIBILITY: ${globalThis.__infeasible ? JSON.stringify(globalThis.__infeasible).slice(0, 400) : '(none flagged)'}\n` +
   `MERGE: ` + (merge ? `${(merge.applied || []).length} applied, ${(merge.failed || []).length} failed`
@@ -1743,7 +1950,13 @@ if (USE_GROK && APPLY) {
     `WHAT IT SAYS IT DID: ${(final && final.headline) || '(no headline)'}\n` +
     `SHIPPED: ${JSON.stringify((final && final.shipped) || []).slice(0, 1200)}\n` +
     `EVIDENCE THE RUN IS RELYING ON — items passed: ${passed.length}, failed: ${failed.length}; ` +
-    `skeptic panel: ${SKEPTICS} seat(s); render gate: ${renderGate ? (renderGate.passed ? 'passed' : 'FAILED') : 'not run'}` +
+    // v21 — SEATS BOUGHT, THEN VOTES ACTUALLY CAST. The pre-ship third eye was being handed the
+    // seat count as if it were the review count; a short-handed panel is exactly the kind of thing
+    // an independent reviewer must be told about rather than have to infer.
+    `skeptic panel: ${SKEPTICS} seat(s) bought` +
+    `${THIN_PANELS.length ? `, but ${THIN_PANELS.length} panel(s) came up short (` +
+      THIN_PANELS.slice(0, 3).map(t => `${t.file}: ${t.cast}/${t.panel} cast`).join('; ') + ')' : ' (all seats voted)'}` +
+    `; render gate: ${renderGate ? (renderGate.passed ? 'passed' : 'FAILED') : 'not run'}` +
     `${renderGate && (renderGate.screenshots || []).length ? ` with ${renderGate.screenshots.length} screenshot(s)` : ' with NO screenshots'}; ` +
     `agents that died: ${SPAWN_ERRORS.length}; blockers already raised: ${BLOCKERS.length}` +
     `${BLOCKERS.length ? ' — ' + BLOCKERS.map(b => b.what).join(', ') : ''}.`
@@ -1799,8 +2012,15 @@ return emit({
      ABORTED. A field that answers correctly only on failure is the null-reads-as-pass defect wearing
      a different hat. The token is now the field; the prose is a separate label. */
   quality: QUALITY,
+  /* v20.1 — THE LABEL CLAIMED THE TWO PHASES LEAN DELIBERATELY DOES NOT BUY. Same class as the four
+     fixed by hand at v20: "3-architect judge panel · loop-until-dry" is true of MAX ONLY, and this is
+     the human-readable field of the LEAN payload — which is now the DEFAULT run, so this was about to
+     become the most-printed sentence in the system. It also contradicted TWO fields in its OWN object:
+     knobs.judgePanel said 'single architect' and completeness.ran said false. Two surfaces, two
+     answers, and nothing compared them. */
   quality_label: LEANQ
-    ? `LEAN (every MAX gate · 3-architect judge panel · ${SKEPTICS}-skeptic adversarial gate · loop-until-dry · ` +
+    ? `LEAN (every MAX gate · ONE architect, no judge panel · ${SKEPTICS}-skeptic adversarial gate · ` +
+      `${MAXROUNDS} rework round(s) · NO completeness critic · ` +
       `low-risk items built at their architect's tier, floored at sonnet)`
     : MAXQ
     ? `MAX (Opus everywhere · 3-architect judge panel · ${SKEPTICS}-skeptic adversarial gate · loop-until-dry)`
@@ -1812,16 +2032,32 @@ return emit({
     floor: FLOOR,
     tierPolicy: LEANQ ? "opus, EXCEPT risk:'low' items which build at the architect's tier floored at SONNET (never haiku)"
       : MAXQ ? 'opus everywhere' : 'cost-scaled ladder (haiku→sonnet→opus, escalate on rework)',
-    judgePanel: (MAXQ && !LEANQ) ? '3 architects + judge' : 'single architect',
+    /* v20.1 — REPORT THE SIZE THAT WAS BOUGHT, not the size the flag used to imply. The panel is now
+       sized from triage (see ARCH_N at the Architect phase), so a hardcoded "3 architects + judge"
+       would be the same lie the quality_label was telling one field above. */
+    judgePanel: (MAXQ && !LEANQ)
+      ? `${ARCH_N} architect(s)` + (ARCH_N > 1 ? ' + judge' : ' (no judge — nothing to merge)') + ' — sized from triage'
+      : 'single architect',
     gateKind: MAXQ ? 'adversarial skeptic panel (the panel IS the gate)' : 'fable merge gate + skeptic panel behind it',
     isolate: ISOLATE,
     skeptics: { used: SKEPTICS, of: LENSES.length, source: SKEPTICS_SOURCE },
   },
-  lock: lock ? { acquired: !!lock.acquired, key: lock.key, released: didRelease } : null,
+  // v20.1 — the tree that was locked, and whether it matches the paths the task named. The key is
+  // the lock agent's shell cwd: nobody declares it, so the payload must show it or a lock on the
+  // WRONG tree is indistinguishable from a lock on the right one.
+  lock: lock ? { acquired: !!lock.acquired, key: lock.key, tree: lock.cwd || lock.key || null,
+                 tree_check: globalThis.__lockCheck || null, released: didRelease } : null,
   triage: globalThis.__triage || null,   // what this run was sized at, and why — visible after the fact
   rounds: round,
   rework: { rounds: round, maxRounds: MAXROUNDS, stopped_because: reworkStop },
-  skeptics: { used: SKEPTICS, of: LENSES.length, source: SKEPTICS_SOURCE,
+  // v20.1 — `ceiling_pinned` is the ceiling-aware sizer's decision: null = it never fired, a number =
+  // the seats it settled on (never below `floor`). Silent right-sizing is a bound enforced and never
+  // reported, which is the defect this file keeps paying for.
+  // v21 — `seats` is what was BOUGHT; `thin_panels` is where fewer actually VOTED. `used` is kept
+  // under its old name for anything reading this payload, but it is the seat count and nothing else.
+  skeptics: { used: SKEPTICS, seats_bought: SKEPTICS, of: LENSES.length, source: SKEPTICS_SOURCE,
+              floor: SKEPTIC_FLOOR, ceiling_pinned: SKEPTIC_PIN,
+              thin_panels: THIN_PANELS, thin_panel_count: THIN_PANELS.length,
               opted_out: !!globalThis.__skepticsOptedOut, floored: !!globalThis.__skepticFloored },
   completeness: (MAXQ && !LEANQ)
     ? { ran: true, rounds: critRound, dry, required: DRYROUNDS, wentDry: dry >= DRYROUNDS,
@@ -1854,9 +2090,16 @@ return emit({
     : trimmedFromPlan.length ? 'PARTIAL — ' + trimmedFromPlan.length + ' item(s) were trimmed from the plan to fit the ceiling'
     : failed.length ? 'INCOMPLETE — ' + failed.length + ' item(s) never passed the gate'
     : SPAWN_ERRORS.length ? 'DEGRADED — some agents died; their work is missing, not failed'
+    /* v21 — an EMPTY SEAT IS A DEAD AGENT, and it was the only one of the two that did not reach the
+       verdict. A panel that came up short reviewed the change with fewer eyes than the report claims;
+       that is degraded, not clean. It sits BELOW the other clauses on purpose — it never masks a
+       blocker, a ceiling or a failed item, it only stops a short-handed panel reading as a full one. */
+    : THIN_PANELS.length ? 'DEGRADED — ' + THIN_PANELS.length + ' skeptic panel(s) came up short (' +
+        THIN_PANELS.slice(0, 3).map(t => `${t.file}: ${t.cast}/${t.panel} vote(s) cast`).join('; ') +
+        ') — fewer eyes reviewed this than the seat count claims'
     : 'OK',
   shippable: !BLOCKERS.length && !CEILING_HIT && !trimmedFromPlan.length && !failed.length
-    && !SPAWN_ERRORS.length && (!MAXQ || LEANQ || (dry >= DRYROUNDS && !unbuiltGaps.length)),
+    && !SPAWN_ERRORS.length && !THIN_PANELS.length && (!MAXQ || LEANQ || (dry >= DRYROUNDS && !unbuiltGaps.length)),
   passed: passed.length,
   failed: failed.length,
   render_gate: renderGate,
