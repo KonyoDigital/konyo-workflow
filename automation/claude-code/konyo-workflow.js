@@ -673,8 +673,11 @@ if (APPLY) {
     + `what the UI CLAIMS it is — the filename, the alt text, the label beside it, the hover card. A `
     + `thumbnail labelled with a BOSS that depicts an ITEM is a BLOCKER, not a note; so is a tab logo `
     + `showing the wrong concept, or a gem/rune icon that is not that gem. Report each as `
-    + `"<surface>: claims X, depicts Y" in failures[] when they disagree, and list what you actually `
-    + `looked at in visual[]. NEVER infer this from a path resolving, a hash, a file size, or a `
+    + `"<surface>: claims X, depicts Y" in failures[] when they disagree. RECORD EVERY IMAGE YOU `
+    + `OPENED in images[] as {surface, path, claims, depicts, matches} — matches:false is a BLOCKER. `
+    + `If you opened NONE you MUST set images_na_reason (e.g. "this change touches no image surface"); `
+    + `an empty images[] with NO reason FAILS THE GATE, because "nobody looked" must never read the `
+    + `same as "nothing was wrong". NEVER infer this from a path resolving, a hash, a file size, or a `
     + `non-zero naturalWidth — every one of those has already passed over a wrong picture in this `
     + `project. If you did not open the image, say so plainly rather than implying you checked it.\n` +
     `does not replace it. SAVE THE SCREENSHOT TO A FILE and report every absolute path in ` +
@@ -695,6 +698,14 @@ if (APPLY) {
           passed:    { type: 'boolean' },
           failures:  { type: 'array', items: { type: 'string' } },
           notes:     { type: 'string', description: 'what a human should eyeball that no test covers' },
+          images: { type: 'array', description: 'v15 — EVERY image surface you actually OPENED, one entry each. Empty is only acceptable alongside images_na_reason.', items: { type: 'object', properties: {
+            surface: { type: 'string', description: 'where it appears in the UI, e.g. "F-Uniques Best runs thumbnail"' },
+            path:    { type: 'string', description: 'the asset file or screenshot crop you opened' },
+            claims:  { type: 'string', description: 'what the UI says it is — filename, alt text, adjacent label, hover card' },
+            depicts: { type: 'string', description: 'what the picture ACTUALLY shows, in your own words, having looked at it' },
+            matches: { type: 'boolean', description: 'false = the picture is of the wrong thing = BLOCKER' },
+          } } },
+          images_na_reason: { type: 'string', description: 'v15 — REQUIRED IF AND ONLY IF images is empty: why no image needed opening (e.g. "this change touches no image surface"). Absent + empty images = the gate is treated as NOT DONE and blocks.' },
           screenshots: { type: 'array', items: { type: 'string' }, description: 'ABSOLUTE paths of screenshots this gate actually captured — a human must be able to open them. Empty means nothing was seen.' },
           visual:      { type: 'array', items: { type: 'string' }, description: 'geometry assertions actually run (boundingBox / clipping / horizontal overflow / text-vs-background contrast / sibling overlap), one line each with the measured numbers' },
         } } }
@@ -710,6 +721,28 @@ if (APPLY) {
     log('⚠ RENDER GATE: no UI verification in this project — nothing was seen painted.')
   } else if (!renderGate) {
     blocker('RENDER GATE DID NOT RUN', 'nothing in this run was seen painted')
+  }
+  /* v15 — FAIL CLOSED ON "NOBODY LOOKED". Konyo: "make no image was opened fail closed rather than
+     just be reported". Telling an agent to look is an instruction; this is the enforcement. A gate
+     that inspected no images AND gave no reason has not done the one job that geometry cannot do,
+     and the whole point of v15 is that a wrong picture passes every structural assertion. Silence
+     is the failure mode being closed: `images: []` with no `images_na_reason` used to read exactly
+     like "there were no images to check". An honest "this change touches no image surface" costs
+     one sentence and passes; nothing costs a blocker. */
+  if (renderGate && renderGate.available) {
+    var _imgs = Array.isArray(renderGate.images) ? renderGate.images : []
+    var _wrong = _imgs.filter(function (i) { return i && i.matches === false })
+    if (_wrong.length) {
+      blocker('IMAGE SHOWS THE WRONG THING', _wrong.slice(0, 3).map(function (i) {
+        return (i.surface || '?') + ': claims ' + (i.claims || '?') + ', depicts ' + (i.depicts || '?')
+      }).join(' · '))
+    } else if (!_imgs.length && !String(renderGate.images_na_reason || '').trim()) {
+      blocker('NO IMAGE WAS EVER OPENED',
+        'the render gate inspected zero image surfaces and gave no reason — a picture of the wrong ' +
+        'thing passes every geometry assertion, so "nobody looked" cannot be allowed to read as "fine"')
+    } else if (_imgs.length) {
+      log('\u2705 Images inspected: ' + _imgs.length + ' surface(s), all depicting what they claim.')
+    }
   }
   // The screenshot is the gate's EVIDENCE — print the paths whatever the verdict, and say so loudly
   // when there are none, because "passed with no pixels captured" is a DOM-only pass wearing a badge.
