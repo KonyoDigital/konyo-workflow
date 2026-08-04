@@ -1,10 +1,10 @@
 export const meta = {
   name: 'konyo-workflow',
-  description: 'KONYO WORKFLOW — ONE body, three paths (lean | max | standard). RUNS AT LEAN BY DEFAULT (his instruction, 2026-08-04): EVERY gate max runs — diverse-lens skeptic panel, render gate with vision, LAW17, LAW19, workspace lock, agent ceiling — at ~62% of the tokens, by buying ONE architect instead of a judge panel, one rework round, no completeness critic, and risk:"low" items at the tier their own architect asked for (floored at sonnet; the review is Opus either way, and a failed cheap build escalates on rework). The third eye (Grok — a different model family) is ON at every quality. Pass {quality:"max"} to add the 3-architect judge panel, Opus builders everywhere and the loop-until-dry completeness critic — worth it when being wrong costs more than tokens. Pass {quality:"standard"} to opt DOWN to the cost-scaled ladder (Haiku/Sonnet build, Fable gates every merge, ONE architect, no completeness critic). Pass {thirdEye:false} to run without an independent reviewer. LEAN IS NOT MAX-WITH-FEWER-SAFEGUARDS: the flag buys model tier, panel size and extra phases, never a gate.',
-  whenToUse: 'ANY multi-step task you want orchestrated — it is LEAN unless you say otherwise, because lean already runs every gate and max only buys a judge panel, Opus builders and the completeness critic. It TRIAGES itself first, so a serial diagnosis is sent back to be done directly instead of spawning a fleet, and the ceiling + budget floor still bound every run. Reach for {quality:"max"} when the cost of being wrong is high — irreversible edits, data migrations, anything shipping unattended. Opt all the way down with {quality:"standard"} for routine, low-cost-of-wrong, easily reversible work (~10-15x cheaper). Pass {task, quality, thirdEye, apply, maxRounds, dryRounds, budgetFloor, force, skeptics, maxAgents, isolate}. `grok:false` still works as the old name for thirdEye:false; `fast` still resolves to `lean`.',
+  description: 'KONYO WORKFLOW — ONE body, three paths (lean | max | standard). RUNS AT LEAN BY DEFAULT (his instruction, 2026-08-04): EVERY gate max runs — diverse-lens skeptic panel, render gate with vision, LAW17, LAW19, workspace lock, agent ceiling — at ~62% of the tokens, by buying ONE architect instead of a judge panel, one rework round, no completeness critic, and risk:"low" items at the tier their own architect asked for (floored at sonnet; the review is Opus either way, and a failed cheap build escalates on rework). The third eye (Grok — a different model family) is ON at every quality. Pass {quality:"max"} to add the 3-architect judge panel, Opus builders everywhere and the loop-until-dry completeness critic — worth it when being wrong costs more than tokens. Pass {quality:"tiny"} for a SMALL, KNOWN edit set with a ~15-minute wall-clock budget: it REQUIRES an explicit items:[{file,instruction}] work list (max 4 items across 3 files, no diagnosis) and refuses without one, then skips the PLANNING hops only — no triage, no architect, no third-eye plan seat, no completeness critic, no synthesizer — while keeping every gate: the 2-seat adversarial panel, LAW19 reachability, the render gate with vision, LAW17, and the workspace lock. Reachability and the render gate run CONCURRENTLY. Pass {quality:"standard"} to opt DOWN to the cost-scaled ladder (Haiku/Sonnet build, Fable gates every merge, ONE architect, no completeness critic). Pass {thirdEye:false} to run without an independent reviewer. LEAN IS NOT MAX-WITH-FEWER-SAFEGUARDS: the flag buys model tier, panel size and extra phases, never a gate.',
+  whenToUse: 'ANY multi-step task you want orchestrated — it is LEAN unless you say otherwise, because lean already runs every gate and max only buys a judge panel, Opus builders and the completeness critic. It TRIAGES itself first, so a serial diagnosis is sent back to be done directly instead of spawning a fleet, and the ceiling + budget floor still bound every run. Reach for {quality:"tiny"} when you already know the exact edits (file + instruction each) and want them done in ~15 minutes with the gates intact — it is a HOP budget, not an agent budget: wall clock is serial-hops × time-per-hop, so tiny cuts the chain from 11 phases to 4 rather than trimming agents. Reach for {quality:"max"} when the cost of being wrong is high — irreversible edits, data migrations, anything shipping unattended. Opt all the way down with {quality:"standard"} for routine, low-cost-of-wrong, easily reversible work (~10-15x cheaper). Pass {task, quality, thirdEye, apply, maxRounds, dryRounds, budgetFloor, force, skeptics, maxAgents, isolate}. `grok:false` still works as the old name for thirdEye:false; `fast` still resolves to `lean`.',
   phases: [
     { title: 'Preflight',   detail: 'workspace lock — refuse to start if another run is already editing this tree' },
-    { title: 'Triage',      detail: 'right-size the run BEFORE spending: shape · parallelism · cost-of-wrong', model: 'opus' },
+    { title: 'Triage',      detail: 'right-size the run BEFORE spending: shape · parallelism · cost-of-wrong. SKIPPED at quality:"tiny" — the caller supplied the work list', model: 'opus' },
     { title: 'Architect',   detail: 'decide the plan — ONE Opus architect by default (lean/standard); 3 Opus architects (risk / correctness / simplest lenses) + an Opus judge at quality:"max". One owner per file either way.', model: 'opus' },
     { title: 'Third-eye',   detail: 'seat 1 of 4 — Grok (a DIFFERENT model family) reviews the chosen plan before a builder spends anything; seats 2-4 sit on the skeptic panel, the render gate and the pre-ship verdict' },
     { title: 'Build+Gate',  detail: 'each item built at its architect-assigned tier, sonnet floor (default lean); Opus everywhere at quality:"max", Haiku/Sonnet at quality:"standard". One owner per file, gated immediately, no barrier' },
@@ -56,7 +56,7 @@ const QUALITY_ASKED = (A && typeof A.quality === 'string') ? A.quality.trim().to
    biggest file, which no flag can shorten, while tokens scale with agent count and tier — exactly
    what this path cuts. `fast` still resolves, silently, so no saved invocation breaks. */
 const QUALITY_ALIAS = { fast: 'lean' }
-const KNOWN_QUALITIES = ['max', 'lean', 'standard']
+const KNOWN_QUALITIES = ['max', 'lean', 'standard', 'tiny']
 const QUALITY_RESOLVED = QUALITY_ALIAS[QUALITY_ASKED] || QUALITY_ASKED
 /* v20 — LEAN IS NOW THE DEFAULT. Konyo, 2026-08-04, having watched a max run open on the D2R
    console queue: "by default make it LEAN". This REVERSES the v18 default (max) — and it reverses
@@ -93,8 +93,34 @@ const QUALITY_DEFAULTED = !QUALITY_ASKED
    medium or high risk, and anything with no risk tag at all, still gets Opus. A low-risk item that
    FAILS its gate escalates on rework like any other, so the cheap tier is a first attempt, never a
    final answer. Nothing about the review changes — the skeptics reading the diff are Opus either way. */
-const MAXQ    = QUALITY === 'max' || QUALITY === 'lean'   // every max-only GATE applies to lean too
+/* v22 — TINY: A HOP BUDGET, NOT AN AGENT BUDGET. Konyo, after a 66-minute run shipped three small
+   UI edits: "how do we get to an optimization of that exact amount of time... maximum 15 Minutes".
+   MEASURED WHY IT WAS SLOW, and it is not agent count: wall clock ≈ SERIAL HOPS × time per hop. The
+   default chain is 11 phases deep (Preflight→Triage→Architect→Third-eye→Build→Adversarial→Rework→
+   Render→LAW17→LAW19→Synthesize) and each hop is a full agent round-trip of 3-8 minutes. 11 × ~4min
+   ≈ 45min before parallelism can help — and it cannot help, because the phases are CHAINED.
+   So tiny is designed backwards from 15 minutes = FOUR serial hops:
+     1 lock  ·  2 build (one agent per FILE, parallel)  ·  3 ALL GATES FAN OUT  ·  4 stamp+push.
+   The trick is hop 3. The render gate, LAW17 and LAW19 are three separate serial phases today, but
+   they all read the SAME finished diff and have no dependency on each other — queueing them is pure
+   waste. Fanned out, ~16 minutes becomes ~5 and nothing is given up.
+   WHAT IS CUT IS PLANNING, NOT VERIFICATION: triage, the architect, and the synthesis agent. For a
+   tiny task the plan is already in the brief, which is why tiny REFUSES a brief that lacks an
+   explicit work list (see TINY_REFUSAL) rather than degrading into a slow run.
+   WHAT SURVIVES IS EVERY GATE THAT CAUGHT A REAL BUG THIS SESSION: the adversarial reader (caught a
+   rarity remap painting basic items gold), LAW19 reachability (caught a dead function that a "fix"
+   had been applied inside), the measured render proof (caught an item that was never shipped at
+   all), the workspace lock, and the four-stamp/push discipline. TINYQ is inside MAXQ precisely so
+   the skeptic FLOOR and the gates apply unchanged — tiny buys fewer HOPS, never fewer gates. */
+const TINYQ   = QUALITY === 'tiny'
+const MAXQ    = QUALITY === 'max' || QUALITY === 'lean' || TINYQ  // every max-only GATE applies to lean and tiny too
 const LEANQ   = QUALITY === 'lean'
+/* v22 — ONE NAME FOR "max and nothing else". `MAXQ` means max-OR-lean-OR-tiny (every gate), so
+   every site meaning MAX ONLY had to spell out `MAXONLY` — and adding tiny silently made
+   all 8 of those sites wrong at once, because tiny is inside MAXQ and is not LEANQ. That is the
+   v20 defect exactly: a concept with no name, re-derived at each call site, drifting the moment a
+   quality is added. Named once here; adding a fifth quality now touches ONE line. */
+const MAXONLY = MAXQ && !LEANQ && !TINYQ
 const TASK      = typeof A === 'string' ? A : (A && A.task) || ''
 const APPLY     = !!(A && A.apply)                 // false = dry-run (propose diffs, write nothing). true = agents edit files.
 // Quality-dependent DEFAULTS preserve each original script's default exactly; an explicit caller arg
@@ -103,7 +129,10 @@ const APPLY     = !!(A && A.apply)                 // false = dry-run (propose d
    every item can be built, gated, and built again. At lean the first failure is REPORTED instead of
    retried, which is honest (failed items already force an INCOMPLETE verdict) and halves the worst
    case. Max keeps its second attempt. */
-const MAXROUNDS = (A && A.maxRounds) || (LEANQ ? 1 : MAXQ ? 2 : 3)
+// v22 — tiny keeps ONE rework round. Rework is per-item inside the build pipeline, not a global
+// barrier, so a single retry costs one item's hop and not the run's — and a tiny task that fails its
+// gate with no retry would spend the whole 15 minutes to report nothing.
+const MAXROUNDS = (A && A.maxRounds) || (TINYQ ? 1 : LEANQ ? 1 : MAXQ ? 2 : 3)
 const DRYROUNDS = (A && A.dryRounds) || 1          // consumed only by the max-only completeness loop
 const FLOOR     = (A && A.budgetFloor) || (MAXQ ? 120_000 : 60_000)  // stop opening new rounds under this many tokens remaining
 /* v18 — THE THIRD EYE IS A FIRST-CLASS FLAG, ON BY DEFAULT, AND IT MEANS A DIFFERENT MODEL FAMILY.
@@ -416,12 +445,20 @@ const bump = (tier) => LADDER[Math.min(LADDER.indexOf(tier) + 1, LADDER.length -
         rework; here the same miss burns the item for the whole run.
    So lean reads the architect's tier as a CEILING, never below sonnet. Haiku stays available on the
    cost-scaled path, where the ladder and the retry exist to catch it. */
-const tierFor = (t, risk) => LEANQ
+/* v22 — TINY BUILDS AT SONNET BY DEFAULT, AND THAT IS A TIME DECISION, NOT A COST ONE. A tiny item
+   arrives with its file and its anchor already named, so the builder is not deciding WHAT to do —
+   it is making a known edit. Opus is slower per turn and buys judgement this hop does not need.
+   The caller can still force a tier per item (`tier:'opus'`) and an item the caller marks
+   `risk:'high'` is built at Opus regardless, because "small" is about scope, never about stakes.
+   The REVIEW is Opus at every quality — the reader that refutes the diff is where judgement pays. */
+const tierFor = (t, risk) => TINYQ
+  ? (risk === 'high' ? 'opus' : (!t || t === 'haiku' ? 'sonnet' : t))
+  : LEANQ
   // fast: honour the architect's tier ONLY where it also called the blast radius low. No risk tag
   // means no permission — an untagged item is treated as risky, because "unknown" is not "low".
   ? (risk === 'low' ? (!t || t === 'haiku' ? 'sonnet' : t) : 'opus')
   : MAXQ ? 'opus' : (t || 'sonnet')
-const effortFor = (tier) => (MAXQ && !LEANQ) ? 'high'
+const effortFor = (tier) => (MAXONLY) ? 'high'
   : tier === 'opus' ? 'high' : tier === 'sonnet' ? 'medium' : 'low'
 const budgetOK = () => !budget.total || budget.remaining() > FLOOR
 const mode = APPLY ? 'APPLY (agents edit files)' : 'DRY-RUN (agents propose diffs, nothing written)'
@@ -925,10 +962,10 @@ globalThis.__skepticFloored = false
 globalThis.__skepticsOptedOut = false
 log(`KONYO WORKFLOW [${QUALITY.toUpperCase()}] · ${mode} · budget floor ${Math.round(FLOOR/1000)}k · ` +
     /* v20 — THE BANNER ADVERTISED A PHASE THE RUN WOULD NEVER BUY. This was gated on MAXQ
-       (`max || lean`) while the completeness loop is gated on `MAXQ && !LEANQ`, so every LEAN run
+       (`max || lean`) while the completeness loop is gated on `MAXONLY`, so every LEAN run
        opened by promising "N dry completeness round(s)" and then never ran one. Harmless-looking,
        and lean is now the DEFAULT, so it would have become the most-printed line in the system. */
-    `max ${MAXROUNDS} rework round(s)` + ((MAXQ && !LEANQ) ? ` · ${DRYROUNDS} dry completeness round(s)` : '') +
+    `max ${MAXROUNDS} rework round(s)` + ((MAXONLY) ? ` · ${DRYROUNDS} dry completeness round(s)` : '') +
     (ISOLATE ? ' · ISOLATE+MERGE' : '') +
     ` · third eye ${THIRD_EYE === 'off' ? 'OFF' : THIRD_EYE === 'claude' ? 'CLAUDE STAND-IN (degraded)' : 'ON (grok)'}`)
 // v18 — a flag we did not understand must never be a silent downgrade.
@@ -1076,7 +1113,9 @@ async function releaseLock() {
   ).catch(() => null)
 }
 
-phase('Triage')
+// v22 — tiny buys no triage agent, so it must not open an empty Triage box either (the v18.2
+// lesson: a phase group with nothing in it reads as a phase that failed).
+if (!TINYQ) phase('Triage')
 if (!APPLY && wantsAFile(TASK)) {
   log('⚠ TRIAGE REFUSED: this is a DRY-RUN (apply:false) but the task asks agents to WRITE A FILE.')
   log('  Nothing can satisfy that, so every item would fail its gate and rework would multiply.')
@@ -1084,7 +1123,48 @@ if (!APPLY && wantsAFile(TASK)) {
   return bail({ refused: 'dry-run with a file-shaped deliverable', fix: 'apply:true, or drop the file deliverable' })
 }
 
-const triage = await spawn(
+/* ── v22 — TINY REFUSES A BRIEF IT CANNOT DO IN FOUR HOPS ────────────────────────────────────────
+   Tiny buys its speed by SKIPPING triage and the architect, which is only honest when the plan is
+   already in the brief. So the work list is not optional here: `items` must arrive with a file and
+   an instruction per entry. A tiny run handed a vague ask has two options — degrade into a slow run
+   while still calling itself tiny, or refuse. It refuses, loudly, and names the exact re-run.
+   The bounds are the hop budget expressed as limits: >4 items or >3 files cannot finish in one
+   build hop plus one gate hop, and "investigate / find out why / figure out" is a DIAGNOSIS, which
+   triage has always classified as serial work that a fleet makes slower, not faster. */
+const TINY_MAX_ITEMS = 4, TINY_MAX_FILES = 3
+if (TINYQ) {
+  const its = (A && Array.isArray(A.items)) ? A.items : null
+  const files = its ? [...new Set(its.map(i => i && i.file).filter(Boolean))] : []
+  const bad = !its ? 'no `items` array was passed'
+    : !its.length ? '`items` was empty'
+    : its.some(i => !i || !i.file || !i.instruction) ? 'every item needs BOTH `file` and `instruction`'
+    : its.length > TINY_MAX_ITEMS ? `${its.length} items — tiny caps at ${TINY_MAX_ITEMS}`
+    : files.length > TINY_MAX_FILES ? `${files.length} files — tiny caps at ${TINY_MAX_FILES}`
+    : /\b(investigate|figure out|find out why|diagnose|root[- ]cause|why is)\b/i.test(TASK)
+      ? 'this reads as a DIAGNOSIS, which is serial work — a fleet makes it slower, not faster'
+      : null
+  if (bad) {
+    log(`⛔ TINY REFUSED: ${bad}.`)
+    log('   Tiny skips triage AND the architect, so the plan must already be in the brief:')
+    log('   {quality:"tiny", apply:true, items:[{file:"/abs/path", instruction:"…", risk:"low"}]}')
+    log(`   Bounds: <=${TINY_MAX_ITEMS} items across <=${TINY_MAX_FILES} files, no diagnosis.`)
+    log('   For anything else use the lean default — it plans for you, and it is honest about taking longer.')
+    return bail({ refused: `tiny brief unusable: ${bad}`,
+      fix: 'pass items:[{file,instruction}] within the tiny bounds, or drop quality:"tiny" to run lean' })
+  }
+  log(`TINY · ${its.length} item(s) across ${files.length} file(s) · 4 hops: lock → build → gates(parallel) → stamp+push`)
+}
+/* v22 — tiny spawns NO triage agent. The caller already answered every question triage asks by
+   passing an explicit work list, so paying an Opus round-trip to be told "build, parallel, light"
+   is a hop bought for nothing. The shape is stated here instead, and it is REPORTED like any other
+   triage so the run still says out loud what it assumed. */
+const TINY_TRIAGE = {
+  shape: 'build', parallelism: 'parallel', cost_of_wrong: 'medium', tier: 'light',
+  est_agents: ((A && A.items) || []).length + 3,
+  skeptics: 0, work_list_known: true,
+  why: 'quality=tiny — the caller supplied an explicit file+instruction work list, so no triage agent was bought',
+}
+const triage = TINYQ ? TINY_TRIAGE : await spawn(
   `You are TRIAGE for the KONYO WORKFLOW. Decide how much machinery this task deserves — the point ` +
   `is to NOT spend a fleet on work that one process does better.\n\n` +
   `Rules of thumb, from real runs:\n` +
@@ -1146,8 +1226,39 @@ if (triage) {
 // the progress tree forever as a phase that never happened. Since max is now the DEFAULT,
 // that dead row appeared on almost every run. It is one step either way: decide the plan.
 // The quality only changes how many candidates are bought, which the detail string says.
-phase('Architect')
+if (!TINYQ) phase('Architect')   // v22 — no architect at tiny, so no empty box
 let plan = null
+/* v22 — TINY HAS NO ARCHITECT, BECAUSE THE CALLER ALREADY IS ONE. The refusal gate above proved
+   every item carries a file and an instruction, which is exactly what an architect produces. Buying
+   an Opus round-trip to restate the caller's own list is the single cheapest hop to delete, and the
+   one-owner-per-file law the architect enforces is checked here directly instead of trusted.
+   Nothing downstream can tell the difference: this builds the same PLAN_SCHEMA shape the spawn
+   would have returned, so build, gate, rework and every report read it unchanged. */
+if (TINYQ) {
+  const raw = (A && A.items) || []
+  const seen = new Set(), dupes = []
+  for (const it of raw) { if (seen.has(it.file)) dupes.push(it.file); seen.add(it.file) }
+  if (dupes.length) {
+    // ONE OWNER PER FILE is a correctness law, not a style rule — two agents on one file is the
+    // lost-update the workspace lock exists to prevent, reproduced inside a single run.
+    log(`⛔ TINY REFUSED: two items name the same file (${[...new Set(dupes)].join(', ')}).`)
+    log('   One owner per file. Merge them into a single item whose instruction does both edits.')
+    return bail({ refused: 'tiny: duplicate file owner', fix: 'merge the items that share a file' })
+  }
+  plan = {
+    version_label: (A && A.versionLabel) || 'v-tiny-r1',
+    summary: `tiny — ${raw.length} caller-specified edit(s), no architect bought`,
+    items: raw.map((it, i) => ({
+      id: it.id || ('t' + (i + 1)),
+      file: it.file,
+      kind: it.kind || 'code',
+      tier: it.tier || 'sonnet',
+      risk: it.risk || 'low',
+      instruction: it.instruction,
+    })),
+  }
+  log(`ARCHITECT SKIPPED (quality=tiny) — plan taken verbatim from the caller: ${plan.items.length} item(s), one owner per file verified.`)
+}
 /* ── v20.1 — RIGHT-SIZE THE PANEL, AND REPORT THE SIZE ───────────────────────────────────────────
    MEASURED, v1635: the 20+ agent ceiling went entirely to the architect panel, the builders and the
    skeptics, and all three closing blockers were the same sentence — "the ceiling was already spent,
@@ -1163,11 +1274,11 @@ let plan = null
    Konyo explicitly declined to change. And it is REPORTED — a bound that is enforced but never
    announced is the same defect as no bound at all. */
 const ARCH_TRIAGE = globalThis.__triage || {}
-const ARCH_N = !(MAXQ && !LEANQ) ? 1
+const ARCH_N = !(MAXONLY) ? 1
   : (ARCH_TRIAGE.cost_of_wrong === 'high' && (ARCH_TRIAGE.est_agents || 0) >= 3) ? 3
   : (ARCH_TRIAGE.cost_of_wrong === 'high' || (ARCH_TRIAGE.est_agents || 0) >= 3) ? 2
   : 1
-if (MAXQ && !LEANQ) {
+if (MAXONLY) {
   log(`ARCHITECT PANEL → ${ARCH_N} candidate plan(s)` +
       (ARCH_N > 1 ? ' + 1 judge to merge them' : ' + NO judge (a judge over a single candidate is pure spend)') +
       ` = ${ARCH_N + (ARCH_N > 1 ? 1 : 0)} agent(s), sized from triage ` +
@@ -1180,7 +1291,7 @@ if (MAXQ && !LEANQ) {
    is still independently read, because the third eye reviews it before a builder spends anything.
    That is a different MODEL FAMILY looking at the plan, which is a stronger check than a second
    Claude candidate anyway. */
-if (MAXQ && !LEANQ && ARCH_N > 1) {
+if (!plan && MAXONLY && ARCH_N > 1) {
   const ANGLES = [
     'RISK-FIRST: order items by blast radius; isolate the highest-risk change and make it the most defensively specified.',
     'CORRECTNESS-FIRST: decompose so each item has a single, testable, unambiguous fix; no item bundles two concerns.',
@@ -1221,7 +1332,7 @@ if (MAXQ && !LEANQ && ARCH_N > 1) {
   )
   if (plan === null) { log('CEILING: no budget for the judge.'); return bail({ error: 'ceiling' }) }
   }
-} else {
+} else if (!plan) {
 plan = await spawn(
   `You are the ARCHITECT for the KONYO WORKFLOW. Decompose this task into independent work items, ` +
   `ONE OWNER PER FILE (no two items may name the same file). For each item pick the cheapest capable tier: ` +
@@ -1332,7 +1443,7 @@ const _effTier = it => tierFor(it.tier, it.risk)
 const _tierN   = t  => items.filter(i => _effTier(i) === t).length
 log(`Plan "${plan.version_label}": ${items.length} items — ` +
     `${_tierN('haiku')} haiku / ${_tierN('sonnet')} sonnet / ${_tierN('opus')} opus` +
-    ((MAXQ && !LEANQ) ? ' (effective tiers — quality=max builds everything at Opus)'
+    ((MAXONLY) ? ' (effective tiers — quality=max builds everything at Opus)'
       : LEANQ ? " (effective tiers — quality=lean honours the architect's tier on risk:low items, floored at sonnet; opus otherwise)"
       : ' (effective tiers — cost-scaled ladder, escalates on rework)'))
 
@@ -1369,7 +1480,12 @@ log(`Plan "${plan.version_label}": ${items.length} items — ` +
    Cheapest leverage in the run: one call, before a single builder spends anything, against the plan
    that was actually chosen (at max the judge has already collapsed three architect candidates into
    one, so this reviews the winner rather than the shortlist). A wrong plan wastes the whole fleet. */
-if (USE_GROK) {
+/* v22 — tiny skips the third eye's PLAN seat, and only that seat. There is no plan to review: the
+   caller wrote the work list and the architect never ran, so this seat would be asking a second
+   opinion on the user's own instruction. Seats 2-4 (the skeptic panel, the render gate's pictures
+   and the pre-ship verdict challenge) all still sit — those read the DIFF, which nobody has seen
+   yet, and the skeptic seat is the one that caught a real type-flip bug this session. */
+if (USE_GROK && !TINYQ) {
   phase('Third-eye')
   await thirdEyeAsk('plan',
     `You are the independent second opinion on an implementation plan. You are a DIFFERENT model from ` +
@@ -1523,7 +1639,10 @@ const CRIT_MAX = 12
    the wrong thing to buy when the caller asked for speed. Skipped at lean, and REPORTED as skipped
    with its reason — never silently, because "no gaps found" and "nobody looked for gaps" must not
    read the same. Lean therefore cannot claim completeness, and its verdict clause below reflects it. */
-if (MAXQ && !LEANQ) {
+/* v22 — tiny never buys the completeness critic. It is the run's longest tail (it can open whole
+   new build+gate rounds AFTER every item has passed), and a 4-item brief has no hidden scope to
+   hunt. Reported as not-run, exactly like lean, so nobody reads silence as 'nothing was missing'. */
+if (MAXONLY) {
   phase('Completeness')
   while (dry < DRYROUNDS && critRound < CRIT_MAX && budgetOK()) {
     // the critic can always find one more thing, and each gap costs a builder plus its skeptics —
@@ -1598,7 +1717,14 @@ if (MAXQ && !LEANQ) {
 // This is a BLOCKER, not a note. A feature that does nothing is worse than a missing feature: the
 // commit message says it exists, so nobody looks again.
 phase('Reachability')
-const reach = await spawn(
+/* v22 — REACHABILITY AND THE RENDER GATE NOW RUN CONCURRENTLY. They were two separate serial phases
+   costing a full agent round-trip each, and they share NOTHING: LAW19 reads the diff, the render
+   gate drives the UI. Chaining them was ~4 wasted minutes on every run at every quality.
+   Deliberately NOT extended to the fat version bar: LAW17's prompt READS renderGate.failures, so it
+   has a real dependency and must stay downstream. Two hops here, not three, and not one.
+   The spawn starts here; its verdict is consumed below, after the render gate has also been put in
+   flight. Ordering of the LOGS is unchanged, so a reader sees the same sequence as before. */
+const reachP = spawn(
   `REACHABILITY GATE (Opus). The build phase has finished. Task: ${TASK}\n\n` +
   `YOUR JOB: prove that what was just added is actually REACHED at runtime. Not that it parses — ` +
   `that something calls it, something writes it, and any test added actually ran.\n` +
@@ -1628,23 +1754,6 @@ const reach = await spawn(
       },
     } }
 ).catch(() => null)
-// v13 wired blocker() only into the DID-NOT-RUN branches; a gate that RAN AND FAILED printed
-// "SHIP BLOCKER" and then blocked nothing, so verdict computed 'OK' over a refused ship.
-if (reach && (reach.dead || []).length) {
-  log(`⛔ REACHABILITY FAILED — ${(reach.dead || []).length} dead seam(s). This is a SHIP BLOCKER.`)
-  ;(reach.dead || []).slice(0, 8).forEach(d => log(`   · ${d}`))
-  blocker('LAW19 REACHABILITY FAILED',
-    `${(reach.dead || []).length} dead seam(s): ${(reach.dead || []).slice(0, 3).join('; ')}`)
-} else if (reach && reach.tests_added && !reach.tests_proven_run) {
-  log(`⛔ REACHABILITY FAILED — tests were added and NOT proven to run. SHIP BLOCKER.`)
-  blocker('LAW19 REACHABILITY FAILED', 'tests were added and were not proven to run')
-} else if (!reach) {
-  blocker('LAW19 REACHABILITY DID NOT RUN',
-    'no symbol added by this run was traced to a caller and a writer')
-} else if (reach) {
-  log(`✅ Reachability: ${reach.checked} symbol(s) traced to a caller and a writer.`)
-}
-
 // 5) SYNTHESIZE (Opus, once) — ONE final ping
 // ── THE RENDER GATE (v-render, 2026-08-02) ───────────────────────────────────────────────────────
 // A parser cannot see a painted page. Konyo's predicter shipped a MutationObserver loop that froze
@@ -1821,6 +1930,25 @@ if (APPLY) {
   }
 }
 
+// v22 — both gates are now in flight; collect LAW19 here.
+const reach = await reachP
+// v13 wired blocker() only into the DID-NOT-RUN branches; a gate that RAN AND FAILED printed
+// "SHIP BLOCKER" and then blocked nothing, so verdict computed 'OK' over a refused ship.
+if (reach && (reach.dead || []).length) {
+  log(`⛔ REACHABILITY FAILED — ${(reach.dead || []).length} dead seam(s). This is a SHIP BLOCKER.`)
+  ;(reach.dead || []).slice(0, 8).forEach(d => log(`   · ${d}`))
+  blocker('LAW19 REACHABILITY FAILED',
+    `${(reach.dead || []).length} dead seam(s): ${(reach.dead || []).slice(0, 3).join('; ')}`)
+} else if (reach && reach.tests_added && !reach.tests_proven_run) {
+  log(`⛔ REACHABILITY FAILED — tests were added and NOT proven to run. SHIP BLOCKER.`)
+  blocker('LAW19 REACHABILITY FAILED', 'tests were added and were not proven to run')
+} else if (!reach) {
+  blocker('LAW19 REACHABILITY DID NOT RUN',
+    'no symbol added by this run was traced to a caller and a writer')
+} else if (reach) {
+  log(`✅ Reachability: ${reach.checked} symbol(s) traced to a caller and a writer.`)
+}
+
 // ── THE FAT VERSION BAR (LAW17) ──────────────────────────────────────────────────────────────────
 // A version integer is a promise that something real landed. A "ship" whose whole content is one
 // toast is a version stamp spent on nothing. Both Grok shippers enforce this; so does this one.
@@ -1874,10 +2002,30 @@ if (APPLY) {
   }
 }
 
-phase('Synthesize')
+if (!TINYQ) phase('Synthesize')  // v22 — tiny writes its own report in-script
 const passed = results.filter(r => r.gate && r.gate.verdict === 'pass')
 const failed = results.filter(r => !r.gate || r.gate.verdict !== 'pass')
-const final = await spawn(
+/* v22 — TINY WRITES ITS OWN REPORT. The synthesizer is an Opus/high round-trip whose job is to
+   INTEGRATE many results into prose. Tiny has at most four items, and every fact the report needs is
+   already computed in this script: which items passed, which failed, and the blockers ledger. Paying
+   a hop to have a model restate four rows is the last easy hop to delete.
+   It is assembled from the SAME fields the payload uses, so the headline cannot disagree with
+   `blockers`/`shippable` the way a prose summary can — which is the exact failure v20 found when a
+   synthesizer was handed "wentDry=false, stoppedBecause=(went dry)" for a loop that never ran. */
+const _tinyFinal = () => ({
+  version_label: (plan && plan.version_label) || 'v-tiny-r1',
+  headline: BLOCKERS.length
+    ? `BLOCKED — ${BLOCKERS.length} blocker(s): ${BLOCKERS.map(b => b.what).slice(0, 3).join('; ')}`
+    : failed.length
+      ? `PARTIAL — ${passed.length}/${results.length} item(s) passed the gate, ${failed.length} failed`
+      : `${passed.length} item(s) built and gated clean`,
+  shipped: passed.map(r => `${r.item.file}: ${r.item.instruction}`.slice(0, 300)),
+  follow_ups: [
+    ...failed.map(r => `FAILED GATE: ${r.item.file} — ${(r.gate && r.gate.reason) || 'no reason given'}`.slice(0, 300)),
+    ...BLOCKERS.map(b => `${b.what}: ${b.why}`.slice(0, 300)),
+  ],
+})
+const final = TINYQ ? _tinyFinal() : await spawn(
   `You are the SYNTHESIZER for the KONYO WORKFLOW, mode=${mode}. Task: ${TASK}\n` +
   `Version: ${plan.version_label} (after ${round} round(s)).\n` +
   `PASSED gate (${passed.length}):\n` + passed.map(r => `- ${r.item.file}: ${r.build && r.build.summary}`).join('\n') +
@@ -1906,14 +2054,14 @@ const final = await spawn(
   `SKEPTICS: ${SKEPTICS} per item (source: ${SKEPTICS_SOURCE})\n` +
   `QUALITY: ${QUALITY}\n` +
   /* v20 — THE WORST OF THE MAXQ/LEANQ CONFUSIONS, BECAUSE THIS STRING IS THE SYNTHESIZER'S INPUT.
-     The completeness loop runs under `MAXQ && !LEANQ`; this line asked only `MAXQ`. So on a LEAN run
+     The completeness loop runs under `MAXONLY`; this line asked only `MAXQ`. So on a LEAN run
      — now the DEFAULT — the synthesizer was handed
        "COMPLETENESS: 0 round(s), 0/2 dry, wentDry=false, stoppedBecause=(went dry)"
      because critStop is null when the loop never opened and `|| '(went dry)'` then invented a reason.
      The structured `completeness` field said `ran:false` the whole time. A payload that knows the
      truth and a summary that contradicts it is the exact defect class this ledger exists to kill,
      and it would have taught the final report that nothing was left unswept. */
-  `COMPLETENESS: ` + ((MAXQ && !LEANQ)
+  `COMPLETENESS: ` + ((MAXONLY)
     ? `${critRound} round(s), ${dry}/${DRYROUNDS} dry, wentDry=${dry >= DRYROUNDS}, stoppedBecause=${critStop || '(went dry)'}`
     : LEANQ
       ? 'NOT RUN (quality=lean buys no completeness critic — it is the run\'s longest tail). NOBODY hunted for work nobody did, which is NOT the same as finding none. You may NOT describe this run as exhaustive, complete or fully swept; say plainly that completeness was not checked.'
@@ -2035,7 +2183,7 @@ return emit({
     /* v20.1 — REPORT THE SIZE THAT WAS BOUGHT, not the size the flag used to imply. The panel is now
        sized from triage (see ARCH_N at the Architect phase), so a hardcoded "3 architects + judge"
        would be the same lie the quality_label was telling one field above. */
-    judgePanel: (MAXQ && !LEANQ)
+    judgePanel: (MAXONLY)
       ? `${ARCH_N} architect(s)` + (ARCH_N > 1 ? ' + judge' : ' (no judge — nothing to merge)') + ' — sized from triage'
       : 'single architect',
     gateKind: MAXQ ? 'adversarial skeptic panel (the panel IS the gate)' : 'fable merge gate + skeptic panel behind it',
@@ -2059,7 +2207,7 @@ return emit({
               floor: SKEPTIC_FLOOR, ceiling_pinned: SKEPTIC_PIN,
               thin_panels: THIN_PANELS, thin_panel_count: THIN_PANELS.length,
               opted_out: !!globalThis.__skepticsOptedOut, floored: !!globalThis.__skepticFloored },
-  completeness: (MAXQ && !LEANQ)
+  completeness: (MAXONLY)
     ? { ran: true, rounds: critRound, dry, required: DRYROUNDS, wentDry: dry >= DRYROUNDS,
         stoppedBecause: critStop, unbuiltGaps }
     : { ran: false, reason: LEANQ
@@ -2086,7 +2234,7 @@ return emit({
   // above says so out loud, so it cannot be mistaken for a loop that ran and went dry.
   verdict: BLOCKERS.length ? 'BLOCKED — see blockers[]'
     : CEILING_HIT ? 'UNVERIFIED — the agent ceiling stopped the run early'
-    : (MAXQ && !LEANQ && (dry < DRYROUNDS || unbuiltGaps.length)) ? 'UNVERIFIED — the completeness critic never went dry (' + (critStop || 'gaps raised but never built') + ')'
+    : (MAXONLY && (dry < DRYROUNDS || unbuiltGaps.length)) ? 'UNVERIFIED — the completeness critic never went dry (' + (critStop || 'gaps raised but never built') + ')'
     : trimmedFromPlan.length ? 'PARTIAL — ' + trimmedFromPlan.length + ' item(s) were trimmed from the plan to fit the ceiling'
     : failed.length ? 'INCOMPLETE — ' + failed.length + ' item(s) never passed the gate'
     : SPAWN_ERRORS.length ? 'DEGRADED — some agents died; their work is missing, not failed'
