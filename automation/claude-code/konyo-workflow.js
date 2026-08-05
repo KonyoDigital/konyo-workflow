@@ -310,9 +310,21 @@ const PROOF = '\n\nVERIFY THE THING, NOT A PROXY FOR IT. Before you assert somet
    — asked what art/mephisto_graphic.png depicts, with no hint of what it should be, it answered
    "a polished, deep-blue teardrop gemstone", independently confirming the mislabelled boss art.
    That is why seat 4 exists.
-   ⚠ `timeout` is NOT installed on this Mac, so every call is bounded by the Bash tool's own timeout
-   parameter. Never write `timeout 120 grok ...` — it fails with command-not-found and the seat then
-   reports unreachable for the wrong reason.
+   ⚠⚠ BOUND EVERY GROK CALL YOURSELF — THE BASH TIMEOUT DOES NOT REACH IT. `timeout` is not
+   installed on this Mac, so `timeout 120 grok ...` fails command-not-found and the seat reports
+   unreachable for the wrong reason. But relying on the Bash tool's own timeout is WORSE, and it
+   cost ten days of CPU: that timeout kills BASH, not bash's GRANDCHILDREN, so a hung `grok` is
+   reparented to init and runs at 100% forever. Two were found alive at 3 days and 10 days,
+   burning a core and a half continuously, long after the runs that spawned them had finished.
+   USE THE PERL WRAPPER THIS REPO ALREADY SHIPS (see d2r_bible_tests/hooks/pre-push:71) — it forks,
+   alarms, and SIGTERMs the child, so nothing can outlive the call:
+     perl -e 'my $t=shift; my $p=fork; die unless defined $p; if(!$p){exec @ARGV; exit 127}
+       $SIG{ALRM}=sub{kill "TERM",$p; waitpid($p,0); exit 142}; alarm $t; waitpid($p,0);
+       my $st=$?; alarm 0; exit(($st & 127) ? 128+($st & 127) : ($st >> 8));' 180 \
+       /Users/konyo/.grok/bin/grok --cwd ... --prompt-file ...
+   Exit 142 means the seat TIMED OUT, which is a real verdict — report it as unreachable, never as
+   agreement. And run `reap` (~/.local/bin/reap) if a run ends oddly; it lists agent processes that
+   outlived their parent and `reap -f` kills them.
    THE RULE THAT MAKES IT WORTH HAVING: a Claude agent may NEVER fill a Grok seat. If the transport
    is down the seat is reported EMPTY — panel 3 becomes 2, named in the payload — because a panel
    that looks diverse while being an echo is worse than a panel that is honestly short. */
