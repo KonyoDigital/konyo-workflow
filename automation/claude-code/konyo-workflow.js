@@ -665,7 +665,26 @@ function buildAgent(item, reworkNote) {
         `Return that COMPLETE unified diff in "patch". This is not bookkeeping — your worktree may ` +
         `be discarded the moment you return, so a change that exists only on your disk is a change ` +
         `that is LOST. Do NOT commit, push, or touch the main repo. Touch NO file but ${item.file}.`
-      : `Make the edit directly to ${item.file}. Touch NO other file — you are the sole owner of this one.`
+      /* v22.4 — A BUILDER MAY NOT PUSH, AND UNTIL NOW NOTHING SAID SO. Konyo, reading that the gates
+         were still running after the code was already on the remote: "so its shipping versions
+         silently within the workflow? and validating itself?" Yes — and that is a safeguard hole,
+         not a quirk.
+         MEASURED on the v1651 run: the builder committed at 09:36:50 and the gate agents were still
+         writing at 09:40, 09:44 and 09:52. The render gate, LAW17 and LAW19 all run AFTER Build+Gate
+         (lines 1566 → 1775 → 1820 → 2015) and every one of them is documented as a SHIP BLOCKER —
+         but a blocker cannot block a ship that already left. They could only narrate it.
+         Worse, it was INCONSISTENT: v1643's run reported "committed locally but NOT PUSHED" while
+         v1645 and v1651 pushed. Whether the ship gates could block depended on how a builder read
+         prose in the brief ("ONE push at the end" — whose end?). A safeguard whose effect depends on
+         interpretation is not a safeguard.
+         The `never push` rule already existed for the MERGE agent and was simply never given to the
+         BUILDER. Committing stays allowed — it is local and reversible, and the gates read the diff.
+         PUSHING is the irreversible half, so it moves behind the verdict where it belongs. */
+      : `Make the edit directly to ${item.file}. Touch NO other file — you are the sole owner of this one.\n` +
+        `⛔ NEVER \`git push\`. Commit if the task asks, but pushing is FORBIDDEN for you: the render gate, ` +
+        `LAW17 and LAW19 all run AFTER you and each is a SHIP BLOCKER. Code you push cannot be un-pushed ` +
+        `by a blocker they raise, so a push here turns three blocking gates into three narrators. The ` +
+        `human pushes after reading the verdict — that is the whole point of the verdict.`
   return spawn(
     // v20 — a lean builder was told it was a "MAX-QUALITY build agent". Name the quality that ran.
     `${MAXQ ? `${QUALITY.toUpperCase()}-QUALITY` : 'KONYO WORKFLOW'} build agent (tier=${tier}). Task context: ${TASK}\n` +
