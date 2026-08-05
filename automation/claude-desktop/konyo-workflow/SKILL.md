@@ -82,6 +82,21 @@ is that the link resolves — not that the text of the link looks correct.
 fix every instance — or list the ones you deliberately left, and why. Fixing only
 the one in front of you is how the same mistake ships three times.
 
+**Finish the sweep you print.** If you list the places that need checking, check
+*all* of them. A list you wrote and then half-worked is worse than no list, because
+it looks like diligence. (This is a real failure: a sweep flagged fourteen files,
+eight were checked, and one of the six skipped was broken in exactly the way the
+sweep was looking for.)
+
+**A check that agrees with a mistake will protect it.** The most dangerous thing you
+can find is not a check that fails — it is a check that *passes for the wrong reason*.
+If something was written to expect the old, incorrect answer, it will go on passing
+for exactly as long as the mistake survives, and it will look like coverage the whole
+time. So when two checks on the same thing disagree, do not assume the failing one is
+wrong. **That contradiction is the signal** — it usually means one of them was written
+against a truth that has since changed, and the other has been quietly holding the
+error in place.
+
 **Kill the stale claim.** If you changed how something behaves, find the places that
 *describe* the old behaviour — comments, instructions, a summary paragraph, a
 heading — and correct them in the same round. Two places giving different answers is
