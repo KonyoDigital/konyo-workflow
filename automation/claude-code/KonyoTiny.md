@@ -13,7 +13,8 @@ Workflow({
     // REQUIRED. Tiny skips triage AND the architect, so the plan must already be here.
     // <=4 items, <=3 distinct files, one owner per file.
     items: [
-      // { file: '/abs/path/to/file', instruction: 'the exact edit', risk: 'low' },
+      // { file: '/abs/path/to/file', instruction: 'the exact edit', risk: 'low',
+      //   anchor: '~line 11286, _aiSetName' },   // <- OPTIONAL BUT THE BIGGEST TIME SAVER
     ],
   }
 })
@@ -49,3 +50,18 @@ honest about taking longer.
 **Honest floor:** the repo's pre-push gate is ~2-3 minutes including its smoke run, and the render
 gate needs a real browser (~30-60s). ~8 minutes is the floor; 15 is the budget; seconds is not on
 offer.
+
+## ⏱ ANCHORS ARE THE REAL LEVER ON A BIG FILE
+
+Measured, 2026-08-05: a 2-item tiny brief on this repo took **43 minutes**, not 15. The hop
+structure worked exactly as designed — 6 phases instead of 13, gates in parallel — and it did not
+matter, because a single hop cost 8-10 minutes. `bible.html` and `tv/control_ui.html` are ~40k lines,
+and the builder, **each** skeptic and the render gate all re-read large stretches HUNTING for the
+seam. Hop count stops being the binding constraint once the file is big enough; **locating the edit**
+becomes it.
+
+So pass `anchor` on every item — `'~line 11286, _aiSetName'`, a symbol name, a distinctive string.
+It turns a search into a jump for every agent that touches the item. Tiny warns when items lack one.
+
+**Honest envelope:** ~15 minutes holds for small files or pre-located edit sites. On this repo's two
+giant files, expect **35-45 minutes without anchors**. Quote that, not the design target.

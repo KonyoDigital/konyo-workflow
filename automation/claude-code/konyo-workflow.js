@@ -1151,7 +1151,8 @@ if (TINYQ) {
   if (bad) {
     log(`⛔ TINY REFUSED: ${bad}.`)
     log('   Tiny skips triage AND the architect, so the plan must already be in the brief:')
-    log('   {quality:"tiny", apply:true, items:[{file:"/abs/path", instruction:"…", risk:"low"}]}')
+    log('   {quality:"tiny", apply:true, items:[{file:"/abs/path", instruction:"…", risk:"low", anchor:"~line N, symbolName"}]}')
+    log('   `anchor` is optional but is the single biggest time saver on a large file — it turns a search into a jump.')
     log(`   Bounds: <=${TINY_MAX_ITEMS} items across <=${TINY_MAX_FILES} files, no diagnosis.`)
     log('   For anything else use the lean default — it plans for you, and it is honest about taking longer.')
     return bail({ refused: `tiny brief unusable: ${bad}`,
@@ -1258,10 +1259,23 @@ if (TINYQ) {
       kind: it.kind || 'code',
       tier: it.tier || 'sonnet',
       risk: it.risk || 'low',
-      instruction: it.instruction,
+      /* v22.3 — AN `anchor` IS FOLDED INTO THE INSTRUCTION, because READING is the real cost.
+         Konyo, after a 43-minute tiny run on a 2-item brief: "add the line anchors to the items
+         next time". MEASURED why that matters: cutting the phase chain from 11 hops to 6 did not
+         buy the time back, because on this repo a single hop costs 8-10 minutes — bible.html and
+         tv/control_ui.html are ~40k lines, and the builder, EACH skeptic and the render gate all
+         re-read large stretches hunting for their seam. Hop count is not the binding constraint
+         once a file is big enough; LOCATING THE EDIT is. An anchor ("~line 11286, _aiSetName")
+         turns a hunt into a jump for every one of those agents, which is where the minutes are.
+         Optional by design: a tiny brief without anchors still runs, it just pays to search. */
+      instruction: it.instruction + (it.anchor ? `\n\nANCHOR (where this lives — go straight here, do not hunt): ${it.anchor}` : ''),
     })),
   }
+  const _anch = raw.filter(it => it.anchor).length
   log(`ARCHITECT SKIPPED (quality=tiny) — plan taken verbatim from the caller: ${plan.items.length} item(s), one owner per file verified.`)
+  log(_anch === raw.length
+    ? `   every item carries an ANCHOR — builders and gates jump instead of searching (the real cost on big files).`
+    : `   ⚠ ${raw.length - _anch}/${raw.length} item(s) have NO \`anchor\` — on a large file that is 8-10 min per hop of SEARCHING, paid again by every skeptic and the render gate. Pass anchor:'~line N, symbolName' next time.`)
 }
 /* ── v20.1 — RIGHT-SIZE THE PANEL, AND REPORT THE SIZE ───────────────────────────────────────────
    MEASURED, v1635: the 20+ agent ceiling went entirely to the architect panel, the builders and the
