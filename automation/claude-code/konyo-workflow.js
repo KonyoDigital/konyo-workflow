@@ -15,6 +15,7 @@ export const meta = {
     { title: 'Render gate', detail: 'drives the REAL UI — hit-testable controls + SCREENSHOT-BACKED geometry (non-zero boxes, no clipping/overflow, text vs background, no overlap); failure BLOCKS the ship' },
     { title: 'Fat version bar', detail: 'LAW17 — >=3 user-visible outcomes in one theme OR one structural bug with root cause+verify+prevention; a thin ship BLOCKS' },
     { title: 'Reachability',   detail: 'LAW19 — every symbol the change added has a caller AND a writer; added tests proven to have RUN; failure BLOCKS', model: 'opus' },
+    { title: 'Ship',       detail: 'v23 — the ONLY thing that pushes. Opens ONLY when every gate passed and the verdict is shippable; pushes, never commits, never --no-verify/--force, and proves the remote actually moved. A refusal is reported with its reason.', model: 'opus' },
     { title: 'Synthesize',  detail: 'NOT OPENED at quality:"tiny" (tiny writes its own report in-script). Opus integrates all passing work into ONE final report' },
   ],
 }
@@ -1571,8 +1572,12 @@ const PHASE_PLAN = (() => {
   open.push('Reachability')
   if (APPLY) open.push('Render gate', 'Fat version bar')
   if (!TINYQ) open.push('Synthesize')
+  /* v23 — Ship is CONDITIONAL ON A VERDICT THAT DOES NOT EXIST YET, so it is announced honestly as
+     "only if clean" rather than promised. Announcing it flatly would be the same defect as the
+     banner that advertised completeness rounds a lean run never bought. */
+  if (APPLY) open.push('Ship (only if every gate passes)')
   const ALL = ['Preflight','Triage','Architect','Third-eye','Build+Gate','Adversarial gate','Rework',
-               'Merge','Completeness','Render gate','Fat version bar','Reachability','Synthesize']
+               'Merge','Completeness','Render gate','Fat version bar','Reachability','Synthesize','Ship']
   return { open, skip: ALL.filter(t => open.indexOf(t) < 0) }
 })()
 log(`PHASES THIS RUN WILL OPEN (${PHASE_PLAN.open.length}/13): ${PHASE_PLAN.open.join(' → ')}`)
@@ -2200,6 +2205,86 @@ if (USE_GROK && APPLY) {
   }
 }
 
+/* ── v23 — THE SHIP PHASE: SOMETHING FINALLY ACTS ON THE VERDICT ────────────────────────────────
+   Konyo: "why cant like an opus agent at the end after all the gates ship it ... just to like lock
+   it and push automatically inbetween gates? or is that automated not good?"
+   It is not just good, it closes a hole v22.4 opened. v22.4 stopped BUILDERS pushing so the closing
+   gates could actually block instead of narrating — measured on v1651, where the builder pushed at
+   09:36 and the render gate, LAW17 and LAW19 all reported between 09:40 and 09:52, on code already
+   live. That fix was right and left the opposite gap: nothing pushes at all, so proven-clean work
+   sits local until a human remembers. Worse, the run has always computed `blockers`, `verdict` and
+   `shippable` — AND NOTHING EVER READ THEM. A verdict nobody acts on is a narrator too, which is the
+   very defect the no-push rule existed to fix, one step further along.
+   WHAT MAKES IT SAFE IS THAT IT IS GATED ON THE VERDICT, NOT ON AN AGENT'S OPINION:
+     · SHIPPABLE is computed ONCE, here, and the payload below reads the SAME const — never a second
+       copy. Two formulas for one decision is the v18.3 bug, where the optimistic one bound.
+     · It PUSHES ONLY. It never commits: committing is where content decisions live, pushing is a
+       yes/no on an already-frozen result, and one irreversible action with one precondition is the
+       only shape worth auditing.
+     · NEVER --no-verify, NEVER --force. The repo's own pre-push hook stays a fully independent second
+       gate — it blocked a real push today, which is exactly the case this agent must report honestly
+       rather than route around.
+     · Whatever happens, `shipped` carries pushed + why. A refusal with no stated reason would be the
+       same silence this whole arc has been about. */
+/* ⚠ v23.1 — THIS IS THE WHOLE PREDICATE, AND IT MUST STAY THAT WAY. My first cut copied only the
+   FIRST LINE of the payload's `shippable:` expression, which continued onto a second line with three
+   more conditions (SPAWN_ERRORS, THIN_PANELS, and the completeness clause). That would have made the
+   Ship gate STRICTLY MORE PERMISSIVE than the verdict it claims to enforce — a run with a dead agent
+   or a thin skeptic panel would have reported shippable:false and pushed anyway. It is the v18.3 bug
+   exactly (two formulas for one decision, the optimistic one binding), committed while writing the
+   comment that warns against it. node --check passed; the load harness caught it. */
+const SHIPPABLE = !BLOCKERS.length && !CEILING_HIT && !trimmedFromPlan.length && !failed.length
+  && !SPAWN_ERRORS.length && !THIN_PANELS.length && (!MAXQ || LEANQ || (dry >= DRYROUNDS && !unbuiltGaps.length))
+let shipped = { pushed: false, why: 'not attempted' }
+if (!APPLY) {
+  shipped = { pushed: false, why: 'dry-run — nothing was written, so nothing can ship' }
+} else if (!SHIPPABLE) {
+  shipped = { pushed: false, why: `NOT SHIPPABLE — ${BLOCKERS.length} blocker(s)` +
+    `${CEILING_HIT ? ', agent ceiling hit' : ''}${trimmedFromPlan.length ? ', work trimmed from the plan' : ''}` +
+    `${failed.length ? `, ${failed.length} item(s) failed their gate` : ''}. The verdict said no, so the push did not happen.` }
+  log(`⛔ NOT PUSHED — ${shipped.why}`)
+} else {
+  phase('Ship')
+  const shipRes = await spawn(
+    `SHIP AGENT. Every gate has passed and the verdict is SHIPPABLE. Your ONLY job is to push what is ` +
+    `already committed, and to refuse honestly if anything is not as stated.\n\n` +
+    `VERIFY FIRST, and ABORT without pushing if any of these is false:\n` +
+    `1. \`git status --porcelain\` is EMPTY. An uncommitted file means the verdict graded something ` +
+    `that is not what would ship. Do NOT commit it yourself — report it and stop.\n` +
+    `2. \`git log origin/main..HEAD\` shows at least one commit. Nothing to push is not a failure; say so.\n` +
+    `3. If this project stamps a version, every stamp agrees. A half-bumped tree is the exact state ` +
+    `this project's own pre-push gate refuses.\n\n` +
+    `THEN: \`git push origin HEAD\`. ⛔ NEVER --no-verify. ⛔ NEVER --force. The repo's pre-push hook is ` +
+    `an INDEPENDENT gate and it outranks you: if it rejects the push, that is the correct outcome — ` +
+    `capture its exact output, report pushed:false, and DO NOT retry with a flag that skips it.\n` +
+    `FINALLY: prove the push landed by comparing \`git rev-parse HEAD\` against \`git ls-remote origin HEAD\` ` +
+    `— a push whose exit code was 0 but whose remote did not move has not shipped. Report both hashes.\n\n` +
+    `TASK CONTEXT: ${TASK.slice(0, 400)}`,
+    { model: 'opus', effort: 'high', phase: 'Ship', label: 'ship:push', schema: {
+        type: 'object', additionalProperties: false,
+        required: ['pushed', 'why'],
+        properties: {
+          pushed: { type: 'boolean' },
+          why:    { type: 'string', description: 'one line: what happened, and if not pushed, the exact blocking reason' },
+          local:  { type: 'string' }, remote: { type: 'string' },
+          hook_output: { type: 'string', description: 'the pre-push hook output verbatim if it refused' },
+        } } }
+  ).catch(() => null)
+  if (!shipRes) {
+    shipped = { pushed: false, why: 'the ship agent did not return (ceiling refused it or it died) — push by hand' }
+    blocker('SHIP DID NOT RUN', 'the verdict was shippable but the push was never attempted')
+  } else {
+    shipped = { pushed: !!shipRes.pushed, why: shipRes.why || '(no reason given)',
+                local: shipRes.local || null, remote: shipRes.remote || null,
+                hook_output: shipRes.hook_output || null }
+    if (shipRes.pushed) log(`🚀 SHIPPED — ${shipRes.local || '?'} is on the remote.`)
+    else {
+      log(`⛔ SHIP REFUSED — ${shipped.why}`)
+      blocker('PUSH REFUSED', shipped.why + (shipRes.hook_output ? ` · hook: ${String(shipRes.hook_output).slice(0, 300)}` : ''))
+    }
+  }
+}
+
 /* v18 — AND IF IT NEVER SPOKE, SAY SO WHERE THE VERDICT IS READ. A third eye that was requested and
    could not be reached is a DEGRADED run, not a clean one. It does not block by itself — the work may
    be perfectly good — but the summary may never let silence read as approval. */
@@ -2334,8 +2419,8 @@ return emit({
         THIN_PANELS.slice(0, 3).map(t => `${t.file}: ${t.cast}/${t.panel} vote(s) cast`).join('; ') +
         ') — fewer eyes reviewed this than the seat count claims'
     : 'OK',
-  shippable: !BLOCKERS.length && !CEILING_HIT && !trimmedFromPlan.length && !failed.length
-    && !SPAWN_ERRORS.length && !THIN_PANELS.length && (!MAXQ || LEANQ || (dry >= DRYROUNDS && !unbuiltGaps.length)),
+  shippable: SHIPPABLE,   // v23 — the SAME const the Ship phase gated on; never a second formula
+  shipped,
   passed: passed.length,
   failed: failed.length,
   render_gate: renderGate,
