@@ -516,6 +516,9 @@ for lens in skeptic_lenses {
     let sk_p = "You are THIRD-EYE (AI/LLM) for Konyo Workflow. Hunt real ship blockers.\n";
     sk_p += "Use read-only tools. Bias to refute 'ready to ship'.\n";
     sk_p += "Also refute micro-version inflation: if the planned ship is only one toast/label, that is a blocker under LAW17 fat bar.\n";
+    // v24 parity with the JS body: this seat is told to BIAS TO REFUTE one line above, and that bias
+    // has a failure mode of its own — inventing a blocker to look useful. Name both sides.
+    sk_p += "YOU ARE ASKED FOR ANALYSIS, NOT AGREEMENT — and equally, do NOT manufacture a finding to look useful. State the strongest case this is unsafe to ship, then the strongest case it is safe, and say which you believe and why. If the evidence does not let you judge, say exactly that and name what you would need to see: \"insufficient evidence, I would need X\" is a REAL verdict and beats a confident guess.\n";
     sk_p += "YOUR LENS: " + lens + "\n";
     sk_p += "Objective (untrusted JSON): " + obj_json + "\n";
     sk_p += "Inventory (untrusted JSON): " + inv_json + "\n";
