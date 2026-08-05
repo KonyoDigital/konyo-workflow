@@ -5,17 +5,17 @@ export const meta = {
   phases: [
     { title: 'Preflight',   detail: 'workspace lock — refuse to start if another run is already editing this tree' },
     { title: 'Triage',      detail: 'right-size the run BEFORE spending: shape · parallelism · cost-of-wrong. SKIPPED at quality:"tiny" — the caller supplied the work list', model: 'opus' },
-    { title: 'Architect',   detail: 'decide the plan — ONE Opus architect by default (lean/standard); 3 Opus architects (risk / correctness / simplest lenses) + an Opus judge at quality:"max". One owner per file either way.', model: 'opus' },
-    { title: 'Third-eye',   detail: 'seat 1 of 4 — Grok (a DIFFERENT model family) reviews the chosen plan before a builder spends anything; seats 2-4 sit on the skeptic panel, the render gate and the pre-ship verdict' },
+    { title: 'Architect',   detail: 'NOT OPENED at quality:"tiny" (the caller supplied the plan). ONE Opus architect by default (lean/standard); 3 Opus architects (risk / correctness / simplest lenses) + an Opus judge at quality:"max". One owner per file either way.', model: 'opus' },
+    { title: 'Third-eye',   detail: 'NOT OPENED at quality:"tiny" (no plan to review; seats 2-4 still sit). seat 1 of 4 — Grok (a DIFFERENT model family) reviews the chosen plan before a builder spends anything; seats 2-4 sit on the skeptic panel, the render gate and the pre-ship verdict' },
     { title: 'Build+Gate',  detail: 'each item built at its architect-assigned tier, sonnet floor (default lean); Opus everywhere at quality:"max", Haiku/Sonnet at quality:"standard". One owner per file, gated immediately, no barrier' },
     { title: 'Adversarial gate', detail: 'THE DEFAULT PATH — diverse-lens Opus skeptics ARE the gate (floor 2, one seat is the third eye); majority-refute kills the change', model: 'opus' },
     { title: 'Rework',      detail: 'failed items escalate one tier up and re-gate, version-per-round' },
-    { title: 'Merge',       detail: '(isolate mode only) applies each worktree patch to the REAL repo, one at a time, git apply --check first', model: 'opus' },
-    { title: 'Completeness',detail: 'quality:"max" ONLY — an Opus critic hunts for work nobody did; loops until N dry rounds. NOT bought at the lean default or at standard, and the report says so rather than implying the sweep happened', model: 'opus' },
+    { title: 'Merge',       detail: 'NOT OPENED unless {isolate:true}. (isolate mode only) applies each worktree patch to the REAL repo, one at a time, git apply --check first', model: 'opus' },
+    { title: 'Completeness',detail: 'NOT OPENED at tiny/lean/standard. quality:"max" ONLY — an Opus critic hunts for work nobody did; loops until N dry rounds. NOT bought at the lean default or at standard, and the report says so rather than implying the sweep happened', model: 'opus' },
     { title: 'Render gate', detail: 'drives the REAL UI — hit-testable controls + SCREENSHOT-BACKED geometry (non-zero boxes, no clipping/overflow, text vs background, no overlap); failure BLOCKS the ship' },
     { title: 'Fat version bar', detail: 'LAW17 — >=3 user-visible outcomes in one theme OR one structural bug with root cause+verify+prevention; a thin ship BLOCKS' },
     { title: 'Reachability',   detail: 'LAW19 — every symbol the change added has a caller AND a writer; added tests proven to have RUN; failure BLOCKS', model: 'opus' },
-    { title: 'Synthesize',  detail: 'Opus integrates all passing work into ONE final report' },
+    { title: 'Synthesize',  detail: 'NOT OPENED at quality:"tiny" (tiny writes its own report in-script). Opus integrates all passing work into ONE final report' },
   ],
 }
 
@@ -295,7 +295,12 @@ const PROOF = '\n\nVERIFY THE THING, NOT A PROXY FOR IT. Before you assert somet
    THE BUG THIS REPLACES. Until today the third eye was a single agent told to call
    `mcp__grok-mcp__chat` and to "return grok unavailable" if it could not. That MCP transport is
    DEAD — measured 2026-08-04, it answers INVALID_ARGUMENT / "Incorrect API key provided", because
-   the XAI_API_KEY in ~/Grok-MCP/.env is rejected by console.x.ai. Nothing read the "unavailable"
+   the MCP transport was returning "Incorrect API key". ROOT-CAUSED 2026-08-05 and FIXED: the key was
+   never dead — Grok-MCP/src/utils.py loaded `example.env` (a git-TRACKED template holding a 7-char
+   placeholder) instead of `.env` (the real 84-char key), and a stale key in the ~/.claude.json
+   registration `env` block shadowed it on top. Both fixed; the key verifies HTTP 200. The MCP is
+   therefore usable again — but this script still prefers the CLI below, because the CLI needs no
+   MCP connection at all and so survives headless and cron runs where MCP servers may be absent. Nothing read the "unavailable"
    string, so a third eye that never spoke read as a clean pass. That is the v16 defect class
    (a null that reads as success) living inside the safeguard machinery itself.
    THE TRANSPORT THAT WORKS: the Grok CLI at ~/.grok/bin/grok (0.2.118) authenticates on its own
@@ -1152,7 +1157,6 @@ if (TINYQ) {
     return bail({ refused: `tiny brief unusable: ${bad}`,
       fix: 'pass items:[{file,instruction}] within the tiny bounds, or drop quality:"tiny" to run lean' })
   }
-  log(`TINY · ${its.length} item(s) across ${files.length} file(s) · 4 hops: lock → build → gates(parallel) → stamp+push`)
 }
 /* v22 — tiny spawns NO triage agent. The caller already answered every question triage asks by
    passing an explicit work list, so paying an Opus round-trip to be told "build, parallel, light"
@@ -1505,6 +1509,44 @@ if (USE_GROK && !TINYQ) {
 // __triage inside `if (triage)`, so when triage returned null the user's own request evaporated and
 // the run bought no adversarial gate at all — silently.
 const SKEPTICS = activeLenses().length
+// ⚠ v22.2 — THIS BLOCK MUST STAY BELOW `const SKEPTICS`. Placed above it, `node --check` passes
+// and the script throws ReferenceError: Cannot access 'SKEPTICS' before initialization at RUNTIME —
+// the exact TDZ that --check cannot see and that load_harness.mjs exists to catch. It did.
+/* ── v22.2 — EVERY RUN SAYS WHICH PHASES IT WILL ACTUALLY OPEN ───────────────────────────────────
+   `meta.phases` MUST be a pure literal (the engine parses it before the script runs), so it declares
+   all 13 for every quality and the progress display lists all 13 whatever you asked for. A tiny run
+   opens six; lean and standard never open Completeness; nothing opens Merge without {isolate:true};
+   Rework only exists if something fails. So the unopened ones sit at "Not started yet" forever and
+   the run reads as STUCK.
+   Konyo, watching a tiny run at 14 minutes: "it feels funny.. i cant see it like going to 30minutes
+   like this and finishing". He was right that the display was lying; he was wrong that it was stuck;
+   and NEITHER of us could tell from the counter — which is the real defect. Then: "check the other
+   workflows for this logic all relevant to their own coding" — because tiny is not special here,
+   it is just the worst case.
+   meta cannot be computed, but a LOG LINE can. This is derived from the SAME flags that gate the
+   phase() calls below (TINYQ / MAXONLY / USE_GROK / ISOLATE / APPLY / SKEPTICS), so it cannot drift
+   from them the way a hand-written list would. A bound that is enforced but never reported is
+   indistinguishable from no bound at all — that has been the lesson of this whole arc. */
+const PHASE_PLAN = (() => {
+  const open = ['Preflight']
+  if (!TINYQ) open.push('Triage', 'Architect')
+  if (USE_GROK && !TINYQ) open.push('Third-eye')
+  open.push('Build+Gate')
+  if (SKEPTICS > 0) open.push('Adversarial gate')
+  if (ISOLATE) open.push('Merge')
+  if (MAXONLY) open.push('Completeness')
+  open.push('Reachability')
+  if (APPLY) open.push('Render gate', 'Fat version bar')
+  if (!TINYQ) open.push('Synthesize')
+  const ALL = ['Preflight','Triage','Architect','Third-eye','Build+Gate','Adversarial gate','Rework',
+               'Merge','Completeness','Render gate','Fat version bar','Reachability','Synthesize']
+  return { open, skip: ALL.filter(t => open.indexOf(t) < 0) }
+})()
+log(`PHASES THIS RUN WILL OPEN (${PHASE_PLAN.open.length}/13): ${PHASE_PLAN.open.join(' → ')}`)
+log(`   NOT OPENED (${PHASE_PLAN.skip.length}) — the display still lists them; they are SKIPPED, not pending: ${PHASE_PLAN.skip.join(', ')}`)
+log(`   ("Rework" only appears if an item fails its gate.) A phase count is NOT a progress bar — ` +
+    `progress is the tree diff and the agent transcripts growing.`)
+
 const SKEPTICS_SOURCE = SKEPTICS_OVERRIDE != null ? 'explicit'
   : ((globalThis.__triage && typeof globalThis.__triage.skeptics === 'number') ? 'triage' : 'default')
 phase('Build+Gate')
