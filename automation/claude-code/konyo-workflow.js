@@ -464,7 +464,13 @@ const tierFor = (t, risk) => TINYQ
   // means no permission — an untagged item is treated as risky, because "unknown" is not "low".
   ? (risk === 'low' ? (!t || t === 'haiku' ? 'sonnet' : t) : 'opus')
   : MAXQ ? 'opus' : (t || 'sonnet')
-const effortFor = (tier) => (MAXONLY) ? 'high'
+/* EFFORT LADDER — widened 2026-08-05. The old MAXONLY branch returned 'high', which is EXACTLY
+   what `tier === 'opus'` returned one line later, so MAX paid Opus prices for lean's effort and
+   the flag bought nothing at the top. The dial has FIVE positions (low/medium/high/xhigh/max),
+   not four; this engine had never used the top two. MAX now takes xhigh — the long-horizon tier —
+   while lean and tiny keep 'high', because tiny is a WALL-CLOCK budget and xhigh spends exactly
+   the thing tiny is short of. */
+const effortFor = (tier) => MAXONLY ? 'xhigh'
   : tier === 'opus' ? 'high' : tier === 'sonnet' ? 'medium' : 'low'
 const budgetOK = () => !budget.total || budget.remaining() > FLOOR
 const mode = APPLY ? 'APPLY (agents edit files)' : 'DRY-RUN (agents propose diffs, nothing written)'
@@ -650,7 +656,12 @@ const CRAFT_RULES =
   `(comments, docstrings, UI copy, README) and correct it in the same change.\n` +
   `4. MAKE THE SURFACES AGREE. If the fact you changed appears in more than one place, update ` +
   `every one and say they now agree. Two screens with different answers is worse than one wrong ` +
-  `answer, because nothing catches it unless something compares them.`
+  `answer, because nothing catches it unless something compares them.\n` +
+  `5. CHANGE ONLY WHAT THE BRIEF NAMES. Do NOT "improve" code that already works — no drive-by ` +
+  `refactor, no rename, no reformat, no extra feature, no tidying an adjacent function while you ` +
+  `are in there. If you believe something nearby is wrong, SAY SO in self_check and LEAVE IT. ` +
+  `An unrequested improvement is indistinguishable from a regression to every reviewer ` +
+  `downstream, and it is why a one-line fix arrives as a forty-line diff that nobody can gate.`
 
 function buildAgent(item, reworkNote) {
   const tier = tierFor(item.tier, item.risk)   // standard: the plan's tier. max: Opus always. fast: Opus unless risk=low.
@@ -897,9 +908,15 @@ function runSkeptics(built, phaseName) {
     `what git shows. Other agents share this tree, so ignore changes that clearly belong to another ` +
     `item — judge only whether THIS builder went outside ${built.item.file}.\n` +
     `Also refute micro-version inflation: one toast / one label / one i18n key / one CSS one-liner ` +
-    `claiming a full version stamp is a BLOCKER under LAW17, not a nit.`,
-    { model: 'opus', effort: 'high', phase: phaseName, label: `skeptic${i + 1}:${built.item.file}`,
-      schema: SKEPTIC_SCHEMA }
+    `claiming a full version stamp is a BLOCKER under LAW17, not a nit.\n` +
+    `YOU ARE ASKED FOR ANALYSIS, NOT AGREEMENT. Do not tell the builder what it wants to hear, and ` +
+    `do not manufacture a refutation to look useful either. State the strongest case that this ` +
+    `change is WRONG, then the strongest case that it is RIGHT, and say which you actually believe ` +
+    `and why. If you cannot judge it on the evidence available, say exactly that and name what you ` +
+    `would need to see — "insufficient evidence, I would need X" is a REAL verdict and is worth ` +
+    `more to this run than a confident guess that later turns out to be wrong.`,
+    { model: 'opus', effort: MAXONLY ? 'xhigh' : 'high', phase: phaseName,
+      label: `skeptic${i + 1}:${built.item.file}`, schema: SKEPTIC_SCHEMA }
   ).catch(() => ({ refuted: true, severity: 'major', reason: 'skeptic errored — an unverified change is refuted by default' }))
   )).then(votes => tallyVotes(votes, lenses.length, built.item.file))
 }
