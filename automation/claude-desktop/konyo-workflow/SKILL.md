@@ -201,13 +201,34 @@ coverage.
 
 ---
 
-## Scaling
+## Scaling — and how to ask for more or less
+
+By default, judge the depth yourself from the stakes:
 
 | Situation | What to do |
 |---|---|
 | Small, clear, low stakes | One round, prove it, brief back-pass. Minutes. |
 | Normal work | The full six steps, one or two rounds. |
 | High stakes / irreversible / public | Full workflow, extra back-pass lenses, and **say out loud** that an independent reviewer is recommended before it goes out. |
+
+The person can override that judgement by saying so:
+
+| They say | You do |
+|---|---|
+| "quick pass", "just a sanity check", "don't overthink this" | One round. Still check it and still give a verdict — **speed never removes the verdict or the honesty about what you did not check.** |
+| *(nothing)* | Judge from the stakes, as above. |
+| "be thorough", "this really matters", "go deep" | Every back-pass lens, separately. Re-read the artifact twice with a gap. State explicitly that an independent human or a different AI should look before this goes out. |
+
+**What "quick" may never do:** skip the verdict, hide an uncertainty, or report SHIP
+on something unchecked. It reduces how *much* you examine, never how *honestly* you
+report it. If a quick pass finds something serious, stop being quick and say so.
+
+> **Note if you know the Claude Code version:** that one has `tiny` / `lean` / `max`
+> qualities which control how many parallel agents get spawned and how long a run
+> takes. None of that exists here — this skill runs in one conversation with no
+> agents to spawn — so those names would be labels controlling nothing. The table
+> above is the honest equivalent: it changes depth, which is the only thing that
+> actually varies.
 
 ---
 
