@@ -7,8 +7,9 @@ let meta = #{
         #{ title: "Inventory", detail: "stack, changes, tests, deploy surface" },
         #{ title: "Plan", detail: "checklist ≥3 outcomes or 1 structural bug · one owner per file" },
         #{ title: "Gate-Audit", detail: "ceremony + LAW17 fat version bar" },
-        #{ title: "Third-Eye", detail: "adversarial skeptic panel (3 lenses at max, 1 at standard) — ALWAYS runs, then per-finding verification" },
-        #{ title: "Render-Gate", detail: "LAW18 painted-UI proof — CI verdict first; failure blocks the ship" },
+        #{ title: "Skeptic panel", detail: "adversarial panel (3 lenses at max, 1 at standard) — ALWAYS runs, then per-finding verification. SAME model family: this is a panel, not the third eye" },
+        #{ title: "Render-Gate", detail: "v26 — a LOOP, not a verdict: LAW18 painted-UI proof at a NARROW and a WIDE viewport, then a fixer corrects and it renders AGAIN (3 passes, 4 at max). CI verdict first; the FINAL pass blocks the ship" },
+        #{ title: "Third-Eye", detail: "v26 — CLAUDE, a DIFFERENT model family, challenges the ship pre-verdict. Mirror of the Claude shipper consulting Grok. A Grok agent may NEVER fill this seat: transport down = seat reported EMPTY, never agreement" },
         #{ title: "Completeness", detail: "MAX only: did the audit COVER the objective, or stop early? gaps become blockers" },
         #{ title: "Verdict", detail: "ship / draft / blocked · fat bar enforced" },
         #{ title: "Approve", detail: "optional human go-live gate" },
@@ -152,6 +153,19 @@ let report_schema = #{
             "maxItems": 20,
             "items": #{ "type": "string" },
         },
+    },
+};
+
+// v26 — the render loop's correction half. `changed` is load-bearing: false stops the loop rather
+// than re-rendering identical code, so it must be a real answer and not a formality.
+let fix_schema = #{
+    "type": "object",
+    "required": ["changed", "what", "unfixable"],
+    "properties": #{
+        "changed": #{ "type": "boolean" },
+        "what": #{ "type": "string" },
+        "files": #{ "type": "array", "maxItems": 12, "items": #{ "type": "string" } },
+        "unfixable": #{ "type": "array", "maxItems": 10, "items": #{ "type": "string" } },
     },
 };
 
@@ -494,8 +508,15 @@ if findings.len() > MAX_VERIFY {
     findings = capped;
 }
 
-// ========== 5. Third-Eye ==========
-phase("Third-Eye");
+// ========== 5. Skeptic panel + Third-Eye ==========
+// v26 — RENAMED. What follows was called "Third-Eye" and is an ADVERSARIAL SKEPTIC PANEL: Grok
+// agents reviewing a Grok-driven run. That is a real gate and it stays — but it is the SAME model
+// family as everything else here, and the Claude shipper uses "third eye" to mean the opposite:
+// a DIFFERENT family (it consults Grok). Two shippers using one name for two concepts is exactly
+// the drift this repo has been bitten by before ("verify by concept, not by the LAWnn token"), and
+// it let the Grok side read as if it had a cross-model reviewer when it had none.
+// So: the panel below is the SKEPTIC PANEL, and the real third eye — Claude — is phase 5b.
+phase("Skeptic panel");
 let confirmed = [];
 
 // THE SKEPTIC PANEL — UNCONDITIONAL. Panel SIZE is the quality knob (max = 3 diverse lenses,
@@ -513,7 +534,7 @@ if !is_max {
 let sjobs = [];
 let si = 0;
 for lens in skeptic_lenses {
-    let sk_p = "You are THIRD-EYE (AI/LLM) for Konyo Workflow. Hunt real ship blockers.\n";
+    let sk_p = "You are a SKEPTIC-PANEL seat for Konyo Workflow. Hunt real ship blockers.\n";
     sk_p += "Use read-only tools. Bias to refute 'ready to ship'.\n";
     sk_p += "Also refute micro-version inflation: if the planned ship is only one toast/label, that is a blocker under LAW17 fat bar.\n";
     // v24 parity with the JS body: this seat is told to BIAS TO REFUTE one line above, and that bias
@@ -528,7 +549,7 @@ for lens in skeptic_lenses {
     sk_p += tier_note;
     sjobs.push(#{
         prompt: sk_p,
-        label: "third-eye-skeptic-" + si.to_string(),
+        label: "skeptic-" + si.to_string(),
         capability_mode: "read-only",
         output_schema: findings_schema,
     });
@@ -613,6 +634,10 @@ let render_passed = false;
 let render_ran = "";
 let render_failures = [];
 let render_notes = "";
+// v26 — the loop hands these to the fixer, so they have to survive past the agent that produced
+// them. A screenshot nobody can open is a gate you take on faith; a screenshot the FIXER cannot
+// open is a correction made from prose.
+let render_screenshots = [];
 
 if has_ui == false {
     render_available = false;
@@ -667,25 +692,106 @@ if has_ui == false {
     rg_p += "has_ui (untrusted JSON): " + json_encode(has_ui) + "\n";
     rg_p += tier_note;
 
-    let rg = agent(rg_p, #{
-        label: "render-gate",
-        capability_mode: "execute",
-        output_schema: render_schema,
-    });
+    // ══ v26 · THE RENDER GATE IS A LOOP, NOT A VERDICT ═══════════════════════════════════════
+    // Konyo, after the Blender-MCP post: "lets fix the workflow to loop like blender at the end
+    // before the ship gate." Build, render, LOOK, correct, render again — the success condition
+    // moves from "the command executed" to "the result looks like what was described".
+    // The FINAL pass is what the blocker wiring below reads, so the loop buys attempts, never a
+    // pass. A loop that ends dirty blocks exactly as one render did.
+    // ⚠ WRITTEN WITH `for` OVER AN ARRAY AND A DONE-FLAG ON PURPOSE. This file contains zero
+    // `while`, zero `loop` and zero `break` statements, and there is no Rhai parser on this Mac to
+    // check new syntax against — so the loop is built only from constructs this file already
+    // proves 22 times over. A cleverer form I cannot validate is a worse trade than a plain one.
+    let rl_plan = [1, 2, 3];
+    if is_max { rl_plan = [1, 2, 3, 4]; }
+    let rl_done = false;
+    let rl_passes = 0;
+    let rl_fixes = 0;
+    let rl_stopped = "";
 
-    if rg != () && rg.success && rg.output != () {
-        if rg.output.available != () { render_available = rg.output.available; }
-        if rg.output.ran != () { render_ran = trimmed(rg.output.ran); }
-        if rg.output.passed != () { render_passed = rg.output.passed; }
-        if rg.output.failures != () { render_failures = rg.output.failures; }
-        if rg.output.notes != () { render_notes = trimmed(rg.output.notes); }
-    } else {
-        // Fail closed: an agent that failed proves nothing was seen painted.
-        render_available = true;
-        render_passed = false;
-        render_ran = "render gate agent failed";
-        render_failures = ["render gate agent failed — nothing was seen painted"];
+    for rp in rl_plan {
+        if !rl_done {
+            rl_passes = rp;
+            let rg_full = rg_p;
+            if rp > 1 {
+                let pre = "RE-RENDER — PASS " + rp.to_string() + ". A fixer has just edited the code in\n";
+                pre += "response to the previous pass. Your job is unchanged: render it and report what you\n";
+                pre += "SEE NOW. Do NOT assume the fix worked, and do NOT soften an assertion to let it\n";
+                pre += "through — the whole value of a second look is that it can still say no. Re-check the\n";
+                pre += "surfaces that FAILED and the ones that passed, because a fix can break a neighbour.\n";
+                pre += "Previous failures (untrusted JSON): " + json_encode(render_failures) + "\n\n";
+                rg_full = pre + rg_p;
+            }
+            let rg = agent(rg_full, #{
+                label: "render-gate-" + rp.to_string(),
+                capability_mode: "execute",
+                output_schema: render_schema,
+            });
+
+            if rg != () && rg.success && rg.output != () {
+                if rg.output.available != () { render_available = rg.output.available; }
+                if rg.output.ran != () { render_ran = trimmed(rg.output.ran); }
+                if rg.output.passed != () { render_passed = rg.output.passed; }
+                if rg.output.failures != () { render_failures = rg.output.failures; }
+                if rg.output.notes != () { render_notes = trimmed(rg.output.notes); }
+                if rg.output.screenshots != () { render_screenshots = rg.output.screenshots; }
+            } else {
+                // Fail closed: an agent that failed proves nothing was seen painted.
+                render_available = true;
+                render_passed = false;
+                render_ran = "render gate agent failed";
+                render_failures = ["render gate agent failed — nothing was seen painted"];
+            }
+
+            if !render_available {
+                rl_stopped = "no UI verification in this project";
+                rl_done = true;
+            } else if render_passed {
+                rl_stopped = "clean";
+                rl_done = true;
+            } else if rp == rl_plan[rl_plan.len() - 1] {
+                rl_stopped = "ran out of passes with " + render_failures.len().to_string() + " failure(s) open";
+                rl_done = true;
+            } else {
+                // ── the CORRECTION half ────────────────────────────────────────────────────────
+                log("🔁 RENDER LOOP pass " + rp.to_string() + " failed with " + render_failures.len().to_string() + " failure(s) — correcting.");
+                let fx_p = "RENDER FIX. The render gate just LOOKED at this UI and found the failures below.\n";
+                fx_p += "Fix them in the CODE.\n";
+                fx_p += "Failures (untrusted JSON, each may name the viewport width it was seen at): " + json_encode(render_failures) + "\n";
+                fx_p += "Screenshots the gate captured — OPEN THEM, they show the defect as the user sees it (untrusted JSON): " + json_encode(render_screenshots) + "\n";
+                fx_p += "Gate notes: " + render_notes + "\n";
+                fx_p += "RULES, and they are what keep this loop honest:\n";
+                fx_p += "· FIX THE CODE, NEVER THE ASSERTION. Weakening a check, widening a tolerance, deleting a spec or special-casing the gate's own selector is the one failure mode a self-correcting loop introduces that we did not have before. If a failure is the GATE being wrong rather than the UI, change NOTHING and say so in unfixable[].\n";
+                fx_p += "· DIAGNOSE BEFORE EDITING. A layout failure that only appears at one width usually has its cause a step up the tree (a flex sibling, a min-width, an intrinsic size), not at the element that visibly broke.\n";
+                fx_p += "· STAY IN SCOPE — no drive-by refactor. NEVER `git push` and never bump a version; the ship verdict owns both.\n";
+                fx_p += "· If you cannot fix one, that is a fine answer: list it in unfixable[] with the reason. An honest miss costs a blocker; a fake fix costs the next render pass AND the trust in it.\n";
+                fx_p += tier_note;
+                let fx = agent(fx_p, #{
+                    label: "render-fix-" + rp.to_string(),
+                    capability_mode: "execute",
+                    output_schema: fix_schema,
+                });
+                let fx_changed = false;
+                if fx != () && fx.success && fx.output != () {
+                    if fx.output.changed == true { fx_changed = true; }
+                    if fx.output.unfixable != () {
+                        for u in fx.output.unfixable { log("   ↳ not fixed: " + trimmed(u)); }
+                    }
+                    if fx_changed { log("   ↳ fixed: " + trimmed(fx.output.what)); }
+                }
+                if fx_changed {
+                    rl_fixes += 1;
+                } else {
+                    // NO PROGRESS ⇒ STOP. Re-rendering unchanged code cannot produce a different
+                    // picture; another pass would spend two agents to reprint the same failures and
+                    // would read in the report as though the loop had tried again.
+                    rl_stopped = "the fixer changed nothing — re-rendering would print the same result";
+                    rl_done = true;
+                }
+            }
+        }
     }
+    log("🔁 Render loop: " + rl_passes.to_string() + " pass(es), " + rl_fixes.to_string() + " correction(s) — " + rl_stopped);
 }
 
 if render_available && !render_passed {
@@ -763,6 +869,109 @@ if is_max {
     log("Completeness critic: OFF (quality=standard). Every gate, blocker and bail still runs.");
 }
 
+// ========== 5d. THIRD EYE — CLAUDE, AND IT IS THE MIRROR OF THE CLAUDE SHIPPER'S GROK SEAT =====
+// v26. Konyo: "and my sisters github is updated too accordingly to hers? with the third eye being
+// claude". It was not, and the reason is worth stating: this file called its SAME-FAMILY skeptic
+// panel "Third-Eye", so the Grok shipper read as though it already had a cross-model reviewer. It
+// had none — zero mentions of Claude, xAI, cross-model or "different model" anywhere in the file.
+// The panel is renamed above; this is the real thing.
+//
+// SYMMETRY IS THE WHOLE POINT. The Claude shipper drives with Claude and consults GROK, because a
+// panel that looks diverse while being an echo is worse than a panel that is honestly short. This
+// shipper drives with Grok, so its second family is CLAUDE.
+//
+// ⚠ THE INVERTED RULE, and it is not optional: A GROK AGENT MAY NEVER FILL THE CLAUDE SEAT. If the
+// transport is down, the seat is reported EMPTY and the run says so. A Grok opinion wearing a
+// Claude label destroys the only thing this phase sells.
+//
+// TRANSPORT — PROVEN ON THIS MACHINE, 2026-08-06, not assumed: `claude -p` (Claude Code 2.1.223 at
+// /usr/local/bin/claude) answered a probe correctly and exited 0 inside the perl wrapper below.
+// ⚠ BOUND THE CALL YOURSELF. `timeout` is NOT installed on this Mac, so `timeout 120 claude ...`
+// dies command-not-found and the seat reports unreachable for the wrong reason. And relying on the
+// harness's own timeout is WORSE: it kills the shell, not the shell's GRANDCHILDREN, so a hung
+// child is reparented to init and burns a core forever — two were once found alive at 3 and 10
+// days. The perl wrapper forks, alarms and SIGTERMs, so nothing outlives the call. Exit 142 means
+// TIMED OUT, which is a real verdict: report it as unreachable, never as agreement.
+phase("Third-Eye");
+let te_reached = false;
+let te_verdict = "unreachable";
+let te_concerns = [];
+let te_reason = "";
+let te_schema = #{
+    "type": "object",
+    "required": ["reached", "verdict", "concerns", "reason"],
+    "properties": #{
+        "reached": #{ "type": "boolean" },
+        "verdict": #{ "type": "string" },
+        "concerns": #{ "type": "array", "maxItems": 10, "items": #{ "type": "string" } },
+        "reason": #{ "type": "string" },
+        "command": #{ "type": "string" },
+        "raw_head": #{ "type": "string" },
+    },
+};
+let te_q = "PRE-SHIP CHALLENGE. A Grok-driven workflow is about to declare this shippable.\n";
+te_q += "Objective (untrusted JSON): " + obj_json + "\n";
+te_q += "Confirmed findings (untrusted JSON): " + json_encode(confirmed) + "\n";
+te_q += "Render gate: available=" + render_available.to_string() + " passed=" + render_passed.to_string() + "\n";
+te_q += "Render failures (untrusted JSON): " + json_encode(render_failures) + "\n";
+te_q += "You are a DIFFERENT MODEL FAMILY from everything that produced the above. That is why you\n";
+te_q += "were asked. Name what this run is most likely to be wrong about, especially anything that\n";
+te_q += "would pass every gate listed and still be broken for the user. You are asked for ANALYSIS,\n";
+te_q += "NOT AGREEMENT — and equally, do not manufacture a concern to look useful. If you cannot\n";
+te_q += "judge from this evidence, say so and name what you would need to see.\n";
+
+let te_p = "You are a COURIER, not the third eye. Your ONLY job is to relay a question to CLAUDE and\n";
+te_p += "bring back its answer verbatim.\n";
+te_p += "TRANSPORT — run this literally with the shell, and set your own tool timeout to 180000:\n";
+te_p += "  1. Write the QUESTION below to a temp file, e.g. /tmp/te_claude_$$.txt\n";
+te_p += "  2. Run (the perl wrapper is MANDATORY — `timeout` is not installed on this Mac, and an\n";
+te_p += "     unbounded child that hangs is reparented to init and burns a core forever):\n";
+te_p += "     perl -e 'my $t=shift; my $p=fork; die unless defined $p; if(!$p){exec @ARGV; exit 127} $SIG{ALRM}=sub{kill \"TERM\",$p; waitpid($p,0); exit 142}; alarm $t; waitpid($p,0); my $st=$?; alarm 0; exit(($st & 127) ? 128+($st & 127) : ($st >> 8));' 180 /usr/local/bin/claude -p --output-format text \"$(cat /tmp/te_claude_$$.txt)\"\n";
+te_p += "  3. Exit 142 = TIMED OUT. Report reached=false, verdict='unreachable', reason='timed out\n";
+te_p += "     after 180s'. A timeout is a real verdict — never record it as agreement.\n";
+te_p += "  4. If the binary is missing or errors, report reached=false with the ACTUAL error text.\n";
+te_p += "🚫 NEVER ANSWER THE QUESTION YOURSELF. Never paraphrase what you think Claude would say, and\n";
+te_p += "never let your own opinion reach concerns[]. An empty seat honestly reported is the correct\n";
+te_p += "outcome when the transport is down; a Grok opinion wearing a Claude label is the one outcome\n";
+te_p += "that destroys the entire point of this phase.\n";
+te_p += "EVIDENCE IS MANDATORY when you claim reached=true: put the EXACT command you ran in `command`\n";
+te_p += "and the first ~200 characters of its RAW stdout, verbatim and untidied, in `raw_head`. A seat\n";
+te_p += "claiming it reached another model without showing what it ran is RECORDED AS NOT REACHED,\n";
+te_p += "because the only thing this phase sells is that the words are not yours.\n";
+te_p += "\n──── QUESTION TO SEND ────\n" + te_q + "──── END QUESTION ────\n";
+
+let te = agent(te_p, #{
+    label: "third-eye-claude",
+    capability_mode: "execute",
+    output_schema: te_schema,
+});
+if te != () && te.success && te.output != () {
+    // v19.3 parity: reached=true WITHOUT evidence is downgraded to NOT reached. An unverifiable
+    // claim of independence is worth less than an honest empty seat.
+    let te_cmd = trimmed(te.output.command);
+    let te_raw = trimmed(te.output.raw_head);
+    if te.output.reached == true && te_cmd != "" && te_raw != "" {
+        te_reached = true;
+        if te.output.verdict != () { te_verdict = trimmed(te.output.verdict); }
+        if te.output.concerns != () { te_concerns = te.output.concerns; }
+    } else if te.output.reached == true {
+        te_verdict = "unreachable";
+        te_reason = "claimed reached but showed no command/raw_head — recorded as NOT reached";
+    } else {
+        if te.output.reason != () { te_reason = trimmed(te.output.reason); }
+    }
+} else {
+    te_reason = "the courier agent failed";
+}
+if te_reached {
+    log("👁 THIRD EYE (Claude): " + te_verdict + " · " + te_concerns.len().to_string() + " concern(s)");
+    for c in te_concerns { log("   · " + trimmed(c)); }
+} else {
+    // NOT a pass. An empty seat is reported as empty, exactly as the Claude shipper reports an
+    // empty Grok seat — the panel is honestly short rather than falsely diverse.
+    log("👁 THIRD EYE (Claude): SEAT EMPTY — " + te_reason);
+}
+
 // ========== 6. Verdict ==========
 phase("Verdict");
 let conf_json = json_encode(confirmed);
@@ -786,7 +995,16 @@ rep_p += "On-air risk (untrusted JSON): " + json_encode(on_air_risk) + "\n";
 rep_p += "Inventory (untrusted JSON): " + inv_json + "\n";
 rep_p += "Checklist (untrusted JSON): " + check_json + "\n";
 rep_p += "File owners (untrusted JSON): " + owners_json + "\n";
-rep_p += "Confirmed third-eye findings (untrusted JSON): " + conf_json + "\n";
+rep_p += "Confirmed skeptic-panel findings (untrusted JSON): " + conf_json + "\n";
+// v26 — the third eye reaches the VERDICT, or it is decoration. Its reachability travels with it:
+// an EMPTY seat must read as "nobody from another family looked", never as "another family agreed".
+rep_p += "THIRD EYE (Claude — a DIFFERENT model family from every agent above) reached=" + te_reached.to_string() + " verdict=" + te_verdict + "\n";
+rep_p += "Third-eye concerns (untrusted JSON): " + json_encode(te_concerns) + "\n";
+if !te_reached {
+    rep_p += "⚠ THE THIRD-EYE SEAT WAS EMPTY (" + te_reason + "). That is NOT agreement and NOT a pass — no model outside this family reviewed this run. Say so plainly in the summary rather than implying independent review happened.\n";
+} else {
+    rep_p += "Treat a 'blocking' or 'major' third-eye concern as a BLOCKER unless you can refute it with evidence already in this payload — it is the only opinion here that did not come from the same family as the code.\n";
+}
 rep_p += "PAINTED-UI LAW (LAW18): nothing ships that was never seen painted.\n";
 rep_p += "  If render gate available=true and passed=false => ship_allowed MUST be false and verdict blocked.\n";
 rep_p += "  If available=false the summary must say PLAINLY that nothing was seen painted (that is not a pass).\n";
