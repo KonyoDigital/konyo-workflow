@@ -1,6 +1,6 @@
 export const meta = {
   name: 'konyo-workflow',
-  description: 'KONYO WORKFLOW — ONE body, three paths (lean | max | standard). RUNS AT LEAN BY DEFAULT (his instruction, 2026-08-04): EVERY gate max runs — diverse-lens skeptic panel, render gate with vision, LAW17, LAW19, workspace lock, agent ceiling — at ~62% of the tokens, by buying ONE architect instead of a judge panel, one rework round, no completeness critic, and risk:"low" items at the tier their own architect asked for (floored at sonnet; the review is Opus either way, and a failed cheap build escalates on rework). The third eye (Grok — a different model family) is ON at every quality. Pass {quality:"max"} to add the 3-architect judge panel, Opus builders everywhere and the loop-until-dry completeness critic — worth it when being wrong costs more than tokens. Pass {quality:"tiny"} for a SMALL, KNOWN edit set with a ~15-minute wall-clock budget: it REQUIRES an explicit items:[{file,instruction}] work list (max 4 items across 3 files, no diagnosis) and refuses without one, then skips the PLANNING hops only — no triage, no architect, no third-eye plan seat, no completeness critic, no synthesizer — while keeping every gate: the 2-seat adversarial panel, LAW19 reachability, the render gate with vision, LAW17, and the workspace lock. Reachability and the render gate run CONCURRENTLY. Pass {quality:"standard"} to opt DOWN to the cost-scaled ladder (Haiku/Sonnet build, Fable gates every merge, ONE architect, no completeness critic). Pass {thirdEye:false} to run without an independent reviewer. LEAN IS NOT MAX-WITH-FEWER-SAFEGUARDS: the flag buys model tier, panel size and extra phases, never a gate.',
+  description: 'KONYO WORKFLOW — ONE body, three paths (lean | max | standard). RUNS AT LEAN BY DEFAULT (his instruction, 2026-08-04): EVERY gate max runs — diverse-lens skeptic panel, render gate with vision, LAW17, LAW19, workspace lock, agent ceiling — at ~62% of the tokens, by buying ONE architect instead of a judge panel, one rework round, no completeness critic, and risk:"low" items at the tier their own architect asked for (floored at sonnet; the review is Opus either way, and a failed cheap build escalates on rework). The third eye (Grok — a different model family) is ON at every quality. Pass {quality:"max"} to add the 3-architect judge panel, Opus builders everywhere and the loop-until-dry completeness critic — worth it when being wrong costs more than tokens. Pass {quality:"tiny"} for a SMALL, KNOWN edit set with a ~15-minute wall-clock budget: it REQUIRES an explicit items:[{file,instruction}] work list (max 4 items across 3 files, no diagnosis) and refuses without one, then skips the PLANNING hops only — no triage, no architect, no third-eye plan seat, no completeness critic, no synthesizer — while keeping every gate: the 2-seat adversarial panel, LAW19 reachability, the render gate with vision, LAW17, and the workspace lock. Reachability and the render gate run CONCURRENTLY. v26 — THE RENDER GATE IS NOW A LOOP at every quality: it renders at a narrow AND a wide viewport, and a failure is handed to a fixer and re-rendered (tiny 2 passes / lean 3 / max 4) instead of only being reported. The FINAL pass is what blocks. Pass {quality:"standard"} to opt DOWN to the cost-scaled ladder (Haiku/Sonnet build, Fable gates every merge, ONE architect, no completeness critic). Pass {thirdEye:false} to run without an independent reviewer. LEAN IS NOT MAX-WITH-FEWER-SAFEGUARDS: the flag buys model tier, panel size and extra phases, never a gate.',
   whenToUse: 'ANY multi-step task you want orchestrated — it is LEAN unless you say otherwise, because lean already runs every gate and max only buys a judge panel, Opus builders and the completeness critic. It TRIAGES itself first, so a serial diagnosis is sent back to be done directly instead of spawning a fleet, and the ceiling + budget floor still bound every run. Reach for {quality:"tiny"} when you already know the exact edits (file + instruction each) and want them done in ~15 minutes with the gates intact — it is a HOP budget, not an agent budget: wall clock is serial-hops × time-per-hop, so tiny cuts the chain from 11 phases to 4 rather than trimming agents. Reach for {quality:"max"} when the cost of being wrong is high — irreversible edits, data migrations, anything shipping unattended. Opt all the way down with {quality:"standard"} for routine, low-cost-of-wrong, easily reversible work (~10-15x cheaper). Pass {task, quality, thirdEye, apply, maxRounds, dryRounds, budgetFloor, force, skeptics, maxAgents, isolate}. `grok:false` still works as the old name for thirdEye:false; `fast` still resolves to `lean`.',
   phases: [
     { title: 'Preflight',   detail: 'workspace lock — refuse to start if another run is already editing this tree' },
@@ -12,7 +12,7 @@ export const meta = {
     { title: 'Rework',      detail: 'failed items escalate one tier up and re-gate, version-per-round' },
     { title: 'Merge',       detail: 'NOT OPENED unless {isolate:true}. (isolate mode only) applies each worktree patch to the REAL repo, one at a time, git apply --check first', model: 'opus' },
     { title: 'Completeness',detail: 'NOT OPENED at tiny/lean/standard. quality:"max" ONLY — an Opus critic hunts for work nobody did; loops until N dry rounds. NOT bought at the lean default or at standard, and the report says so rather than implying the sweep happened', model: 'opus' },
-    { title: 'Render gate', detail: 'drives the REAL UI — hit-testable controls + SCREENSHOT-BACKED geometry (non-zero boxes, no clipping/overflow, text vs background, no overlap); failure BLOCKS the ship' },
+    { title: 'Render gate', detail: 'v26 — a LOOP, not a verdict: drives the REAL UI at a NARROW and a WIDE viewport (a defect that exists at one width is invisible to a single render), asserts SCREENSHOT-BACKED geometry + looks at every picture, then hands any failure to a fixer and renders AGAIN — up to RENDERLOOP passes (tiny 2 / lean 3 / max 4). The final pass is what blocks, so the loop buys attempts, never a pass' },
     { title: 'Fat version bar', detail: 'LAW17 — >=3 user-visible outcomes in one theme OR one structural bug with root cause+verify+prevention; a thin ship BLOCKS' },
     { title: 'Reachability',   detail: 'LAW19 — every symbol the change added has a caller AND a writer; added tests proven to have RUN; failure BLOCKS', model: 'opus' },
     { title: 'Ship',       detail: 'v23 — the ONLY thing that pushes. Opens ONLY when every gate passed and the verdict is shippable; pushes, never commits, never --no-verify/--force, and proves the remote actually moved. A refusal is reported with its reason.', model: 'opus' },
@@ -136,6 +136,21 @@ const APPLY     = !!(A && A.apply)                 // false = dry-run (propose d
 const MAXROUNDS = (A && A.maxRounds) || (TINYQ ? 1 : LEANQ ? 1 : MAXQ ? 2 : 3)
 const DRYROUNDS = (A && A.dryRounds) || 1          // consumed only by the max-only completeness loop
 const FLOOR     = (A && A.budgetFloor) || (MAXQ ? 120_000 : 60_000)  // stop opening new rounds under this many tokens remaining
+/* ══ v26 · THE RENDER GATE BECOMES A LOOP ═══════════════════════════════════════════════════════
+   Konyo, 2026-08-06, after the Blender-MCP post Musk reposted: "lets fix the workflow to loop like
+   blender at the end before the ship gate."
+   That post's thesis is one line — the success condition moves from "the command executed" to "the
+   result looks like what was described" — and the mechanism is a LOOP: build, render, look, correct,
+   render again. We already had the looking (v15 images[], v18 Grok's second pair of eyes). What we
+   had was a VERDICT, not a loop: one render, and any failure became a ship blocker for a human to
+   fix later. So a defect the gate could plainly see still cost a whole round trip.
+   Now the gate renders, and if it fails, a fixer agent gets the failures AND the screenshots and
+   corrects them, and it renders AGAIN — up to RENDERLOOP passes. What does NOT change: the final
+   pass is still the one the blocker wiring reads, so a loop that ends dirty still blocks. The loop
+   buys attempts, never a pass.
+   RENDERLOOP is the number of RENDERS, so fixes = RENDERLOOP-1. Tiny gets 2 (one correction) because
+   tiny is a wall-clock budget and each pass is a full agent round-trip; max gets 4. */
+const RENDERLOOP = (A && A.renderLoop) || (TINYQ ? 2 : MAXQ ? 4 : 3)
 /* v18 — THE THIRD EYE IS A FIRST-CLASS FLAG, ON BY DEFAULT, AND IT MEANS A DIFFERENT MODEL FAMILY.
    Konyo, 2026-08-04: "grok should be turned on for now until i say turn it off... the whole point
    for the third eye is a different LLM AI with a different point of view." Claude reviewing Claude
@@ -1869,9 +1884,25 @@ const reachP = spawn(
 // the entire app past a fully green gate — parity, modules, i18n all passing. If the project has a
 // way to drive its own UI, use it, and treat a failure as a ship blocker.
 let renderGate = null
+/* v26 — the loop's own ledger. Reported verbatim so nobody has to infer how many attempts it took,
+   and so a run that CONVERGED reads differently from one that simply ran out of passes. */
+const renderLoop = { passes: 0, fixes: [], converged: false, stopped: '' }
 if (APPLY) {
   phase('Render gate')
+  for (let _rp = 1; _rp <= RENDERLOOP; _rp++) {
+  renderLoop.passes = _rp
   renderGate = await spawn(
+    (_rp > 1
+      ? `RE-RENDER — PASS ${_rp} of ${RENDERLOOP}. A fixer agent has just edited the code in ` +
+        `response to the previous pass. Your job is unchanged: render it and report what you SEE ` +
+        `now. Do NOT assume the fix worked and do NOT soften an assertion to let it through — the ` +
+        `whole value of a second look is that it can still say no. Re-check the SAME surfaces that ` +
+        `failed, and the ones that passed, because a fix can break a neighbour.\n` +
+        `WHAT THE LAST PASS REPORTED (fix attempted since):\n` +
+        (Array.isArray(renderGate && renderGate.failures) ? renderGate.failures : [])
+          .slice(0, 8).map(f => `  · ${f}`).join('\n') + '\n' +
+        `WHAT THE FIXER SAYS IT CHANGED: ${(renderLoop.fixes[renderLoop.fixes.length - 1] || {}).what || '(nothing reported)'}\n\n`
+      : '') +
     `RENDER GATE. Task: ${TASK}\n` +
     `0. CI FIRST — CHECK BEFORE YOU SPAWN ANYTHING. If the project runs its UI checks in CI (a ` +
     `.github/workflows/*.yml that drives a browser), THAT is the gate: read the verdict ` +
@@ -1902,6 +1933,20 @@ if (APPLY) {
     `overflows the viewport horizontally (scrollingElement.scrollWidth <= innerWidth+1); (d) computed ` +
     `text colour differs from its own resolved background (catches white-on-white); (e) no two ` +
     `sibling panels overlap (rect intersection area === 0). This ADDS to the hit-testing above — it ` +
+    /* v26 — LOOKING AT THE RENDER IS NOT ENOUGH IF YOU ALWAYS LOOK AT THE SAME RENDER.
+       Measured this session, and it is the reason this paragraph exists: a TZ zone name rendered
+       "Worldston / e Keep" — the name box was 134px against a 139px word, because a badge sharing
+       its flex row was allowed to squeeze it. At the suite's own 1470px viewport the slot fits ONE
+       column, every name has room, and the defect DOES NOT EXIST. It only appears at 1920px, where
+       the panel goes two-up and each card halves. The gate was green, the screenshot was clean, and
+       the bug was on his screen. A width is as much a fixture as a data stub is. */
+    `RENDER AT MORE THAN ONE WIDTH — a single viewport is a fixture, and a layout defect that only ` +
+    `exists at one size is invisible to it. Run the geometry assertions at a NARROW and a WIDE ` +
+    `viewport (1280x900 and 1920x1200 are good defaults; add the project's own breakpoints if it ` +
+    `declares any, and prefer widths where a grid changes column count, because that is where ` +
+    `squeeze bugs live). Report the width beside every failure — "at 1920: <what>" — and capture a ` +
+    `screenshot at EACH width, not just one. If a surface is width-independent, say so once rather ` +
+    `than measuring it twice. ` +
     /* v15 — THE GATE MUST LOOK AT THE PICTURE, NOT JUST MEASURE IT.
        Konyo, 2026-08-04: "why do i need eye on it? as part of the workflow system isnt it verified
        and checked visually from a user-experience side also?" He was right, and the hole was real:
@@ -1958,6 +2003,112 @@ if (APPLY) {
           visual:      { type: 'array', items: { type: 'string' }, description: 'geometry assertions actually run (boundingBox / clipping / horizontal overflow / text-vs-background contrast / sibling overlap), one line each with the measured numbers' },
         } } }
   ).catch(() => null)
+
+  /* ── v26 · THE CORRECTION HALF OF THE LOOP ───────────────────────────────────────────────────
+     Clean means every one of: the gate ran, it passed, and no image it opened depicts the wrong
+     thing. That last clause matters — `passed` is the agent's own summary, while a matches:false
+     image is a BLOCKER the wiring below raises independently, so a pass that ships a wrong picture
+     must not be allowed to end the loop as a success. */
+  const _rf = Array.isArray(renderGate && renderGate.failures) ? renderGate.failures : []
+  const _ri = Array.isArray(renderGate && renderGate.images) ? renderGate.images : []
+  const _rWrong = _ri.filter(i => i && i.matches === false)
+  const _rClean = !!(renderGate && renderGate.available && renderGate.passed && !_rWrong.length)
+
+  if (!renderGate) { renderLoop.stopped = 'the gate did not return'; break }
+  if (!renderGate.available) { renderLoop.stopped = 'no UI verification in this project'; break }
+  if (_rClean) {
+    renderLoop.converged = true
+    renderLoop.stopped = _rp === 1 ? 'clean on the first render' : `clean after ${_rp - 1} correction(s)`
+    if (_rp > 1) log(`✅ RENDER LOOP CONVERGED on pass ${_rp} — ${_rp - 1} correction(s) applied.`)
+    break
+  }
+  /* Count the wrong pictures alongside the failures in every message. A gate can report passed:true
+     with an empty failures[] and STILL be dirty because an image depicts the wrong thing — measured
+     in the loop's own tests, where that case printed "failed with 0 failure(s)" and read like a bug
+     in the loop rather than the defect it had correctly refused to ship. */
+  const _rOpen = `${_rf.length} failure(s)${_rWrong.length ? ` + ${_rWrong.length} wrong image(s)` : ''}`
+  if (_rp >= RENDERLOOP) {
+    renderLoop.stopped = `ran out of passes (${RENDERLOOP}) with ${_rOpen} still open`
+    log(`⛔ RENDER LOOP EXHAUSTED after ${RENDERLOOP} pass(es) — ${_rOpen} remain.`)
+    break
+  }
+  /* Bounds BEFORE opening a correction, because a fixer + a re-render is two more agents and the
+     last two are reserved for the report and the lock release. A loop that eats its own reserve
+     leaves the tree locked for the full 180-minute TTL, which is far worse than an unfixed defect. */
+  if (SPENT >= Math.max(1, MAX_AGENTS - 4)) {
+    renderLoop.stopped = `ceiling — ${SPENT}/${MAX_AGENTS} agents spent, correction not affordable`
+    log(`⚠ RENDER LOOP STOPPED: ${renderLoop.stopped}`)
+    break
+  }
+  if (budget.total && budget.remaining() < FLOOR) {
+    renderLoop.stopped = `budget — ${Math.round(budget.remaining() / 1000)}k left, under the ${Math.round(FLOOR / 1000)}k floor`
+    log(`⚠ RENDER LOOP STOPPED: ${renderLoop.stopped}`)
+    break
+  }
+
+  log(`🔁 RENDER LOOP pass ${_rp}/${RENDERLOOP} failed with ${_rOpen} — correcting.`)
+  const _fix = await spawn(
+    `RENDER FIX — pass ${_rp} of ${RENDERLOOP}. Task: ${TASK}\n` +
+    `The render gate just LOOKED at this UI and found the failures below. Fix them in the code.\n\n` +
+    `FAILURES (each may name the viewport width it was seen at):\n` +
+    _rf.slice(0, 12).map(f => `  · ${f}`).join('\n') + '\n' +
+    (_rWrong.length
+      ? `\nIMAGES THAT DEPICT THE WRONG THING (each is a blocker):\n` +
+        _rWrong.slice(0, 6).map(i => `  · ${i.surface || '?'}: claims ${i.claims || '?'}, depicts ${i.depicts || '?'}`).join('\n') + '\n'
+      : '') +
+    (Array.isArray(renderGate.screenshots) && renderGate.screenshots.length
+      ? `\nSCREENSHOTS THE GATE CAPTURED — OPEN THEM. They are the evidence, and they show the ` +
+        `defect as the user sees it:\n` + renderGate.screenshots.slice(0, 6).map(s => `  · ${s}`).join('\n') + '\n'
+      : '\n(the gate captured no screenshot — work from the failure text)\n') +
+    (renderGate.notes ? `\nGATE NOTES: ${renderGate.notes}\n` : '') +
+    `\nRULES, and they are what keep this loop honest:\n` +
+    `· FIX THE CODE, NEVER THE ASSERTION. Weakening a check, widening a tolerance, deleting a ` +
+    `spec or special-casing the gate's own selector is the one failure mode this loop could ` +
+    `introduce that we did not have before. If a failure is the GATE being wrong rather than the ` +
+    `UI, do not edit anything — report it in unfixable[] and say why.\n` +
+    `· DIAGNOSE BEFORE EDITING. A layout failure that only appears at one width usually has a ` +
+    `cause a step up the tree (a flex sibling, a min-width, an intrinsic size), not at the element ` +
+    `that visibly broke. Measure with the project's own tooling; do not guess from the screenshot.\n` +
+    `· STAY IN SCOPE. Fix these failures and nothing else — no drive-by refactor, no reformatting.\n` +
+    `· ⛔ NEVER \`git push\`, and do not bump a version — the ship gate downstream owns both.\n` +
+    `· If you cannot fix one, that is a fine answer: list it in unfixable[] with the reason. An ` +
+    `honest miss costs a blocker; a fake fix costs the next render pass AND the trust in it.\n` +
+    `Report exactly what you changed — the next render pass is told your answer and re-checks it.`,
+    { effort: TINYQ ? 'medium' : 'high', phase: 'Render gate', model: MAXQ ? 'opus' : undefined,
+      schema: { type: 'object', additionalProperties: false,
+        required: ['changed', 'what', 'files', 'unfixable'],
+        properties: {
+          changed:   { type: 'boolean', description: 'true only if you actually edited a file' },
+          what:      { type: 'string', description: 'what you changed and WHY it addresses the failure — one or two sentences, passed verbatim to the next render pass' },
+          files:     { type: 'array', items: { type: 'string' }, description: 'absolute paths you edited' },
+          unfixable: { type: 'array', items: { type: 'string' }, description: 'failures you did NOT fix, each with the reason (including "this is the gate being wrong")' },
+        } } }
+  )
+  renderLoop.fixes.push({
+    pass: _rp,
+    what: (_fix && _fix.what) || '(the fixer returned nothing)',
+    files: (_fix && _fix.files) || [],
+    unfixable: (_fix && _fix.unfixable) || [],
+    changed: !!(_fix && _fix.changed),
+  })
+  if (_fix && Array.isArray(_fix.unfixable) && _fix.unfixable.length) {
+    _fix.unfixable.slice(0, 4).forEach(u => log(`   ↳ not fixed: ${u}`))
+  }
+  /* NO PROGRESS ⇒ STOP. Re-rendering unchanged code cannot produce a different picture, so another
+     pass would spend two agents to reprint the same failures and, worse, would read in the report
+     like the loop tried again. */
+  if (!_fix || !_fix.changed) {
+    renderLoop.stopped = _fix ? 'the fixer changed nothing — re-rendering would print the same result'
+                              : 'the fixer did not return'
+    log(`⚠ RENDER LOOP STOPPED: ${renderLoop.stopped}`)
+    break
+  }
+  log(`   ↳ fixed: ${String(_fix.what || '').slice(0, 160)}`)
+  }
+  /* the blocker wiring below reads the FINAL renderGate — the loop buys attempts, never a pass */
+  if (renderLoop.passes > 1) {
+    log(`🔁 Render loop: ${renderLoop.passes} pass(es), ${renderLoop.fixes.filter(f => f.changed).length} correction(s) — ${renderLoop.stopped}`)
+  }
   if (renderGate && renderGate.available && !renderGate.passed) {
     // `.failures` is guarded: a truncated agent return used to throw a TypeError at top level here,
     // AFTER the entire run had finished, destroying the report it was about to write.
@@ -2453,6 +2604,9 @@ return emit({
   passed: passed.length,
   failed: failed.length,
   render_gate: renderGate,
+  /* v26 — the loop, reported rather than inferred. `converged:true` means a render came back clean;
+     anything else names WHY it stopped, so "2 passes" never has to be read as "it worked". */
+  render_loop: renderLoop,
   merge: merge || { ran: false, reason: ISOLATE
     ? 'isolate mode was on but the merge phase produced no result — see blockers[]'
     : 'no {isolate:true}: builders edited the shared tree directly, so there was nothing to merge' },
