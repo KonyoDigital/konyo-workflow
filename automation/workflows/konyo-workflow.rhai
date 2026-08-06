@@ -638,6 +638,20 @@ if has_ui == false {
     rg_p += "   This ADDS to the hit-testing above — it does NOT replace it. A panel can satisfy every\n";
     rg_p += "   selector assertion and still be visually broken; that shipped once and only a screenshot\n";
     rg_p += "   caught it (a lane rendering [object Object] past a fully green spec).\n";
+    // v26 — the viewport half of the Blender-loop change. The LOOP itself is Claude-only for now
+    // (it is JS control flow); this paragraph is a prompt string and belongs in BOTH shippers, so
+    // it lands here too rather than being claimed as parity it does not have.
+    rg_p += "5b. RENDER AT MORE THAN ONE WIDTH — a single viewport is a FIXTURE, and a layout defect\n";
+    rg_p += "   that only exists at one size is invisible to it. Measured case: a zone name rendered\n";
+    rg_p += "   as Worldston / e Keep because a badge sharing its flex row squeezed the name box to\n";
+    rg_p += "   134px against a 139px word. At the suite's own 1470px viewport that panel fits ONE\n";
+    rg_p += "   column, every name has room, and the defect DOES NOT EXIST — it only appears at\n";
+    rg_p += "   1920px where the grid goes two-up. Green gate, clean screenshot, bug on his screen.\n";
+    rg_p += "   So run the geometry assertions at a NARROW and a WIDE viewport (1280x900 and\n";
+    rg_p += "   1920x1200 are good defaults; add the project's own breakpoints, and prefer widths\n";
+    rg_p += "   where a grid changes column count, because that is where squeeze bugs live). Report\n";
+    rg_p += "   the width beside every failure (at 1920: <what>) and capture a screenshot at EACH\n";
+    rg_p += "   width. If a surface is width-independent, say so once rather than measuring twice.\n";
     rg_p += "6. SAVE THE SCREENSHOT TO A FILE and report every ABSOLUTE path in screenshots[]. A gate whose\n";
     rg_p += "   evidence nobody can open is a gate you have to take on faith. Empty screenshots[] with\n";
     rg_p += "   passed=true is a DOM-only pass wearing a badge — do not report one.\n";
