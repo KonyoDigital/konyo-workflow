@@ -40,9 +40,10 @@ That’s it.
 | **Plan** | Clear objective, checklist, success criteria |
 | **Build in rounds** | One coherent deliverable per round — not a mega-dump |
 | **Gate** | Prove it (tests, lint, smoke, evidence) before it counts |
-| **Third-eye** | Independent back-pass by the **same AI** (or another model) |
+| **Third-eye** | Independent back-pass — **SOLO** (same conversation) or **MULTI** (a reviewer that never saw you think) |
 | **Seal** | Version stamp + ship log; **draft** if not enough rounds, **blocked** if gates fail |
 | **Final ping** | One summary table for the human when the arc ends |
+| **Scar** | Whatever went wrong becomes a rule the next run loads — and when rules cluster, they graduate into a skill of their own |
 
 Under the hood the AI may use parallel helpers (one owner per surface) so work doesn’t thrash — that’s mechanics, not the pitch.  
 **The pitch is the ship quality bar.**
@@ -68,7 +69,36 @@ Not required: Obsidian, a new GitHub org, or foreign names. **Same spirit as a p
 | `SKILL.md` | The method — give this to the AI |
 | `install.sh` | Copies into `~/.konyo-workflow/` |
 | `docs/SHIP_LAWS.md` | 19 ship laws |
+| `automation/claude-desktop/` | **Claude Desktop skill** — upload the zip, no terminal, no second AI required |
+| `automation/claude-code/` | Claude Code engine (`konyo-workflow.js`) + `/KonyoTiny` `/KonyoLean` `/KonyoMax` |
 | `automation/workflows/` | Optional scripts if your setup can run them |
+
+---
+
+## No terminal? Use the Claude Desktop skill
+
+`automation/claude-desktop/konyo-workflow.zip` is the whole method as an uploadable
+skill. **Nothing to install, no API keys, no second AI**, and it works on Free.
+
+It runs at one of two settings, and the difference is independence, not effort:
+
+- **SOLO** — one conversation, structured self-review across four separate lenses.
+  The default, and honest about its ceiling: a model reviewing its own work has
+  blind spots in the same places it just built.
+- **MULTI** — the review happens in a **fresh conversation that never saw the
+  building**, so it has to be convinced by the artifact rather than by your
+  reasoning. Use it whenever being wrong is expensive. If you have a second AI, use
+  that instead — different model family, different blind spots.
+
+**And it learns.** Each run that goes wrong ends with a *scar block*: what broke,
+what it cost, how it was caught, the rule that prevents it, and where that rule now
+lives. You paste it into `SCARS.md`, which the skill reads before every run. When
+three scars land in the same territory, that territory has earned its own skill —
+the workflow carves a child skill and moves the rules into it.
+
+That is the compounding part: a generic workflow is worth something; one shaped by
+twenty of your own real mistakes is worth considerably more, and it can only be
+grown. See `automation/claude-desktop/INSTALL.md`.
 
 ---
 

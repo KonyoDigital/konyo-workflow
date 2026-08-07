@@ -1,6 +1,6 @@
 ---
 name: konyo-workflow
-description: Finish serious work properly - code, writing, research or analysis. Build in rounds, prove each with evidence, then adversarially try to break it. Ends in one verdict: SHIP, DRAFT or BLOCKED.
+description: Finish serious work properly - code, writing, research or analysis. Build in rounds, prove each with evidence, then adversarially try to break it. Runs SOLO (self-review) or MULTI (an independent reviewer that never saw you think). Ends in one verdict - SHIP, DRAFT or BLOCKED - and turns whatever went wrong into a durable rule, so the workflow gets better at YOUR work over time.
 ---
 
 # The Konyo Workflow
@@ -157,6 +157,74 @@ is designed to work alone, not to claim that working alone is as good.
 
 ---
 
+## Step 4b — SOLO or MULTI: how many independent looks this work gets
+
+Step 4 just told you the truth about itself: **one model reviewing its own work has
+correlated blind spots.** It tends to catch the errors it was already equipped to
+notice, and miss the ones baked into how it approached the problem.
+
+You cannot fix that by trying harder in the same breath. You fix it by **changing
+what the reviewer knows.** So this workflow runs at one of two settings, and the
+difference between them is not effort — it is *independence*.
+
+### SOLO — one conversation, structured self-review
+
+The default. Step 4 runs as written, in this same conversation, with the four
+lenses. Fast, free, and genuinely useful: most defects are ordinary and a
+disciplined re-read finds them.
+
+Use SOLO when being wrong is cheap and recoverable — a draft, an internal note, an
+experiment, anything you will look at again before it matters.
+
+### MULTI — a reviewer that has not seen you think
+
+Use MULTI when being wrong is expensive: anything going to a client, published,
+sent to a lot of people, spending money, or that you would be embarrassed to get
+wrong in public.
+
+MULTI means the review happens **in a fresh conversation that never saw the
+building.** That is the whole mechanism, and it is worth understanding why it
+works: a reviewer who watched you reason has already been persuaded by your
+reasoning. One that sees only the artifact has to be convinced by the artifact
+itself — which is the actual test.
+
+**How to run it (this is a real, manual step — there is no way to fake it):**
+
+1. Finish Steps 1-3. You now have a finished artifact.
+2. Open a **new conversation**. Not a new message — a new conversation, so none of
+   the building is in its context.
+3. Paste **only the artifact and the original request.** Not your plan, not your
+   reasoning, not "here's what I was going for", and not your own verdict. Those
+   are exactly the things that would contaminate the review.
+4. Ask it to run **Step 4's four lenses** and answer one question: *would you
+   approve this, and what is the strongest argument that it is wrong?*
+5. Bring the findings back and continue at Step 5.
+
+**One more turn of the same crank, when it really matters:** run step 3 twice more
+with a different lens named each time — once reading only for factual correctness,
+once reading only as the least sympathetic reader you can imagine. Separate passes
+beat one combined pass, because a reviewer looking for everything reliably drifts
+into looking for nothing.
+
+> **Say which mode you ran.** The seal in Step 6 must name SOLO or MULTI. A reader
+> deciding how much to trust this needs to know whether anything independent
+> actually looked at it — and "SOLO" is an honest answer, not a confession.
+
+### If you have access to a second AI
+
+Then use it for the Step 4 pass instead of a fresh Claude conversation. A different
+model family has blind spots in genuinely different places, which is strictly better
+than a fresh conversation with the same one. This skill does not require it and
+never assumes it — but if it is available, that is the strongest version of MULTI,
+and you should say which model reviewed.
+
+**MULTI is not "SOLO with more steps."** If you run the review in the same
+conversation and call it MULTI, you have the cost of the ceremony and none of the
+independence — which is worse than honestly running SOLO, because now the seal
+claims something untrue.
+
+---
+
 ## Step 5 — Fix, then re-prove
 
 Anything the back-pass found gets fixed, and then **proven again**. A fix is not
@@ -176,9 +244,117 @@ Report, briefly:
 - **How it was proven** — the checks and their results.
 - **What was NOT checked** — the honest boundary.
 - **How to undo it** — if it is the kind of work that can be undone.
+- **Mode** — SOLO or MULTI (Step 4b). If MULTI, say what reviewed it. A reader
+  deciding how far to trust this needs to know whether anything independent
+  actually looked, and SOLO is an honest answer.
+- **Scars** — did any existing scar apply, and did you follow its rule? Did this
+  run produce a new one? If yes, **print the scar block here**, ready to paste
+  (Step 7). If no, say "no scar" — that is a real answer, and saying it is what
+  stops the step being quietly skipped forever.
 
 Then stop. Do not append a list of things you did not do and call it next steps
 unless they were asked for.
+
+---
+
+## Step 7 — SCARS: turn what went wrong into something that cannot go wrong again
+
+Every workflow above this line makes *this* piece of work better. This step is the
+only one that makes the **next** piece of work better, and it is the reason to keep
+using the skill rather than just reading it once.
+
+Here is the problem it solves. A conversation ends and everything it learned dies
+with it. The next conversation starts from zero and is free to repeat the exact
+mistake you just spent an hour finding. Writing "be careful about X" in your notes
+does not help, because nobody re-reads their notes before starting.
+
+**A scar is a mistake that has been converted into a rule that loads itself.**
+
+### Recording one
+
+When something went genuinely wrong this run — a real error, a wrong assumption, a
+thing that had to be redone — write it down in exactly this shape, and put it in a
+file called `SCARS.md` inside this skill's folder:
+
+```
+WHAT BROKE   the summary quoted a number that was never in the source
+COST         it went out to 40 people before anyone noticed
+CAUGHT BY    re-reading the source, not re-reading my summary
+RULE         every figure in a summary gets traced back to the sentence it came
+             from, before the summary is finished
+GUARD        Step 3's check list — added "every number traced to source"
+```
+
+**All five lines, every time.** Four of them are a diary. The fifth is what makes it
+a defence, and it is the one people skip.
+
+- **RULE must be an instruction, not a regret.** "Be more careful with numbers" is
+  not a rule — nothing can follow it. "Trace every figure to the sentence it came
+  from" is a rule, because you can tell whether you did it.
+- **GUARD names where the rule now lives.** A step in this skill, a line in a
+  checklist, a question you now always ask. If you genuinely cannot think of one,
+  write `GUARD: NONE` — **honestly**. An honest NONE is a bug you know you can still
+  hit. A made-up guard is worse than nothing, because it reads as protected.
+
+### Reading them
+
+**At the start of every run, read `SCARS.md` first.** Before Step 1. It is usually
+short, and it is the only thing in the folder written by experience rather than by
+someone guessing in advance what would go wrong.
+
+Then, at Step 6, answer one question in the seal: *did any scar apply to this work,
+and did I follow its rule?*
+
+### Carving a new skill out of scars — the part that compounds
+
+Watch for **three or more scars in the same territory.** Not the same mistake three
+times — the same *area*: three about handling numbers, three about tone in client
+emails, three about a particular file or system.
+
+Three scars in one area is a signal. It means that area is not an occasional
+hazard, it is a **recurring kind of work** that deserves its own instructions.
+
+When you see it, do this:
+
+1. **Write a new skill.** A folder next to this one, with its own `SKILL.md`, named
+   for the territory — `checking-figures`, `client-emails`, `monthly-report`.
+2. **Put the rules in it,** turned from "don't do X" into how the work is done:
+   the steps, the order, the specific checks, the phrasing that worked, the trap
+   that keeps catching you. The scars are the raw material; the skill is the
+   finished procedure.
+3. **Say where they came from.** Each rule keeps a line naming the scar that
+   produced it. A rule whose origin is recorded survives someone asking "do we
+   still need this?" — a rule without one gets deleted by the first person tidying
+   up, and then it happens again.
+4. **Leave a pointer here,** so this skill knows to load the child when the work
+   is in that territory.
+
+That is the loop, and it is worth stating plainly because it is the whole idea:
+**doing the work produces scars → scars accumulate into a territory → the territory
+becomes a skill → the skill makes that work reliable → and the workflow is now
+better at your job specifically, not at jobs in general.**
+
+A generic workflow is worth something. One that has been shaped by twenty of your
+own real mistakes is worth considerably more, and nobody else can hand it to you —
+it can only be grown.
+
+### ⚠ The honest limitation
+
+**Claude cannot write to the skill folder by itself.** So the mechanism has exactly
+one manual step, and pretending otherwise would guarantee it silently stops working:
+
+> Claude ends the run by **printing the scar block**, formatted and ready. You paste
+> it into `SCARS.md`. Ten seconds.
+
+If you skip the paste, the scar is lost and nothing warns you — the run still looks
+successful. So the seal in Step 6 asks whether a scar was produced, which at least
+makes the loss visible at the moment it happens rather than three months later when
+you hit the same bug again.
+
+**And do not let it grow into a wall of text.** A `SCARS.md` nobody reads has failed
+in the same way notes fail. When one area gets crowded, that is not a problem to
+tidy up — it is the signal to carve it into a skill and remove those entries from
+the list. The file should stay short *because* things keep graduating out of it.
 
 ---
 
@@ -196,6 +372,8 @@ Skip what does not apply — but say you skipped it and why. Silence reads as "p
 | Clarity | Would the intended reader understand it without you explaining? |
 | Stale claims | Does anything still describe the old behaviour? |
 | Reversible | Can this be undone, and is that written down? |
+| Scars read | Did you read `SCARS.md` before starting, and did any entry apply here? |
+| Mode named | Does the seal say SOLO or MULTI, truthfully? |
 
 **Applies to code and technical work** *(mark N/A for writing, research or analysis)*
 
