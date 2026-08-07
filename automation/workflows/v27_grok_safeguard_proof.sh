@@ -106,6 +106,21 @@ has "v30 safeguards flag" 'v30_meter_routing'
 has "max not for volume flag" 'v30_max_not_for_volume_arcs'
 has "item cap applied log" 'v30 ITEM CAP'
 
+
+echo ""
+echo "v31 RENDER‖LAW19 CONCURRENT + images_na + rich LAW19 (2026-08-07)"
+has "v31 concurrent hop log" 'v31 CONCURRENT HOP'
+has "reach_schema declared" 'let reach_schema'
+has "parallel gate_jobs first hop" 'law19:reachability'
+has "parallel first render label" 'law18:render-1'
+has "images_na fail closed" 'NO IMAGE WAS EVER OPENED'
+has "IMAGE wrong thing blocker" 'IMAGE SHOWS THE WRONG THING'
+has "v31 concurrent safeguard flag" 'v31_render_law19_concurrent_first_hop'
+has "v31 images_na safeguard flag" 'v31_images_na_fail_closed'
+has "v31 reach rich schema flag" 'v31_reach_rich_schema'
+has "thin_panels in payload" 'thin_panel_count: thin_panels.len()'
+has "phase Render concurrent" 'Render ‖ Reachability'
+
 if [[ "$fail" -eq 0 ]]; then
   echo "ALL SAFEGUARD CONTRACTS PRESENT."
   exit 0

@@ -1,6 +1,6 @@
 # Grok Build workflows (Konyo)
 
-**Parity target:** Claude Code `konyo-workflow.js` **v27.1+** + **v26 render loop** + **v28** (PACE+PROXY, PHASE_PLAN, PASSED|CEILING|STALLED) + **v28.1** early lock release + **v29** scar law + **v30** meter routing / fleet caps / thrash+tip honesty (2026-08-07).
+**Parity target:** Claude Code `konyo-workflow.js` **v27.1+** concurrent LAW19‖render (**v22**) + **v26** render loop + **v28** (PACE+PROXY, PHASE_PLAN, PASSED|CEILING|STALLED) + **v28.1** early lock release + **v29** scar law + **v30** meter routing + **v31** concurrent first hop on Grok (2026-08-07).
 
 | Slash | File | Role |
 |-------|------|------|
@@ -11,6 +11,10 @@
 > That body is retired to `konyo-workflow.rhai.bak-audit-only-2026-08-07`.
 > The live script is an **implementer**. **v30** adds meter routing after a measured
 > max run burned 2h+ on a “30 whole-console versions” brief (ceiling + thrash).
+> **v31** ports Claude’s concurrent LAW19‖render hop: Rhai has no fire-and-forget
+> `spawn`, so the first render pass and LAW19 run in one `parallel()` barrier;
+> the fix/re-render loop stays serial; fat bar stays downstream. Also hard-fails
+> empty `images[]` without `images_na_reason`, and uses Claude’s rich LAW19 schema.
 
 ## How to invoke (Grok Build)
 
