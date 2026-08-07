@@ -90,6 +90,12 @@ It runs at one of two settings, and the difference is independence, not effort:
   reasoning. Use it whenever being wrong is expensive. If you have a second AI, use
   that instead — different model family, different blind spots.
 
+**And it knows when to stop.** Fix → re-prove is a loop, so it stops for one of
+three stated reasons — **PASSED**, **CEILING** (still failing, but the failure kept
+changing, so give it room) or **STALLED** (the same failure twice running — stop and
+change the approach, don't raise the limit). Collapsing the last two into "didn't
+work" is how an hour goes into the version that cannot work.
+
 **And it learns.** Each run that goes wrong ends with a *scar block*: what broke,
 what it cost, how it was caught, the rule that prevents it, and where that rule now
 lives. You paste it into `SCARS.md`, which the skill reads before every run. When
