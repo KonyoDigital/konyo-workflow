@@ -1,7 +1,7 @@
 export const meta = {
   name: 'konyo-workflow',
-  description: 'KONYO WORKFLOW — ONE body, three paths (lean | max | standard). RUNS AT LEAN BY DEFAULT (his instruction, 2026-08-04): EVERY gate max runs — diverse-lens skeptic panel, render gate with vision, LAW17, LAW19, workspace lock, agent ceiling — at ~62% of the tokens, by buying ONE architect instead of a judge panel, one rework round, no completeness critic, and risk:"low" items at the tier their own architect asked for (floored at sonnet; the review is Opus either way, and a failed cheap build escalates on rework). The third eye (Grok — a different model family) is ON at every quality. Pass {quality:"max"} to add the 3-architect judge panel, Opus builders everywhere and the loop-until-dry completeness critic — worth it when being wrong costs more than tokens. Pass {quality:"tiny"} for a SMALL, KNOWN edit set with a ~15-minute wall-clock budget: it REQUIRES an explicit items:[{file,instruction}] work list (max 4 items across 3 files, no diagnosis) and refuses without one, then skips the PLANNING hops only — no triage, no architect, no third-eye plan seat, no completeness critic, no synthesizer — while keeping every gate: the 2-seat adversarial panel, LAW19 reachability, the render gate with vision, LAW17, and the workspace lock. Reachability and the render gate run CONCURRENTLY. v26 — THE RENDER GATE IS NOW A LOOP at every quality: it renders at a narrow AND a wide viewport, and a failure is handed to a fixer and re-rendered (tiny 2 passes / lean 3 / max 4) instead of only being reported. The FINAL pass is what blocks. Pass {quality:"standard"} to opt DOWN to the cost-scaled ladder (Haiku/Sonnet build, Fable gates every merge, ONE architect, no completeness critic). Pass {thirdEye:false} to run without an independent reviewer. LEAN IS NOT MAX-WITH-FEWER-SAFEGUARDS: the flag buys model tier, panel size and extra phases, never a gate.',
-  whenToUse: 'ANY multi-step task you want orchestrated — it is LEAN unless you say otherwise, because lean already runs every gate and max only buys a judge panel, Opus builders and the completeness critic. It TRIAGES itself first, so a serial diagnosis is sent back to be done directly instead of spawning a fleet, and the ceiling + budget floor still bound every run. Reach for {quality:"tiny"} when you already know the exact edits (file + instruction each) and want them done in ~15 minutes with the gates intact — it is a HOP budget, not an agent budget: wall clock is serial-hops × time-per-hop, so tiny cuts the chain from 11 phases to 4 rather than trimming agents. Reach for {quality:"max"} when the cost of being wrong is high — irreversible edits, data migrations, anything shipping unattended. Opt all the way down with {quality:"standard"} for routine, low-cost-of-wrong, easily reversible work (~10-15x cheaper). Pass {task, quality, thirdEye, apply, maxRounds, dryRounds, budgetFloor, force, skeptics, maxAgents, isolate, items}. items:[{file,instruction}] skips the architect at ANY quality (not only tiny) — an architect that returns items:[] no longer becomes a vacuous green ship. `grok:false` still works as the old name for thirdEye:false; `fast` still resolves to `lean`.',
+  description: 'KONYO WORKFLOW — ONE body, three paths (lean | max | standard). RUNS AT LEAN BY DEFAULT (his instruction, 2026-08-04): EVERY gate max runs — diverse-lens skeptic panel, render gate with vision, LAW17, LAW19, workspace lock, agent ceiling — at ~62% of the tokens, by buying ONE architect instead of a judge panel, one rework round, no completeness critic, and risk:"low" items at the tier their own architect asked for (floored at sonnet; the review is Opus either way, and a failed cheap build escalates on rework). The third eye (Grok — a different model family) is ON at every quality. Pass {quality:"max"} to add the 3-architect judge panel, Opus builders everywhere and the loop-until-dry completeness critic — worth it when being wrong costs more than tokens. Pass {quality:"tiny"} for a SMALL, KNOWN edit set with a ~15-minute wall-clock budget: it REQUIRES an explicit items:[{file,instruction}] work list (max 4 items across 3 files, no diagnosis) and refuses without one, then skips the PLANNING hops only — no triage, no architect, no third-eye plan seat, no completeness critic, no synthesizer — while keeping every gate: the 2-seat adversarial panel, LAW19 reachability, the render gate with vision, LAW17, and the workspace lock. Reachability and the render gate run CONCURRENTLY. v26 — THE RENDER GATE IS NOW A LOOP at every quality: it renders at a narrow AND a wide viewport, and a failure is handed to a fixer and re-rendered (tiny 2 passes / lean 3 / max 4) instead of only being reported. The FINAL pass is what blocks. Pass {quality:"standard"} to opt DOWN to the cost-scaled ladder (Haiku/Sonnet build, Fable gates every merge, ONE architect, no completeness critic). Pass {thirdEye:false} to run without an independent reviewer. LEAN IS NOT MAX-WITH-FEWER-SAFEGUARDS: the flag buys model tier, panel size and extra phases, never a gate. v30 METER ROUTING (Grok parity): item caps by quality, volume-arc heuristic, tip honesty + thrash resistance; max is not volume.',
+  whenToUse: 'ANY multi-step task you want orchestrated — it is LEAN unless you say otherwise, because lean already runs every gate and max only buys a judge panel, Opus builders and the completeness critic. It TRIAGES itself first, so a serial diagnosis is sent back to be done directly instead of spawning a fleet, and the ceiling + budget floor still bound every run. Reach for {quality:"tiny"} when you already know the exact edits (file + instruction each) and want them done in ~15 minutes with the gates intact — it is a HOP budget, not an agent budget: wall clock is serial-hops × time-per-hop, so tiny cuts the chain from 11 phases to 4 rather than trimming agents. Reach for {quality:"max"} when the cost of being wrong is high — irreversible edits, data migrations, anything shipping unattended. Opt all the way down with {quality:"standard"} for routine, low-cost-of-wrong, easily reversible work (~10-15x cheaper). Pass {task, quality, thirdEye, apply, maxRounds, dryRounds, budgetFloor, force, skeptics, maxAgents, isolate, items, maxItems}. items:[{file,instruction}] skips the architect at ANY quality (not only tiny) — an architect that returns items:[] no longer becomes a vacuous green ship. v30 meter routing: quality item caps (tiny4/max6/lean8/standard10), volume-arc heuristic, thrash/tip craft — max is NOT for 30-version volume arcs (use N lean/tiny slices). `grok:false` still works as the old name for thirdEye:false; `fast` still resolves to `lean`.',
   phases: [
     { title: 'Preflight',   detail: 'workspace lock — refuse to start if another run is already editing this tree' },
     { title: 'Triage',      detail: 'right-size the run BEFORE spending: shape · parallelism · cost-of-wrong. SKIPPED at quality:"tiny" — the caller supplied the work list', model: 'opus' },
@@ -168,6 +168,28 @@ const USE_GROK  = THIRD_EYE !== 'off'   // legacy name kept so no existing call 
 const FORCE     = !!(A && A.force)                 // run the fleet even if triage says do it directly
 const SKEPTICS_OVERRIDE = (A && typeof A.skeptics === 'number') ? A.skeptics : null
 const MAX_AGENTS = (A && A.maxAgents) || 24
+/* ══ v30 · METER ROUTING (port of Grok shipper, 2026-08-07) ═════════════════════════════════════
+   Measured: quality:max + a "ship 30 versions / whole-console arc" brief → 2h+, agent ceiling,
+   render CEILING, PARTIAL ship, and concurrent fleets thrashing VERSION. Max is the expensive path
+   for a SMALL high-stakes list — not a volume throttle. Item caps by quality keep the fleet honest:
+   tiny 4 (already refused above), max 6, lean 8, standard 10. Caller may raise with {maxItems:N}
+   up to 24. Volume-arc heuristic is non-blocking but LOUD. Thrash/tip craft rides on FAT_LAW. */
+let MAX_ITEMS_CAP = 8
+if (TINYQ) MAX_ITEMS_CAP = 4
+else if (LEANQ) MAX_ITEMS_CAP = 8
+else if (QUALITY === 'standard') MAX_ITEMS_CAP = 10
+else if (MAXONLY) MAX_ITEMS_CAP = 6
+if (A && typeof A.maxItems === 'number') MAX_ITEMS_CAP = A.maxItems
+if (A && typeof A.max_items === 'number') MAX_ITEMS_CAP = A.max_items
+MAX_ITEMS_CAP = Math.max(1, Math.min(24, MAX_ITEMS_CAP | 0))
+const _taskLc = String(TASK || '').toLowerCase()
+const LOOKS_LIKE_VOLUME_ARC = (
+  /\b30 version/.test(_taskLc) || /\b30 real/.test(_taskLc) || /\b100 version/.test(_taskLc) ||
+  _taskLc.includes('whole-console versions') || _taskLc.includes('whole console versions') ||
+  _taskLc.includes('arc d of') || _taskLc.includes('ship them all') || _taskLc.includes('finish them all') ||
+  /\b(ship|do|finish)\s+(the\s+)?(whole|entire)\s+(arc|console|product)\b/.test(_taskLc) ||
+  /\b\d{2,}\s+(versions?|stamps?)\b/.test(_taskLc)
+)
 /* v18.3 — THE FIXED COSTS OF FINISHING, IN ONE PLACE. Every run pays for its closing gates and its
    report whatever the plan looks like, so both the plan trim and the feasibility line must subtract
    the SAME numbers. They used to keep separate copies (2 vs 5+2), which is how a plan got waved
@@ -618,7 +640,19 @@ const FAT_LAW =
   `fluff does not clear the bar; expand the plan until it does, or state plainly that the work is ` +
   `below a version stamp. Never micro-stamp one version per one-liner. This is NOT a licence to ` +
   `inflate the fleet: the triage agent cap stands — fold MORE OUTCOMES into the SAME items, do not ` +
-  `spawn more items.`
+  `spawn more items.\n` +
+  /* v30 — VERSION ARC / TIP / THRASH (Grok meter routing, measured 2026-08-07). */
+  `VERSION ARC DISCIPLINE (v30): Do NOT plan one integer per micro-edit, and do NOT plan 10–30 ` +
+  `empty/hollow stamps. Prefer fewer FAT packages. If the human asked for a multi-version arc, ` +
+  `slice it: each RUN ships a small fat package; the NEXT run continues. quality:max is for a SMALL ` +
+  `high-stakes list (items[] preferred, <=6 files), never for 'do the whole arc of 30'. Use lean/tiny ` +
+  `for volume.\n` +
+  `TIP HONESTY (v30): VERSION stamp, CHANGELOG tip, and HANDOFF tip trail must name the SAME integer. ` +
+  `Never rewind VERSION. Never invent empty fleet stamp gaps. Prefer the project's version-bump tool ` +
+  `(and --allow-skip only when deliberate). The project's suite runner is the gate when the tree has it.\n` +
+  `THRASH RESISTANCE (v30): Never add import-time rewrites of production modules, exec splits of source, ` +
+  `or helper scripts that write_text server/source as a "ship". Native commits only. Shared lock with ` +
+  `Grok fleets must be respected — two fleets on one tree is double spend + silent overwrite.`
 const BUILD_SCHEMA = {
   type: 'object', additionalProperties: false,
   required: ['file', 'summary', 'changes', 'self_check', 'files_touched'],
@@ -1047,6 +1081,20 @@ if (QUALITY_TYPO) log(`⚠ quality:"${QUALITY_ASKED}" is not a quality this work
 if (QUALITY_DEFAULTED) log('   (lean is the default — EVERY gate max runs, at ~62% of the tokens: one architect ' +
     'instead of a judge panel, one rework round, no completeness critic, low-risk items built at their ' +
     'architect\'s tier. Pass {quality:"max"} for the judge panel + completeness critic; {quality:"standard"} for the cost-scaled ladder)')
+log(`v30 METER: maxItems=${MAX_ITEMS_CAP} (quality=${QUALITY}) · volumeArcHeuristic=${LOOKS_LIKE_VOLUME_ARC}`)
+if (LOOKS_LIKE_VOLUME_ARC) {
+  log('⚠ v30 METER ROUTING: this task reads like a MULTI-VERSION VOLUME arc.')
+  if (MAXONLY) {
+    log('   quality=max is the expensive path. Prefer lean/tiny slices with items[], not one max fleet.')
+    log(`   This run will hard-cap items at ${MAX_ITEMS_CAP} and report PARTIAL if more were planned.`)
+    log('   Measured: max + 30-version brief → 2h+, agent ceiling, render CEILING, thrash on VERSION.')
+  } else {
+    log(`   quality=${QUALITY} is appropriate for volume — keep each package FAT (LAW17), not 30 hollow stamps.`)
+  }
+}
+if (MAXONLY && FORCE) {
+  log('⚠ v30: quality=max + force:true — triage cannot send this back to the main loop. Keep the item list SMALL.')
+}
 
 // 0) TRIAGE — decide the size of the run before buying any of it.
 //
@@ -1365,6 +1413,15 @@ if (TINYQ || HAS_CALLER_ITEMS) {
   log(_anch === raw.length
     ? `   every item carries an ANCHOR — builders and gates jump instead of searching (the real cost on big files).`
     : `   ⚠ ${raw.length - _anch}/${raw.length} item(s) have NO \`anchor\` — on a large file that is 8-10 min per hop of SEARCHING, paid again by every skeptic and the render gate. Pass anchor:'~line N, symbolName' next time.`)
+  // v30 — quality item cap also applies to caller items (tiny already refused >4 upstream)
+  if (plan.items.length > MAX_ITEMS_CAP) {
+    log(`v30 ITEM CAP on caller items[]: ${plan.items.length} → ${MAX_ITEMS_CAP}`)
+    for (const dropped of plan.items.slice(MAX_ITEMS_CAP)) {
+      // trimmedFromPlan does not exist yet — stash on global for later merge into the real array
+      ;(globalThis.__v30CallerTrimmed = globalThis.__v30CallerTrimmed || []).push(dropped.file)
+    }
+    plan.items = plan.items.slice(0, MAX_ITEMS_CAP)
+  }
 }
 /* ── v20.1 — RIGHT-SIZE THE PANEL, AND REPORT THE SIZE ───────────────────────────────────────────
    MEASURED, v1635: the 20+ agent ceiling went entirely to the architect panel, the builders and the
@@ -1450,6 +1507,9 @@ plan = await spawn(
       `${globalThis.__triage.est_agents} agents. Produce AT MOST ${Math.max(1, Math.min(24, globalThis.__triage.est_agents))} items. ` +
       `Fewer, larger items beat many thin ones — every extra item costs a build AND its gate.\n`
     : '') +
+  `\nITEM CAP THIS RUN (v30 meter routing, quality=${QUALITY}): produce AT MOST ${MAX_ITEMS_CAP} items. ` +
+  `quality:max is for SMALL high-stakes lists, not volume arcs — lean/tiny slices ship multi-version work. ` +
+  `Fewer, FATTER packages beat 30 hollow stamps.\n` +
   `\nFAT VERSION LAW (LAW17): ONE version integer must package real work — (A) >=3 user-visible ` +
   `outcomes in one theme, OR (B) one structural bug with root cause + verification + prevention. ` +
   `A plan whose entire content is one toast / one label / one i18n key / one CSS one-liner / docs ` +
@@ -1576,6 +1636,18 @@ if (MAXQ) {
     items = items.slice(0, roomForItems)
   }
 }
+// v30 — quality item cap (meter routing). Applied AFTER ceiling math so both bounds hold.
+// Rest → follow-up / PARTIAL via the same trimmedFromPlan ledger.
+if (Array.isArray(globalThis.__v30CallerTrimmed) && globalThis.__v30CallerTrimmed.length) {
+  for (const f of globalThis.__v30CallerTrimmed) trimmedFromPlan.push(f)
+  globalThis.__v30CallerTrimmed = []
+}
+if (items.length > MAX_ITEMS_CAP) {
+  log(`v30 ITEM CAP (quality=${QUALITY}): plan had ${items.length} items; keeping ${MAX_ITEMS_CAP} ` +
+      `(rest → follow-up / PARTIAL). Max is not a volume throttle.`)
+  for (const dropped of items.slice(MAX_ITEMS_CAP)) trimmedFromPlan.push(dropped.file)
+  items = items.slice(0, MAX_ITEMS_CAP)
+}
 /* v21.1 — COUNT THE TIERS THAT WILL ACTUALLY BE BOUGHT, NOT THE ONES THAT WERE ASKED FOR.
    v20 fixed the GATING of the parenthetical (it no longer claims quality=max on a lean run) and
    left the halves of the line contradicting each other anyway: the counts came straight off
@@ -1592,6 +1664,11 @@ log(`Plan "${plan.version_label}": ${items.length} items — ` +
     ((MAXONLY) ? ' (effective tiers — quality=max builds everything at Opus)'
       : LEANQ ? " (effective tiers — quality=lean honours the architect's tier on risk:low items, floored at sonnet; opus otherwise)"
       : ' (effective tiers — cost-scaled ladder, escalates on rework)'))
+log(`v30 itemCap=${MAX_ITEMS_CAP} (quality routing) · volumeArc=${LOOKS_LIKE_VOLUME_ARC}` +
+    (trimmedFromPlan.length ? ` · trimmedFromPlan=${trimmedFromPlan.length}` : ''))
+if (LOOKS_LIKE_VOLUME_ARC && MAXONLY) {
+  log('⚠ v30: volume-arc task under MAX — expect PARTIAL; schedule remaining stamps as lean follow-ups.')
+}
 
 /* ── v11 — FEASIBILITY, ANNOUNCED BEFORE THE MONEY IS SPENT (max only) ───────────────────────────
    The ceiling is honest but it is a TRIPWIRE: it tells you the run was truncated only once it has
@@ -2676,6 +2753,15 @@ return emit({
   shipped,
   passed: passed.length,
   failed: failed.length,
+  // v30 — meter routing (Grok parity 2026-08-07)
+  max_items_cap: MAX_ITEMS_CAP,
+  volume_arc_heuristic: LOOKS_LIKE_VOLUME_ARC,
+  safeguards: {
+    v30_meter_routing: true,
+    v30_item_cap_by_quality: true,
+    v30_max_not_for_volume_arcs: true,
+    v30_tip_honesty_and_thrash: true,
+  },
   render_gate: renderGate,
   /* v26 — the loop, reported rather than inferred. `converged:true` means a render came back clean;
      anything else names WHY it stopped, so "2 passes" never has to be read as "it worked". */
