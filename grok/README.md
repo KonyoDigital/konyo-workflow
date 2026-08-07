@@ -43,7 +43,7 @@
 | `apply` | `false` | `true` = builders edit; `false` = dry-run diffs only |
 | `quality` | `lean` | `lean` · `max` · `standard` · `tiny` (`fast`→`lean`) |
 | `force` | `false` | Override triage `direct` |
-| `items` | — | Required for `tiny`: `[{file, instruction, risk?, anchor?}]` |
+| `items` | — | `[{file, instruction, risk?, anchor?}]` — **skips architect at ANY quality** (required for tiny). Empty architect plans no longer die as "after caps". |
 | `skeptics` | triage / floor | Explicit seat count; `0` = human opt-out |
 | `isolate` | `false` | Worktree builders + merge (`git apply --check`) |
 | `thirdEye` | `claude` | `claude` (different family) · `grok` (same-family, labelled degraded) · `false` off |
