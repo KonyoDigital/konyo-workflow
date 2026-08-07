@@ -1,40 +1,94 @@
 # Grok Build workflows (Konyo)
 
+**Parity target:** Claude Code `konyo-workflow.js` (v26+ lean default, apply mode, army, skeptic gate, LAW17/18/19).
+
 | Slash | File | Role |
 |-------|------|------|
-| **`/konyo-workflow`** | `../automation/workflows/konyo-workflow.rhai` | Standard shipper · **LAW17 fat version bar** · **LAW18 painted-UI proof** |
-| **`/konyo-workflow-max`** | `konyo-workflow-max.rhai` | MAX · Grok builds · **Claude Opus** third-eye · same fat bar · same painted-UI proof |
+| **`/konyo-workflow`** | `../automation/workflows/konyo-workflow.rhai` | **Full implementer** · lean default · `{apply:true}` writes · third-eye = Claude CLI |
+| **`/konyo-workflow-max`** | `konyo-workflow-max.rhai` | **DEPRECATED notice only** — MAX is `{quality:"max"}` on `/konyo-workflow` |
 
-## Painted-UI proof (LAW18, both workflows)
+> **2026-08-07:** The Grok shipper was **audit-only** (read-only laws panel, no builders).
+> That body is retired to `konyo-workflow.rhai.bak-audit-only-2026-08-07`.
+> The live script is now an **implementer** with the same quality knob and gates as Claude.
 
-Both Grok shippers now carry the same render gate the Claude Code ones do, and it is a **ship
-blocker**. It reads the project's **CI verdict first** (`gh run list` / `gh run view --log-failed`)
-and only drives a browser locally when there is no CI gate at all — a fleet of agents each starting
-Chromium is how a laptop gets saturated. `available:false` is the honest answer when a project has
-no UI verification; inventing a passing result, or installing a framework unasked, is itself a
-violation.
+## How to invoke (Grok Build)
 
-## Fat version law (both workflows)
+```text
+# Lean default, dry-run (propose only — safe)
+/konyo-workflow {"task":"…"}
 
-A version integer is earned only when the package is **fat**:
+# Actually edit files
+/konyo-workflow {"task":"…","apply":true}
 
-| Ship | Not a ship |
-|------|------------|
-| **≥3 user-visible outcomes** in one theme | One toast / one label / one `data-i18n` |
-| **OR one structural bug** (root cause + verify + prevention) | Docs fluff alone |
-| One changelog body that names the outcomes | Fifty thin `## vN` headers for one theme |
+# Max when being wrong is expensive
+/konyo-workflow {"task":"…","apply":true,"quality":"max"}
 
-Maximize work **inside** the version. Do not climb the stamp for micro-edits.
+# Tiny: known edit set, ~15-minute hop budget, every ship gate kept
+/konyo-workflow {"task":"…","apply":true,"quality":"tiny","items":[
+  {"file":"/abs/path","instruction":"…","risk":"low","anchor":"~line N, symbol"}
+]}
 
-## MAX doctrine
+# Standard cheap ladder
+/konyo-workflow {"task":"…","apply":true,"quality":"standard"}
 
-- **Host:** Grok (plan / build / synthesize)
-- **Third-eye:** Claude **Opus** only (`claude -p --model opus`) — never Fable
-- Fail closed if Opus did not run
+# Push only after shippable (builders never push)
+/konyo-workflow {"task":"…","apply":true,"push":true}
+```
 
-Install:
+### Args (same names as Claude where possible)
+
+| Arg | Default | Meaning |
+|-----|---------|---------|
+| `task` / `objective` | required | What to ship |
+| `apply` | `false` | `true` = builders edit; `false` = dry-run diffs only |
+| `quality` | `lean` | `lean` · `max` · `standard` · `tiny` (`fast`→`lean`) |
+| `force` | `false` | Override triage `direct` |
+| `items` | — | Required for `tiny`: `[{file, instruction, risk?, anchor?}]` |
+| `skeptics` | triage / floor | Explicit seat count; `0` = human opt-out |
+| `isolate` | `false` | Worktree builders + merge (`git apply --check`) |
+| `thirdEye` | `claude` | `claude` (different family) · `grok` (same-family, labelled degraded) · `false` off |
+| `push` | `false` | Ship phase may `git push` only if shippable; never `--force` |
+| `maxAgents` | `24` | Hard ceiling |
+| `ignoreLock` | `false` | Proceed over a live workspace lock |
+
+## Quality law (identical spirit to Claude)
+
+- **LEAN (default):** every ship gate runs; one architect; no completeness critic; efficient builders.
+- **MAX:** multi-round rework + completeness critic (hunt unplanned work) + deepest tier prompts.
+- **STANDARD:** cheaper ladder; fable-style per-item gate when skeptics=0.
+- **TINY:** skips planning hops only — **never** skips adversarial / LAW17 / LAW18 / LAW19 / lock.
+
+`quality` may change **tier depth, panel size, extra phases** — never whether a safeguard runs.
+
+## Host differences (named, not papered over)
+
+| | Claude Code host | Grok Build host |
+|--|------------------|-----------------|
+| Engine | `konyo-workflow.js` | `konyo-workflow.rhai` |
+| Builders | Opus/Sonnet/Haiku ladder | Grok agents + **depth directive** in prompt (one model family) |
+| Third eye default | **Grok CLI** | **Claude CLI** (`claude -p --model opus`) |
+| Write boundary | harness tools | `capability_mode`: `read-only` / `read-write` / `all` |
+| Workspace lock | `~/.claude/workflows/.locks/` | **same dir** (fleets exclude each other) |
+
+A same-family stand-in is never a silent fallback. Empty third-eye seat is reported empty.
+
+## Gates (all qualities when applying)
+
+1. Workspace lock (apply only)
+2. Adversarial skeptic panel (floor 2 at max/lean apply)
+3. LAW17 fat version bar
+4. LAW18 painted-UI proof (`available:false` honest when no UI)
+5. LAW19 reachability (caller + writer; tests proven to run)
+6. Ship push only if shippable **and** `{push:true}`
+
+## Install
 
 ```bash
+# from konyo-workflow repo
+./install.sh
+# or:
 cp automation/workflows/konyo-workflow.rhai ~/.grok/workflows/
-cp grok/konyo-workflow-max.rhai ~/.grok/workflows/
+cp grok/konyo-workflow-max.rhai ~/.grok/workflows/   # deprecation notice only
 ```
+
+Also mirrored at `~/.konyo-workflow/workflows/konyo-workflow.rhai`.

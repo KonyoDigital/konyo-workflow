@@ -12,17 +12,16 @@ if [[ -f "$ROOT/SKILL.md" ]]; then
   [[ -f "$ROOT/docs/SHIP_LAWS.md" ]] && cp "$ROOT/docs/SHIP_LAWS.md" "$DEST/SHIP_LAWS.md" || true
   if [[ -d "$ROOT/automation/workflows" ]]; then
     cp "$ROOT/automation/workflows/"*.rhai "$DEST/workflows/" 2>/dev/null || true
-    # The Grok CLI loads from ~/.grok/workflows, and until now ONLY grok/*.rhai was copied
-    # there — so ~/.grok/workflows/konyo-workflow.rhai (the standard shipper) had no update
-    # path at all and silently rotted. Found it 145 lines behind the repo, missing LAW17,
-    # LAW18 and LAW19 entirely: /konyo-workflow on Grok was running a shipper with three
-    # fewer blocking gates than the same-named one on Claude Code, which is exactly the
-    # cross-host drift the law table was written to stop.
+    # The Grok CLI loads from ~/.grok/workflows. automation/workflows/ holds the
+    # LIVE implementer (parity with Claude Code konyo-workflow.js). grok/*.rhai holds
+    # the MAX deprecation notice and host docs. Both must land under ~/.grok/workflows
+    # or Grok silently runs a stale shipper (this happened once: audit-only body with
+    # three fewer gates than Claude — the cross-host drift the law table exists to stop).
     if [[ -d "${HOME}/.grok/workflows" ]]; then
       cp "$ROOT/automation/workflows/"*.rhai "${HOME}/.grok/workflows/" 2>/dev/null || true
     fi
   fi
-  # Grok Build MAX (third-eye = Claude CLI)
+  # Grok Build extras (MAX entry is a deprecation notice → quality:"max" on the one body)
   if [[ -d "$ROOT/grok" ]]; then
     cp "$ROOT/grok/"*.rhai "$DEST/workflows/" 2>/dev/null || true
     if [[ -d "${HOME}/.grok/workflows" ]]; then
@@ -65,4 +64,5 @@ fi
 echo "✅ Konyo Workflow installed to $DEST"
 echo "   Give your AI: $DEST/SKILL.md"
 echo "   Say: Use the Konyo Workflow."
-echo "   Grok MAX (Claude third-eye): /konyo-workflow-max  (needs ~/.grok/workflows/)"
+echo "   Grok implementer: /konyo-workflow {\"task\":\"…\",\"apply\":true}  (lean default; quality:max|standard|tiny)"
+echo "   Grok third-eye = Claude CLI.  /konyo-workflow-max is a deprecation notice only."
