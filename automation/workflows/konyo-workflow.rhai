@@ -1,7 +1,7 @@
 let meta = #{
     name: "konyo-workflow",
-    description: "KONYO WORKFLOW for Grok Build — FULL IMPLEMENTER (not audit-only). ONE body, four qualities (lean|max|standard|tiny). LEAN is the default: every ship gate runs (adversarial panel, LAW17/18/19, workspace lock, agent ceiling) while max buys a multi-architect panel, completeness critic, and deeper rework. Pass {apply:true} to edit files; apply:false is dry-run (propose only). Third eye is Claude (different family) via the claude CLI — never a same-family stand-in unless thirdEye:\"claude\". Pass {task, quality, apply, force, items, skeptics, isolate, thirdEye, maxAgents, ignoreLock, push, renderLoop}. items:[{file,instruction}] skips the architect at ANY quality (not only tiny) — empty architect plans no longer die as \"after caps\". v26 render LOOP; v27/v27.1 SHIPPABLE; v28 PACE+PROXY+PHASE_PLAN+PASSED|CEILING|STALLED; v28.1 early lock release; v29 scar law FOUNDING vs LEARNED + EVIDENCE + undo snapshot (desktop/Prime Continual Harness parity).",
-    when_to_use: "ANY multi-step ship on Grok Build. Bare call = lean + dry-run. {apply:true} to write. {quality:\"max\"} when being wrong is expensive. {quality:\"tiny\", apply:true, items:[{file,instruction}]} for a known small edit set. {quality:\"standard\"} for the cheap ladder. Parity target: Claude Code konyo-workflow.js v27.1 + v26 render loop + desktop skill stop reasons + scar founding/learned/evidence (v29).",
+    description: "KONYO WORKFLOW for Grok Build — FULL IMPLEMENTER (not audit-only). ONE body, four qualities (lean|max|standard|tiny). LEAN is the default: every ship gate runs (adversarial panel, LAW17/18/19, workspace lock, agent ceiling) while max buys a multi-architect panel, completeness critic, and deeper rework. Pass {apply:true} to edit files; apply:false is dry-run (propose only). Third eye is Claude (different family) via the claude CLI — never a same-family stand-in unless thirdEye:\"claude\". Pass {task, quality, apply, force, items, skeptics, isolate, thirdEye, maxAgents, ignoreLock, push, renderLoop}. items:[{file,instruction}] skips the architect at ANY quality (not only tiny) — empty architect plans no longer die as \"after caps\". v26 render LOOP; v27/v27.1 SHIPPABLE; v28 PACE+PROXY+PHASE_PLAN+PASSED|CEILING|STALLED; v28.1 early lock release; v29 scar law FOUNDING vs LEARNED + EVIDENCE + undo snapshot; v30 METER ROUTING + FLEET CAPS + THRASH/TIP honesty (2026-08-07: max is NOT for 30-version arcs; lean/tiny for volume; concurrent fleets must not thrash VERSION).",
+    when_to_use: "ANY multi-step ship on Grok Build. Bare call = lean + dry-run. {apply:true} to write. {quality:\"max\"} ONLY when being wrong is expensive AND the work list is SMALL (prefer items[] of <=6 files) — never for 'ship 30 versions' or whole-product arcs in one run. {quality:\"tiny\", apply:true, items:[{file,instruction}]} for a known small edit set. {quality:\"standard\"} for the cheap ladder. For multi-stamp arcs: N lean/tiny slices, not one max fleet. Parity target: Claude Code konyo-workflow.js v27.1+ + v26–v29 + v30 meter routing.",
     phases: [
         #{ title: "Preflight", detail: "workspace lock when apply:true — shared lock dir with Claude so fleets exclude each other" },
         #{ title: "Triage", detail: "right-size before spending; SKIPPED at tiny" },
@@ -24,9 +24,11 @@ let meta = #{
 // KONYO WORKFLOW — Grok Build implementer
 // Parity with ~/.claude/workflows/konyo-workflow.js v27.1 (lean default, apply,
 // army, skeptic gate, LAW17/18/19, items@any quality, no vacuous green ship) +
-// v26 render loop (narrow+wide, fixer, re-render). Previous Grok rhai was
-// AUDIT-ONLY (bak-audit-only-2026-08-07). The 2026-08-07 implementer rewrite
-// briefly DROPPED the render loop — restored below.
+// v26 render loop (narrow+wide, fixer, re-render) + v28/v28.1/v29 + v30 meter
+// routing. Claude JS ported Grok's v27 empty-plan fix 2026-08-07; Grok v30
+// returns the favour with fleet caps + thrash/tip honesty measured the same day
+// (konyo-workflow-7 MAX "30 versions" = 2h+ partial + VERSION thrash).
+// Previous Grok rhai was AUDIT-ONLY (bak-audit-only-2026-08-07).
 //
 // Host differences (named, not papered over):
 //   · Claude thirdEye default = Grok CLI.  Grok thirdEye default = Claude CLI.
@@ -301,6 +303,19 @@ let max_agents = 24;
 if a.maxAgents != () { max_agents = a.maxAgents; }
 if a.max_agents != () { max_agents = a.max_agents; }
 
+// v30 — ITEM CAP BY QUALITY (meter routing). Tiny already hard-caps at 4.
+// Max keeps the fleet SMALL because each item multiplies skeptics + rework.
+// Lean/standard allow more volume; max is for danger, not throughput.
+let max_items_cap = 8;
+if tiny_q { max_items_cap = 4; }
+if lean_q { max_items_cap = 8; }
+if quality == "standard" { max_items_cap = 10; }
+if max_only { max_items_cap = 6; }
+if a.maxItems != () { max_items_cap = a.maxItems; }
+if a.max_items != () { max_items_cap = a.max_items; }
+if max_items_cap < 1 { max_items_cap = 1; }
+if max_items_cap > 24 { max_items_cap = 24; }
+
 let skeptics_override = ();
 if a.skeptics != () { skeptics_override = a.skeptics; }
 
@@ -365,6 +380,13 @@ craft_rules += "· Before pasting a new scar: snapshot (SCARS.prev.md or tools/s
 craft_rules += "· Prefer project tools (e.g. tools/scar.py) over hand-editing machine-parsed blocks when they exist.\n";
 
 let fat_law = "FAT VERSION LAW (LAW17): ONE version packages real work — (A) >=3 user-visible outcomes in one theme, OR (B) one structural bug with root cause + verify + prevention. Toast/label/CSS one-liner alone does NOT clear. Fold outcomes into items; do not inflate fleet.\n";
+// v30 — VERSION ARC DISCIPLINE (measured 2026-08-07 on kai-achilles + workflow-7).
+// A task that says "ship 30 versions" under quality:max burns multi-M tokens, hits
+// agent ceiling, fails render, and PARTIAL-ships while concurrent fleets thrash
+// VERSION/CHANGELOG. That is not thoroughness — it is the wrong quality for volume.
+fat_law += "VERSION ARC DISCIPLINE (v30): Do NOT plan one integer per micro-edit, and do NOT plan 10–30 empty/hollow stamps. Prefer fewer FAT packages. If the human asked for a multi-version arc, slice it: each RUN ships a small fat package; the NEXT run continues. quality:max is for a SMALL high-stakes list (items[] preferred, <=6 files), never for 'do the whole Arc D of 30'. Use lean/tiny for volume.\n";
+fat_law += "TIP HONESTY (v30): VERSION_NUMBER, CHANGELOG tip, and HANDOFF tip trail must name the SAME integer. Never rewind VERSION. Never invent stamps 198–227 style empty fleet gaps. Prefer project tools/bump_version.py (and --allow-skip only when deliberate). Suite tools/run_suite.sh is the gate when the tree has it.\n";
+fat_law += "THRASH RESISTANCE (v30): Never add import-time rewrites of server.py, _server_body exec splits, or tools/apply_arc_d*.py / _arc_d*.py that write_text server source. Native commits only. Shared lock with Claude must be respected — two fleets on one tree is double spend + silent overwrite.\n";
 
 let lenses = [
     "CORRECTNESS — walk the logic; assume broken; prove edges, nulls, races.",
@@ -399,11 +421,38 @@ let mode_label = if apply_mode { "APPLY (agents edit files)" } else { "DRY-RUN (
 log("════════════════════════════════════════════════════════");
 log("KONYO WORKFLOW · Grok Build IMPLEMENTER · quality=" + quality + (if quality_defaulted { " (default lean)" } else { "" }));
 log("mode=" + mode_label + " · thirdEye=" + third_eye + " · isolate=" + isolate_mode.to_string() + " · push=" + do_push.to_string());
-log("maxRounds=" + max_rounds.to_string() + " · maxAgents=" + max_agents.to_string() + " · skepticFloor=" + skeptic_floor.to_string());
+log("maxRounds=" + max_rounds.to_string() + " · maxAgents=" + max_agents.to_string() + " · maxItems=" + max_items_cap.to_string() + " · skepticFloor=" + skeptic_floor.to_string());
 log("RENDERLOOP=" + render_loop_n.to_string() + " (v26 loop · v28 stop: PASSED|CEILING|STALLED) · SHIPPABLE=apply+passed>0+no spawn_errors (v27.1)");
-log("PACE+PROXY on every agent · FAT BAR · LAW18 · LAW19 · shared lock with Claude");
+log("PACE+PROXY · FAT BAR · LAW18 · LAW19 · shared lock · v30 meter routing (max≠volume)");
 log("════════════════════════════════════════════════════════");
 log("TASK: " + task);
+
+// v30 — METER ROUTING WARNING (task-text heuristic, non-blocking but loud).
+// "30 versions" + quality:max is the measured anti-pattern (workflow-7, 2026-08-07).
+let task_lc = task.to_lower();
+let looks_like_volume_arc = false;
+if task_lc.contains("30 version") || task_lc.contains("30 real") || task_lc.contains("100 version") {
+    looks_like_volume_arc = true;
+}
+if task_lc.contains("whole-console versions") || task_lc.contains("whole console versions") {
+    looks_like_volume_arc = true;
+}
+if task_lc.contains("arc d of") || task_lc.contains("ship them all") || task_lc.contains("finish them all") {
+    looks_like_volume_arc = true;
+}
+if looks_like_volume_arc {
+    log("⚠ v30 METER ROUTING: this task reads like a MULTI-VERSION VOLUME arc.");
+    if max_only {
+        log("   quality=max is the expensive path. Prefer lean/tiny slices with items[], not one max fleet.");
+        log("   This run will hard-cap items at " + max_items_cap.to_string() + " and report PARTIAL if more were planned.");
+        log("   Measured: max + 30-version brief → 2h+, agent ceiling, render CEILING, thrash on VERSION.");
+    } else {
+        log("   quality=" + quality + " is appropriate for volume — keep each package FAT (LAW17), not 30 hollow stamps.");
+    }
+}
+if max_only && force_run {
+    log("⚠ v30: quality=max + force:true — triage cannot send this back to the main loop. Keep the item list SMALL.");
+}
 
 // v28 — PHASE_PLAN (Claude v22.2). List what will open vs skip UP FRONT so a
 // skipped phase never reads as "still pending" on the status line.
@@ -732,6 +781,24 @@ if tiny_q || items_arg.len() > 0 {
     }
     version_label = if a.versionLabel != () { trimmed(a.versionLabel) } else if a.version_label != () { trimmed(a.version_label) } else if tiny_q { "v-tiny-r1" } else { "v-items-r1" };
     plan = #{ version_label: version_label, summary: (if tiny_q { "tiny" } else { "caller-items" }) + " — " + plan_items.len().to_string() + " caller items", items: plan_items };
+    // v30 — quality item cap also applies to caller items (except tiny already refused >4)
+    if plan_items.len() > max_items_cap {
+        log("v30 ITEM CAP on caller items[]: " + plan_items.len().to_string() + " → " + max_items_cap.to_string());
+        let kept_c = [];
+        let mc = 0;
+        while mc < max_items_cap {
+            kept_c.push(plan_items[mc]);
+            mc += 1;
+        }
+        let tc = max_items_cap;
+        while tc < plan_items.len() {
+            let d = as_map(plan_items[tc]);
+            trimmed_from_plan.push(trimmed(d.file));
+            tc += 1;
+        }
+        plan_items = kept_c;
+        plan.items = plan_items;
+    }
 } else {
     phase("Architect");
     let arch_p = tier_note(quality);
@@ -739,8 +806,14 @@ if tiny_q || items_arg.len() > 0 {
     arch_p += "HARD: ONE OWNER PER FILE — no file appears twice.\n";
     arch_p += "Tag risk (low|medium|high). Ground paths with read/grep tools.\n";
     arch_p += fat_law;
+    arch_p += "ITEM CAP THIS RUN: produce AT MOST " + max_items_cap.to_string()
+        + " items (quality=" + quality + "). Fewer FAT items beat many thin ones.\n";
+    if max_only {
+        arch_p += "This is MAX quality — plan a SMALL high-stakes package, not a 10–30 stamp arc. "
+            + "If the human asked for a huge arc, plan the FIRST fat slice and name the rest as follow_ups.\n";
+    }
     if triage.est_agents != () {
-        arch_p += "TRIAGE sized ~" + triage.est_agents.to_string() + " agents — produce AT MOST that many items (cap 24). Fewer larger items beat many thin ones.\n";
+        arch_p += "TRIAGE sized ~" + triage.est_agents.to_string() + " agents — produce AT MOST that many items (still <= item cap). Fewer larger items beat many thin ones.\n";
     }
     arch_p += "\nTASK: " + task;
     let arch_r = agent(arch_p, #{
@@ -880,10 +953,30 @@ if tiny_q || items_arg.len() > 0 {
         }
         plan_items = kept2;
     }
+    // v30 — quality item cap (meter routing). Applied AFTER ceiling math so both
+    // limits hold: agent budget AND "max is not a volume path".
+    if plan_items.len() > max_items_cap {
+        log("v30 ITEM CAP (quality=" + quality + "): plan had " + plan_items.len().to_string()
+            + " items; keeping " + max_items_cap.to_string() + " (rest → follow-up / PARTIAL).");
+        let k3 = max_items_cap;
+        while k3 < plan_items.len() {
+            let d3 = as_map(plan_items[k3]);
+            trimmed_from_plan.push(trimmed(d3.file));
+            k3 += 1;
+        }
+        let kept3 = [];
+        let m3 = 0;
+        while m3 < max_items_cap {
+            kept3.push(plan_items[m3]);
+            m3 += 1;
+        }
+        plan_items = kept3;
+    }
     log("Plan \"" + version_label + "\": " + plan_items.len().to_string()
         + " item(s) (raw=" + raw_item_count.to_string()
         + " after_dedupe=" + after_dedupe.to_string()
-        + " trimmed=" + trimmed_from_plan.len().to_string() + ").");
+        + " trimmed=" + trimmed_from_plan.len().to_string()
+        + " maxItems=" + max_items_cap.to_string() + ").");
 }
 
 if plan_items.len() == 0 {
@@ -934,9 +1027,13 @@ if plan_items.len() == 0 {
 // feasibility announcement
 let fable_extra = if max_q { 0 } else { 1 };
 let worst = agents_spent + plan_items.len() * (1 + fable_extra + seats_want) * max_rounds + 5 + 2;
-log("FEASIBILITY → ~" + worst.to_string() + " agents worst-case vs ceiling " + max_agents.to_string());
+log("FEASIBILITY → ~" + worst.to_string() + " agents worst-case vs ceiling " + max_agents.to_string()
+    + " · itemCap=" + max_items_cap.to_string() + " (v30 quality routing)");
 if worst > max_agents {
     log("⚠ PLAN CANNOT FULLY FINISH inside ceiling — will do most valuable work first and report PARTIAL.");
+}
+if looks_like_volume_arc && max_only {
+    log("⚠ v30: volume-arc task under MAX — expect PARTIAL; schedule remaining stamps as lean follow-ups.");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1817,7 +1914,7 @@ md += "- requested: " + third_eye + "\n";
 md += "- seats: " + third_eye_seats.len().to_string() + "\n";
 md += "\n## Completeness\n" + json_encode(completeness) + "\n";
 md += "\n## Ship\n" + json_encode(shipped) + "\n";
-md += "\n_Konyo Workflow · Grok implementer · parity Claude v27.1 + v26 render loop · audit-only body retired 2026-08-07_\n";
+md += "\n_Konyo Workflow · Grok implementer · parity Claude v27.1+v26–v29 · v30 meter routing · audit-only body retired 2026-08-07_\n";
 
 let report_path = write_scratch_file("konyo-report.md", md);
 
@@ -1866,7 +1963,13 @@ complete(#{
         v29_scar_founding_vs_learned: true,
         v29_scar_evidence_required: true,
         v29_scar_undo_snapshot: true,
+        v30_meter_routing: true,
+        v30_item_cap_by_quality: true,
+        v30_max_not_for_volume_arcs: true,
+        v30_tip_honesty_and_thrash: true,
     },
+    max_items_cap: max_items_cap,
+    volume_arc_heuristic: looks_like_volume_arc,
     phase_plan: #{ open: phase_open, skip: phase_skip },
     merge: merge,
     thirdEye: #{

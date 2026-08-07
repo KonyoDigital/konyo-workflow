@@ -93,6 +93,19 @@ has "EVIDENCE required" 'EVIDENCE:'
 has "undo snapshot" 'SCARS.prev.md'
 has "v29 safeguards flag" 'v29_scar_founding_vs_learned'
 
+echo ""
+echo "v30 METER ROUTING + FLEET CAPS + THRASH/TIP (2026-08-07)"
+has "v30 item cap variable" 'let max_items_cap'
+has "max quality item cap 6" 'if max_only { max_items_cap = 6; }'
+has "volume-arc heuristic" 'looks_like_volume_arc'
+has "meter routing log" 'v30 METER ROUTING'
+has "version arc discipline" 'VERSION ARC DISCIPLINE (v30)'
+has "tip honesty craft" 'TIP HONESTY (v30)'
+has "thrash resistance craft" 'THRASH RESISTANCE (v30)'
+has "v30 safeguards flag" 'v30_meter_routing'
+has "max not for volume flag" 'v30_max_not_for_volume_arcs'
+has "item cap applied log" 'v30 ITEM CAP'
+
 if [[ "$fail" -eq 0 ]]; then
   echo "ALL SAFEGUARD CONTRACTS PRESENT."
   exit 0
