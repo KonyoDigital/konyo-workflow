@@ -70,6 +70,14 @@ def check(zf: zipfile.ZipFile) -> list[str]:
         want("scar" in seal.lower(),
              "the SEAL requires answering whether a scar was produced — without "
              "this the learning loop is skipped silently and forever")
+        want("PASSED, CEILING or STALLED" in seal,
+             "the SEAL requires the stop REASON — 'didn't work' collapses CEILING "
+             "(keep going) and STALLED (change approach), which call for opposite "
+             "responses")
+    want("STALLED" in md and "Silence is not evidence" in md,
+         "the stopping rule ships, including the silent-check trap — a check that "
+         "prints nothing on failure looks identical whether you are converging or "
+         "stuck, so a stall cannot be read off it")
     return fails
 
 
@@ -98,6 +106,10 @@ def self_test() -> int:
          lambda f: {k.split("/")[-1]: v for k, v in f.items()}),
         ("the seal no longer demands the mode",
          lambda f: {**f, "konyo-workflow/SKILL.md": md.replace("SOLO or MULTI (Step 4b)", "—")}),
+        ("the seal no longer demands the stop reason",
+         lambda f: {**f, "konyo-workflow/SKILL.md": md.replace("PASSED, CEILING or STALLED", "—")}),
+        ("the silent-check trap dropped from the stopping rule",
+         lambda f: {**f, "konyo-workflow/SKILL.md": md.replace("Silence is not evidence", "x")}),
     ]:
         print(f"\n  RED PROOF — {label}")
         try:

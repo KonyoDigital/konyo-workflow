@@ -233,6 +233,36 @@ happens and you have said so with evidence.
 
 If a fix touches something the earlier rounds proved, that proof is stale — redo it.
 
+### How many times round — and how to stop honestly
+
+Fix → re-prove is a loop, and loops need a way out that is not "I got tired". Set a
+ceiling **before you start going round** — three passes is right for most work —
+and then stop for one of exactly **three** reasons. Say which one:
+
+| | |
+|---|---|
+| **PASSED** | The check succeeds. The only real success. |
+| **CEILING** | You hit the pass limit, still failing — **and the failure kept changing.** It may well be converging; it just needs more room than you allowed, or a decision from a human. |
+| **STALLED** | The same failure, unchanged, two or three passes running. **Stop immediately.** |
+
+The distinction between the last two is the whole reason to name them separately.
+Both mean "not fixed", and they call for opposite responses: CEILING says *give it
+another pass or ask someone*, STALLED says *stop and change the approach, because
+more of the same will produce more of the same.* Collapse them into "didn't work"
+and you will reliably spend the next hour on the version that cannot work.
+
+**When you are stalled, do not raise the ceiling.** That is the instinct and it is
+wrong — going round twice more on an unchanged failure buys nothing. Change
+something real: the approach, the assumption underneath it, or what you are
+checking. Then start the count again.
+
+> ⚠ **One trap worth naming, because it is invisible.** If your check produces *no
+> output* when it fails — many do — then every failed pass looks identical whether
+> you are making progress or not. You cannot read a stall off a silent check. When
+> the check is silent, make it say something, or judge progress on the work itself.
+> **Silence is not evidence of being stuck, and it is not evidence of progress
+> either.**
+
 ---
 
 ## Step 6 — Seal it
@@ -244,6 +274,7 @@ Report, briefly:
 - **How it was proven** — the checks and their results.
 - **What was NOT checked** — the honest boundary.
 - **How to undo it** — if it is the kind of work that can be undone.
+- **Stopped because** — PASSED, CEILING or STALLED (Step 5), and after how many passes.
 - **Mode** — SOLO or MULTI (Step 4b). If MULTI, say what reviewed it. A reader
   deciding how far to trust this needs to know whether anything independent
   actually looked, and SOLO is an honest answer.
