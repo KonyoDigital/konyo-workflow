@@ -92,6 +92,34 @@ def check(zf: zipfile.ZipFile) -> list[str]:
          "…and the undo step ships: without a previous copy a WRONG scar is "
          "permanent, which is a strange property for a file whose whole job is "
          "recording that we got something wrong")
+    want("cannot be narrowed" in md and "surprised the verdict was SHIP" in md,
+         "the scope-boundary rule ships — Rule 0 forbids SHIP-with-caveats while the "
+         "seal requires 'what was NOT checked', and without a pinned scope those "
+         "contradict; without the no-narrowing clause 'out of scope' launders a known "
+         "defect into a SHIP")
+    want("low-stakes change" in md and "Small is not the same as cheap to get wrong" in md,
+         "Step 1's short path requires small AND low-stakes — a one-line production "
+         "config change is small and expensive, and an earlier compression dropped the "
+         "stakes half, licensing one round on exactly that")
+    want("never that it was saved" in md,
+         "the seal says scar durability is UNVERIFIED and never claims it was saved — "
+         "reading a file back proves the write, never that the workspace survives")
+
+    # STRUCTURAL, so it catches the CLASS. A sentence promising N things followed by a
+    # different number of things is a defect no wording check finds: "the last two make
+    # it a defence" sat above THREE bullets, a compression casualty that read as correct
+    # to two reviewers.
+    _w = {"two": 2, "three": 3, "four": 4, "five": 5, "six": 6}
+    _bad = []
+    for _m in re.finditer(r"[Tt]he last (two|three|four|five|six)[^.\n]*:", md):
+        _after = md[_m.end():_m.end() + 2000]
+        _stop = re.search(r"\n\n(?!- )", _after)
+        _n = len(re.findall(r"^- \*\*", _after[:_stop.start() if _stop else 2000], re.M))
+        if _n and _n != _w[_m.group(1)]:
+            _bad.append((_m.group(0)[:44], _w[_m.group(1)], _n))
+    want(not _bad,
+         f"every 'the last N...:' promise is followed by exactly N bullets "
+         f"(mismatched: {_bad or 'none'})")
     want("STALLED" in md and "Silence is not evidence" in md,
          "the stopping rule ships, including the silent-check trap — a check that "
          "prints nothing on failure looks identical whether you are converging or "
@@ -136,6 +164,14 @@ def self_test() -> int:
                     md.replace("STALLED", "x").replace("CEILING", "y")}),
         ("the silent-check trap dropped from the stopping rule",
          lambda f: {**f, "konyo-workflow/SKILL.md": md.replace("Silence is not evidence", "x")}),
+        ("the scope rule loses its no-narrowing clause",
+         lambda f: {**f, "konyo-workflow/SKILL.md": md.replace("cannot be narrowed", "may be adjusted")}),
+        ("Step 1's short path drops the stakes half again",
+         lambda f: {**f, "konyo-workflow/SKILL.md": md.replace("low-stakes change", "change")}),
+        ("a count promise stops matching its bullets",
+         lambda f: {**f, "konyo-workflow/SKILL.md":
+                    md.replace("The last three are what make it a defence",
+                               "The last two are what make it a defence")}),
         ("SCARS.md loses the founding/learned split",
          lambda f: {**f, "konyo-workflow/SCARS.md":
                     f["konyo-workflow/SCARS.md"].decode().replace("FOUNDING RULES", "Rules").encode()}),

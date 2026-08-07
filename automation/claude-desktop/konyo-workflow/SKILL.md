@@ -30,6 +30,26 @@ proven-good reports as DRAFT or BLOCKED, never as SHIP-with-caveats.
 | **DRAFT** | The work is sound but the bar was not fully met — usually missing proof, not missing quality. |
 | **BLOCKED** | A real problem was found. Say what it is and what would unblock it. |
 
+### What counts as "in scope" — the line that decides the verdict
+
+Rule 0 forbids SHIP-with-caveats. Step 6 requires a *"What was NOT checked"* section.
+Those look contradictory and are not, but only once scope is pinned:
+
+**Scope is declared at Step 1 and cannot be narrowed once work begins.** Widening it
+is free. Narrowing it needs the person who asked — otherwise "out of scope" becomes a
+way to launder a known defect into a SHIP, which is the failure this rule exists to
+stop.
+
+| Situation | Verdict |
+|---|---|
+| A known, unfixed defect **inside** declared scope | **DRAFT** — or BLOCKED if it is a real problem. Never SHIP. |
+| Something you **could not verify** (no access, no data, no environment) | SHIP is available. The boundary goes in "What was NOT checked". |
+| Something genuinely **outside** declared scope | SHIP is available. Name it so nobody assumes it was covered. |
+
+**The test, when the table does not settle it:** *if the reader knew this, would they
+be surprised the verdict was SHIP?* If yes, it is not SHIP. That question resolves
+the cases the table cannot, and it resolves them the safe way.
+
 **Missing evidence is not a pass.** A check you could not run is `N/A` with the reason
 stated. *"I can't check the numbers, I don't have the source data"* is a legitimate N/A.
 *"It looks fine"* is a FAIL wearing a friendly face.
@@ -45,10 +65,22 @@ itself. Include: what "done" looks like **concretely**, what is explicitly **out
 scope**, and anything **ambiguous**. Ask about the ambiguity now; a wrong assumption is
 cheapest to fix here.
 
-If the request is one small, clearly-specified change, say so, keep the restatement to a
-single line and run one round.
-**Ceremony proportional to stakes** — a full workflow on a two-line fix wastes the
-person's time and they will stop using this.
+**Say what is in scope and what is not, explicitly.** That declaration is what Rule 0's
+verdict table reads later, and it cannot be narrowed once you start — so draw it now,
+honestly, while you have nothing to protect.
+
+**The short path needs BOTH conditions: small *and* low-stakes.** If the request is one
+small, clearly-specified, low-stakes change, say so, keep the restatement to a single
+line and run one round.
+
+⚠ **Small is not the same as cheap to get wrong.** A one-line production config change,
+a price, a permission, a published correction — each is a two-minute edit and none of
+them is low-stakes. Size measures the diff; stakes measure what happens if it is wrong,
+and **only stakes decide the ceremony.** When they disagree, stakes win.
+
+**Ceremony proportional to stakes** — a full workflow on a genuinely trivial fix wastes
+the person's time and they will stop using this. But that cuts one way only: cheap work
+gets the short path, expensive work does not get it for being short.
 
 ---
 
@@ -230,15 +262,20 @@ cannot work.
 
 Report, briefly:
 
-- **Verdict** — SHIP / DRAFT / BLOCKED.
+- **Verdict** — SHIP / DRAFT / BLOCKED, decided by Rule 0's scope table. A known
+  unfixed defect inside declared scope is **never** SHIP, however well everything else
+  was proven.
 - **What changed** — plain language, what a reader would notice.
 - **How it was proven** — checks and results.
-- **What was NOT checked** — the honest boundary.
+- **What was NOT checked** — the honest boundary: what you could not verify, and what
+  sat outside the scope declared at Step 1. This section explains a SHIP; it never
+  rescues one.
 - **How to undo it** — if it is that kind of work.
 - **Stopped because** — PASSED / CEILING / STALLED, after how many passes.
 - **Mode** — SOLO or MULTI, truthfully; if MULTI, which rung and what reviewed it.
 - **Scars** — did an existing scar apply, and did you follow it? Did this run produce a
-  new one? If yes, **print the scar block, ready to paste, including its EVIDENCE line.** If
+  new one? If yes, **print the scar block, ready to paste, including its EVIDENCE line**,
+  offer the updated file, and say durability is unverified — never that it was saved. If
   no, say "no scar" — saying it out loud is what stops this step being quietly skipped
   forever.
 
@@ -283,8 +320,8 @@ EVIDENCE     the figure appeared in my draft and in no paragraph of the source;
              I searched all 14 pages before concluding that
 ```
 
-**All six lines, every time.** The first four are a diary; the last two make it a defence,
-and they are the two people skip:
+**All six lines, every time.** The first three — WHAT BROKE, COST, CAUGHT BY — are the
+diary. The last three are what make it a defence, and they are the three people skip:
 
 - **RULE is an instruction, not a regret.** "Be more careful with numbers" is not a rule —
   nothing can follow it. "Trace every figure to the sentence it came from" is, because you
@@ -306,30 +343,37 @@ or rule drawn too wide — and a wrong rule is worse than no rule because you wi
 follow it. Without a copy it is permanent; with one, undoing it takes ten seconds.
 **Founding rules are untouched by this**; they change only by hand.
 
-### Getting the scar into the file — check, do not assume
+### Getting the scar into the file
 
-**Whether Claude can persist a change to `SCARS.md` depends on the environment.** Establish
-which case you are in — and note that reading the file back proves *the write*, never *the
-durability*, so read-back is not the test:
+**Always do all three of these, in order. Do not try to work out which case you are in.**
 
-- **Real files in a local project** (Claude Code in a repo or a folder you own). Copy to
-  `SCARS.prev.md`, edit `SCARS.md`, read it back. Persists.
-- **A synced or ephemeral copy** (Cowork and similar: the skill came from an account, and
-  the workspace is discarded at the end). A write here *succeeds locally and changes nothing
-  durable* — and `SCARS.prev.md` written into that same workspace disappears with it, so the
-  backup has to live somewhere the user keeps. Deliver the updated `SCARS.md` as a file and
-  say plainly that saving it is their step.
-- **The write simply fails.** Report it and fall back to printing.
+Three earlier versions of this passage asked you to classify the environment first —
+local files, synced-and-ephemeral, or write-fails — and pick a branch. Two independent
+reviews and one live trial reached the same conclusion: **the classification is not
+decidable from inside the run.** The trial agent could not tell which case it was in,
+did all of it anyway, and reported that the branching had bought nothing. So the
+branch is gone. Doing all three costs one short block and a sentence.
 
-The tell is where the skill came from, not whether the write errored: a synced account skill
-is case 2 however writable the path looks.
+1. **Print the scar block in the seal**, formatted and ready to paste. This is the only
+   version that survives if everything else about the file handling goes wrong, and it
+   costs almost nothing.
 
-Either way, **print the scar block in the seal**, formatted and ready. It costs one short
-block and it is the only version that survives if the file handling goes wrong.
+2. **Write the updated `SCARS.md` and offer it as a file.** If you can write to the
+   skill folder, do — and copy the old text to `SCARS.prev.md` first, so a wrong lesson
+   is undoable. If you cannot, hand the updated file over.
 
-Skip the paste and the scar is lost with nothing to warn you: the run still looks
-successful. Hence the seal's scar question, which makes the loss visible now instead of
-three months from now.
+3. **Say plainly that durability is unverified**, in one sentence, every time.
+
+⚠ **Reading the file back proves the WRITE, never the DURABILITY** — and that is the
+whole reason step 3 exists. A write into a workspace that is discarded at the end of the
+session succeeds, reads back correctly, and persists nothing. There is no check
+available from inside the run that distinguishes that from a real save, so the honest
+report is *"written; whether it persists depends on your setup — keep a copy."*
+
+**Never say a scar was saved.** Say it was written and printed, and that saving it is
+theirs to confirm. Skipping the paste loses the scar with nothing to warn you — the run
+still looks successful — which is why the seal asks about the scar at all: it makes the
+loss visible now rather than three months from now.
 
 ### Carving a new skill out of scars — the part that compounds
 
