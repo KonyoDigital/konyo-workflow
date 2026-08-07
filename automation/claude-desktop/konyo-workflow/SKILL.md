@@ -14,7 +14,8 @@ Every step below makes one of those harder.
 **Shape:** read SCARS → understand → build in rounds → prove each round → adversarial
 back-pass → one verdict → record the scar.
 
-**Before Step 1, read `SCARS.md`.** It is short, and it is the only file here written by
+**Before Step 1, read `SCARS.md`.** Once it has entries it is the only file here
+written by
 experience rather than by someone guessing in advance what would go wrong.
 
 ---
@@ -35,15 +36,17 @@ proven-good reports as DRAFT or BLOCKED, never as SHIP-with-caveats.
 Rule 0 forbids SHIP-with-caveats. Step 6 requires a *"What was NOT checked"* section.
 Those look contradictory and are not, but only once scope is pinned:
 
-**Scope is declared at Step 1 and cannot be narrowed once work begins.** Widening it
-is free. Narrowing it needs the person who asked — otherwise "out of scope" becomes a
+**Scope is declared at Step 1 and cannot be narrowed once work begins.** Widening it is
+free to **name** and never free to **act on** — Step 2 still forbids changes nobody asked
+for, so report what you found outside the boundary and let them decide. Narrowing it needs the person who asked — otherwise "out of scope" becomes a
 way to launder a known defect into a SHIP, which is the failure this rule exists to
 stop.
 
 | Situation | Verdict |
 |---|---|
 | A known, unfixed defect **inside** declared scope | **DRAFT** — or BLOCKED if it is a real problem. Never SHIP. |
-| Something you **could not verify** (no access, no data, no environment) | SHIP is available. The boundary goes in "What was NOT checked". |
+| Something you **could not verify**, and which is **not required** for the claim you are making | SHIP is available. The boundary goes in "What was NOT checked". |
+| A **required** in-scope check you could not run | **DRAFT.** "Missing evidence is not a pass" governs — an unrunnable check does not become optional by being unrunnable. |
 | Something genuinely **outside** declared scope | SHIP is available. Name it so nobody assumes it was covered. |
 
 **The test, when the table does not settle it:** *if the reader knew this, would they
@@ -145,8 +148,10 @@ Four lenses, **one at a time**, because each catches what the others miss:
    section promised and never written.
 3. **Blast radius** — what does this affect that nobody listed? What breaks downstream?
    How would someone undo it?
-4. **The embarrassment test** — what is the first thing the most demanding reader would
-   object to? Name it; fixing is Step 5.
+4. **The embarrassment test** — what, **if anything**, is the first thing the most
+   demanding reader would object to? Name it; fixing is Step 5. **If the honest answer
+   is nothing, say nothing** — the rule below about not manufacturing a problem applies
+   hardest here, because this lens is the one that invites invention.
 
 > **You are being asked for analysis, not agreement** — and equally, do **not** manufacture
 > a problem to look useful. State the strongest case that this work is wrong, then the
@@ -191,7 +196,9 @@ embarrassing in public. A reviewer who watched you reason is already persuaded b
 reasoning; one that sees only the artifact has to be convinced by the artifact — the actual
 test.
 
-### The ladder — once you have chosen MULTI, use the highest rung available
+### The ladder — once you have chosen MULTI, use the LOWEST-NUMBERED rung available
+
+*(Rung 1 is the strongest and rung 4 is none at all, so "highest rung" would read as doing nothing. Lower number, stronger review.)*
 
 (Choosing between SOLO and MULTI is the paragraph above; this table is only about how to run
 a MULTI you have already decided on. Having a subagent available does not make MULTI
@@ -201,7 +208,7 @@ mandatory.)
 |---|---|
 | **1. A different model family** | Contamination, and blind spots that sit in different places. The strongest MULTI. Name the model. |
 | **2. A fresh subagent / agent task** | Most of the contamination — no manual step where this exists (Claude Code, Cowork, Agent SDK). Two caveats: *you* write its prompt, so contamination goes down by discipline rather than being removed by the mechanism; and a subagent may run a different, often smaller model than yours, so name what it was if you can find out. |
-| **3. A new conversation**, pasted by hand | Same as rung 2, more effort, no prompt-authoring advantage lost. The fallback in chat-only Claude. |
+| **3. A new conversation**, pasted by hand | The same independence as rung 2 and the same caveat — you still write what it sees — but by hand. The fallback wherever there are no subagents. |
 | **4. Same conversation** | Nothing. This is SOLO — call it SOLO. |
 
 **Rung 3 means a new conversation, not a new message.** A fresh message in this thread still
@@ -438,6 +445,38 @@ Skip what does not apply, but **say you skipped it and why.** Silence reads as "
 | Version + record | Version bumped, and change recorded where the project already records changes? |
 | Rollback | Is the reverse path known? |
 
+### ⚠ The tests are also a suspect, not only the instrument
+
+Everything above treats tests as the thing that *proves* the work. They are also an
+artifact someone wrote, and they can be **wrong in the same direction as the bug** — in
+which case a green suite is not weak evidence, it is *evidence pointing the wrong way*,
+and the more of it there is the more confident you become.
+
+Not hypothetical. A trial of this skill was handed a pricing module with a documented
+30% discount cap that was never applied, a green 4/4 suite, and **two tests asserting
+the uncapped 50% discount as correct.** The natural failure is to run the suite, see
+green, and report nothing wrong.
+
+**When code and its tests disagree with the documented intent, count the artifacts.**
+The spec, the comments, the naming and the tests are each a vote about what the code is
+*supposed* to do. Two agreeing against one usually means the one is wrong — and a test
+is not exempt from being the one.
+
+So when a check passes and something still feels off, ask in this order:
+
+1. **Does the test assert the documented behaviour, or the current behaviour?** A test
+   written from the implementation can never fail — it is a mirror.
+2. **Would this test fail if the bug came back?** If you cannot answer, run it: restore
+   the old code and watch. That is a mutation check and it is the only way to know a
+   green test is load-bearing.
+3. **Does the test's NAME describe what it asserts?** A name describing inverted
+   behaviour is a stale claim, and **that outranks the no-drive-by-changes rule** —
+   correcting it is part of the fix, not a change nobody asked for.
+
+**A lying test is corrected, not deleted, and the correction is reported as part of the
+work.** Quietly dropping an inconvenient assertion leaves the next person the same bug
+with less warning than you had.
+
 **On tests:** "the suite is green" is not evidence that *your* tests ran — prove they
 executed, with a count before and after or the new test names in the output. And a test
 that cannot fail proves nothing: if you strengthened a check, make sure the case it guards
@@ -451,7 +490,8 @@ against can actually occur, or you bought confidence without coverage.
 |---|---|
 | Small, clear, low stakes | One round, prove it, brief back-pass. Minutes. |
 | Normal work | Full steps, one or two rounds, SOLO. |
-| High stakes / irreversible / public | Full workflow, extra single-lens passes, MULTI at the highest rung available, and **say out loud** that an independent reviewer is recommended before it goes out. |
+| High stakes / irreversible / public | Full workflow, extra single-lens passes, MULTI at the lowest-numbered rung available, and — **unless a different model family has already reviewed it at rung 1** — say out
+loud that an independent reviewer is recommended before it goes out. |
 
 The person can override:
 
@@ -459,7 +499,7 @@ The person can override:
 |---|---|
 | "quick pass", "sanity check", "don't overthink it" | One round. Still check it, still give a verdict. |
 | *(nothing)* | Judge from the stakes. |
-| "be thorough", "this really matters", "go deep" | Every lens separately, artifact re-read twice with a gap, MULTI, and **state explicitly** that an independent human or a different AI should look before this goes out. |
+| "be thorough", "this really matters", "go deep" | Every lens separately, artifact re-read twice with a gap, MULTI, and **state explicitly** that an independent human should look before this goes out — plus a different AI, if one has not already. |
 
 **What "quick" may never do:** skip the verdict, hide an uncertainty, or report SHIP on
 something unchecked. It reduces how *much* you examine, never how *honestly* you report

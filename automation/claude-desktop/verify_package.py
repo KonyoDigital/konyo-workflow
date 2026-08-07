@@ -111,6 +111,25 @@ def check(zf: zipfile.ZipFile) -> list[str]:
          "written — the drafts are already there, and 'waiting to be filled in' names "
          "the wrong gap and invites Claude to fill it, which is exactly what must not "
          "happen to a rule that will carry the user's authority")
+    want("LOWEST-NUMBERED rung" in md and "highest rung available" not in md,
+         "the ladder says LOWEST-NUMBERED, matching its own numbering (1 strongest, "
+         "4 none) — 'highest rung available' read literally selects rung 4, which is "
+         "no review at all")
+    want("A **required** in-scope check you could not run" in md,
+         "an unrunnable REQUIRED in-scope check is DRAFT — otherwise the "
+         "could-not-verify row contradicts 'missing evidence is not a pass' and lets a "
+         "check become optional by being unrunnable")
+    want("free to **name** and never free to **act on**" in md,
+         "widening scope is free to NAME, not to ACT on — otherwise it licenses exactly "
+         "the changes-nobody-asked-for that Step 2 forbids")
+    want("also a suspect, not only the instrument" in md and "count the artifacts" in md,
+         "tests are treated as a SUSPECT artifact, not only the instrument of proof — "
+         "the live trial's difficulty was two tests asserting the bug as correct, where "
+         "a green suite is evidence pointing the wrong way")
+    want("if anything" in md,
+         "the embarrassment lens asks what, IF ANYTHING — without it the lens obliges "
+         "an objection into existence, contradicting the rule four lines below it "
+         "forbidding a manufactured problem")
     want("never that it was saved" in md,
          "the seal says scar durability is UNVERIFIED and never claims it was saved — "
          "reading a file back proves the write, never that the workspace survives")
@@ -178,6 +197,12 @@ def self_test() -> int:
          lambda f: {**f, "konyo-workflow/SKILL.md":
                     md.replace("waiting on RATIFICATION", "waiting to be filled in")
                       .replace('is "waiting to be filled in" describes', "is fine and describes")}),
+        ("the ladder goes back to 'highest rung'",
+         lambda f: {**f, "konyo-workflow/SKILL.md": md.replace("LOWEST-NUMBERED rung", "highest rung available")}),
+        ("a required unrunnable check stops being DRAFT",
+         lambda f: {**f, "konyo-workflow/SKILL.md": md.replace("A **required** in-scope check you could not run", "x")}),
+        ("tests stop being treated as a suspect",
+         lambda f: {**f, "konyo-workflow/SKILL.md": md.replace("also a suspect, not only the instrument", "x")}),
         ("the scope rule loses its no-narrowing clause",
          lambda f: {**f, "konyo-workflow/SKILL.md": md.replace("cannot be narrowed", "may be adjusted")}),
         ("Step 1's short path drops the stakes half again",
