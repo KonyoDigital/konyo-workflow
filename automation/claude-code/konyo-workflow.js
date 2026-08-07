@@ -1126,28 +1126,31 @@ if (APPLY) {
   lock = await spawn(
     `WORKSPACE LOCK — acquire. Pure mechanics, no judgement. Use Bash only.\n\n` +
     `1. LOCKDIR="$HOME/.claude/workflows/.locks"; mkdir -p "$LOCKDIR".\n` +
-    `2. KEY = absolute path of the current working directory (\`pwd -P\`). Slugify for a filename: ` +
-    `replace every "/" with "-" and strip a leading "-". LOCKFILE="$LOCKDIR/<slug>.json".\n` +
-    `3. PURGE FIRST. NOW=$(date -u +%s) — INTEGER EPOCH SECONDS. For every *.json in "$LOCKDIR", read ` +
+    `2. TREE = \`git rev-parse --show-toplevel 2>/dev/null\` || \`pwd -P\`. REFUSE if TREE is "$HOME" ` +
+    `or "/" or empty — never lock the home directory (a Users-konyo.json lock blocks every repo under ` +
+    `home). If refuse: return acquired:false, key:"refused-home", cwd:TREE.\n` +
+    `3. KEY = TREE. slugify: replace every "/" with "-" and strip a leading "-". ` +
+    `LOCKFILE="$LOCKDIR/<slug>.json". Only this exact file covers this repo — a parent-path lock ` +
+    `(e.g. $HOME) does NOT block a subdirectory repo.\n` +
+    `4. PURGE FIRST. NOW=$(date -u +%s) — INTEGER EPOCH SECONDS. For every *.json in "$LOCKDIR", read ` +
     `its "expires_epoch" and delete the file if it is numerically less than $NOW, using ` +
     `[ "$EXP" -lt "$NOW" ] — an INTEGER test. Do NOT compare ISO strings with [ a \\< b ]: that is ` +
     `invalid under zsh, the test silently fails, and a dead lock then survives forever and locks the ` +
-    `human out of their own repo. Count deletions -> purged_stale. Malformed/unparseable counts as ` +
-    `stale — delete it too; unreadable must never mean "held".\n` +
-    `4. If "$LOCKFILE" still exists after the purge, another LIVE run owns this tree. Do NOT touch or ` +
-    `overwrite it. Return acquired:false with its token/started_at/expires_at/task as holder_token / ` +
+    `human out of their own repo. Also DELETE any lock whose cwd is exactly "$HOME" (toxic home-wide). ` +
+    `Count deletions -> purged_stale. Malformed/unparseable counts as stale — delete it too.\n` +
+    `5. If "$LOCKFILE" still exists after the purge, another LIVE run owns this EXACT tree. Do NOT touch ` +
+    `or overwrite it. Return acquired:false with its token/started_at/expires_at/task as holder_token / ` +
     `holder_since / holder_expires / holder_task.\n` +
-    `5. Otherwise WRITE "$LOCKFILE" with exactly these keys, then return acquired:true:\n` +
+    `6. Otherwise WRITE "$LOCKFILE" with exactly these keys, then return acquired:true:\n` +
     `   token         = a unique id you generate (e.g. "$(date -u +%Y%m%dT%H%M%SZ)-$RANDOM")\n` +
     `   started_at    = now, ISO-8601 UTC (human-readable only)\n` +
     `   expires_at    = now + ${LOCK_TTL_MIN} minutes, ISO-8601 UTC (human-readable only)\n` +
-    `   expires_epoch = $(( $(date -u +%s) + ${LOCK_TTL_MIN} * 60 ))  <- INTEGER, the field step 3\n` +
+    `   expires_epoch = $(( $(date -u +%s) + ${LOCK_TTL_MIN} * 60 ))  <- INTEGER, the field step 4\n` +
     `                   compares. MUST be present and numeric or the lock is unpurgeable.\n` +
-    `   cwd           = the pwd from step 2\n` +
+    `   cwd           = TREE from step 2 (git toplevel, never $HOME)\n` +
     `   task          = ${JSON.stringify(taskSnip)}\n` +
-    `Return the token you wrote, AND the absolute path from step 2 verbatim in \`cwd\` — on BOTH ` +
-    `outcomes, acquired or not. That path is the only way a human can see WHICH tree this run locked; ` +
-    `it is derived from your shell's working directory, which nobody declared. Do not create, edit or ` +
+    `Return the token you wrote, AND TREE verbatim in \`cwd\` — on BOTH outcomes, acquired or not. ` +
+    `That path is the only way a human can see WHICH tree this run locked. Do not create, edit or ` +
     `delete anything outside "$LOCKDIR".`,
     { model: 'sonnet', effort: 'low', phase: 'Preflight', label: 'lock:acquire', schema: LOCK_SCHEMA },
     true                              // reserved: the lock is taken before anything else spends
