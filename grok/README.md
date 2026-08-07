@@ -1,6 +1,6 @@
 # Grok Build workflows (Konyo)
 
-**Parity target:** Claude Code `konyo-workflow.js` **v27.1** (lean default, apply mode, army, skeptic gate, LAW17/18/19, items@any quality, no vacuous green ship) **+ v26 render loop**.
+**Parity target:** Claude Code `konyo-workflow.js` **v27.1** (lean default, apply, army, skeptic gate, LAW17/18/19, items@any quality, no vacuous green ship) **+ v26 render loop** **+ v28** (PACE+PROXY on every agent, PHASE_PLAN open/skip honesty, render stop reasons PASSED|CEILING|STALLED from desktop skill).
 
 | Slash | File | Role |
 |-------|------|------|
@@ -98,6 +98,10 @@ A same-family stand-in is never a silent fallback. Empty third-eye seat is repor
 | Single-viewport blind spot | Render at narrow **and** wide |
 | Self-correcting loop weakens tests | Fixer: fix code, never the assertion |
 | Builders ship past gates | Builders **never** push; only Ship phase with `{push:true}` |
+| Exhaustive agents burn hours (PACE) | Every agent prompt: prefer verdict scripts, ~12–18 tool calls, never skip evidence |
+| Proxy measurements (PROXY ban) | Open the image / fetch remote / see the test fail — not path/hash/`rev-parse` alone |
+| Status bar lies about pending phases | PHASE_PLAN logs open vs skip up front |
+| Loop “didn’t work” is unreadable | Render stop: **PASSED** · **CEILING** (still changing) · **STALLED** (same failure) |
 
 ### Prove the contracts (static gate)
 

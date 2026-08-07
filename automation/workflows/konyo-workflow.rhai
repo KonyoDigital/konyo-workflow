@@ -1,22 +1,22 @@
 let meta = #{
     name: "konyo-workflow",
-    description: "KONYO WORKFLOW for Grok Build — FULL IMPLEMENTER (not audit-only). ONE body, four qualities (lean|max|standard|tiny). LEAN is the default: every ship gate runs (adversarial panel, LAW17/18/19, workspace lock, agent ceiling) while max buys a multi-architect panel, completeness critic, and deeper rework. Pass {apply:true} to edit files; apply:false is dry-run (propose only). Third eye is Claude (different family) via the claude CLI — never a same-family stand-in unless thirdEye:\"claude\". Pass {task, quality, apply, force, items, skeptics, isolate, thirdEye, maxAgents, ignoreLock, push, renderLoop}. items:[{file,instruction}] skips the architect at ANY quality (not only tiny) — empty architect plans no longer die as \"after caps\". v26: render gate is a LOOP (narrow+wide viewport, fixer, re-render; final pass blocks). v27/v27.1: SHIPPABLE requires apply:true AND passed>0 AND spawn_errors empty; architect_noop/empty never green-ships.",
-    when_to_use: "ANY multi-step ship on Grok Build. Bare call = lean + dry-run. {apply:true} to write. {quality:\"max\"} when being wrong is expensive. {quality:\"tiny\", apply:true, items:[{file,instruction}]} for a known small edit set. {quality:\"standard\"} for the cheap ladder. Parity target: Claude Code konyo-workflow.js (v27.1 + v26 render loop).",
+    description: "KONYO WORKFLOW for Grok Build — FULL IMPLEMENTER (not audit-only). ONE body, four qualities (lean|max|standard|tiny). LEAN is the default: every ship gate runs (adversarial panel, LAW17/18/19, workspace lock, agent ceiling) while max buys a multi-architect panel, completeness critic, and deeper rework. Pass {apply:true} to edit files; apply:false is dry-run (propose only). Third eye is Claude (different family) via the claude CLI — never a same-family stand-in unless thirdEye:\"claude\". Pass {task, quality, apply, force, items, skeptics, isolate, thirdEye, maxAgents, ignoreLock, push, renderLoop}. items:[{file,instruction}] skips the architect at ANY quality (not only tiny) — empty architect plans no longer die as \"after caps\". v26 render LOOP (narrow+wide, fixer, re-render; final pass blocks). v27/v27.1 SHIPPABLE needs apply+passed>0+no spawn_errors. v28: PACE+PROXY on every agent; PHASE_PLAN open/skip honesty; render-loop stop reasons PASSED|CEILING|STALLED (desktop parity).",
+    when_to_use: "ANY multi-step ship on Grok Build. Bare call = lean + dry-run. {apply:true} to write. {quality:\"max\"} when being wrong is expensive. {quality:\"tiny\", apply:true, items:[{file,instruction}]} for a known small edit set. {quality:\"standard\"} for the cheap ladder. Parity target: Claude Code konyo-workflow.js v27.1 + v26 render loop + desktop stop-reason discipline (v28).",
     phases: [
         #{ title: "Preflight", detail: "workspace lock when apply:true — shared lock dir with Claude so fleets exclude each other" },
         #{ title: "Triage", detail: "right-size before spending; SKIPPED at tiny" },
         #{ title: "Architect", detail: "one-owner-per-file plan; multi-architect at max; SKIPPED when caller passes items[] or quality tiny" },
-        #{ title: "Third-eye", detail: "Claude (different family) reviews the plan before builders spend" },
+        #{ title: "Third-eye", detail: "Claude (different family) reviews the plan before builders spend; SKIPPED at tiny" },
         #{ title: "Build+Gate", detail: "builders write when apply:true; one owner per file; patch carrier when isolate" },
         #{ title: "Adversarial gate", detail: "diverse-lens skeptics ARE the gate (floor 2 at max/lean when applying)" },
         #{ title: "Rework", detail: "failed items get one more attempt (max keeps two)" },
         #{ title: "Merge", detail: "only with {isolate:true}: sequential git apply --check of patches" },
         #{ title: "Completeness", detail: "max ONLY — hunt work nobody planned; lean/tiny/standard report skipped" },
-        #{ title: "Render gate", detail: "v26 LOOP — LAW18 painted-UI at NARROW+WIDE viewports; fixer corrects; re-render up to RENDERLOOP passes (tiny 2 / lean 3 / max 4). FINAL pass blocks" },
-        #{ title: "Fat version bar", detail: "LAW17 — fat package or structural bug; thin ship blocks" },
+        #{ title: "Render gate", detail: "v26 LOOP + v28 stop reasons — NARROW+WIDE; fixer; re-render; stops PASSED|CEILING|STALLED (tiny 2 / lean 3 / max 4). FINAL pass blocks" },
+        #{ title: "Fat version bar", detail: "LAW17 — fat package or structural bug; thin ship blocks; apply only" },
         #{ title: "Reachability", detail: "LAW19 — added symbols have caller AND writer; tests proven to RUN" },
         #{ title: "Ship", detail: "push ONLY if shippable and {push:true}; never --force / --no-verify" },
-        #{ title: "Synthesize", detail: "ONE final ping report" },
+        #{ title: "Synthesize", detail: "ONE final ping report; tiny writes its own headline" },
     ],
 };
 
@@ -345,6 +345,14 @@ craft_rules += "3. KILL STALE CLAIMS — update prose that described old behavio
 craft_rules += "4. SURFACES AGREE — if a fact appears twice, both answers match.\n";
 craft_rules += "5. CHANGE ONLY WHAT THE BRIEF NAMES — no drive-by refactors.\n";
 
+// v28 — PACE (Claude v5/v18.4). Budget is re-read cost, not style. Attached to
+// every builder/skeptic/gate via craft_rules so no call site can forget it.
+craft_rules += "\nWORK BRISKLY — this run is budgeted: EVERY tool call re-reads context, so a whole-file read early is paid again on every call after. Prefer targeted grep over whole-file reads; prefer a small script that PRINTS A VERDICT over reading and judging yourself. Chain probes with &&; never bare `cd`. Stop at the FIRST solid answer (~12-18 tool calls). If you cannot settle, say so — honest 'not established' beats a slow guess. NONE OF THIS SKIPS EVIDENCE: never skip opening an image, running the test, or fetching real remote state to save a call.\n";
+
+// v28 — PROXY BAN (Claude v16). Three wrong-confident answers in one day were
+// the same mistake: measuring a stand-in for the fact.
+craft_rules += "\nVERIFY THE THING, NOT A PROXY. Named traps: an IMAGE is only correct if you OPENED it and said what it depicts (naturalWidth/path/hash/size are NOT content); REMOTE git needs fetch or ls-remote (rev-parse origin is a CACHED ref); a test proves nothing until seen FAIL on a deliberate break; NULL/absent is never a pass; 'the file changed' is not 'the running system changed' when anything caches. If you could not verify the thing itself, say not established.\n";
+
 let fat_law = "FAT VERSION LAW (LAW17): ONE version packages real work — (A) >=3 user-visible outcomes in one theme, OR (B) one structural bug with root cause + verify + prevention. Toast/label/CSS one-liner alone does NOT clear. Fold outcomes into items; do not inflate fleet.\n";
 
 let lenses = [
@@ -381,10 +389,66 @@ log("═════════════════════════
 log("KONYO WORKFLOW · Grok Build IMPLEMENTER · quality=" + quality + (if quality_defaulted { " (default lean)" } else { "" }));
 log("mode=" + mode_label + " · thirdEye=" + third_eye + " · isolate=" + isolate_mode.to_string() + " · push=" + do_push.to_string());
 log("maxRounds=" + max_rounds.to_string() + " · maxAgents=" + max_agents.to_string() + " · skepticFloor=" + skeptic_floor.to_string());
-log("RENDERLOOP=" + render_loop_n.to_string() + " (v26 loop: tiny2/lean3/max4) · SHIPPABLE needs apply+passed>0+no spawn_errors (v27.1)");
-log("FAT BAR · LAW18 render-loop · LAW19 reachability · shared workspace lock with Claude");
+log("RENDERLOOP=" + render_loop_n.to_string() + " (v26 loop · v28 stop: PASSED|CEILING|STALLED) · SHIPPABLE=apply+passed>0+no spawn_errors (v27.1)");
+log("PACE+PROXY on every agent · FAT BAR · LAW18 · LAW19 · shared lock with Claude");
 log("════════════════════════════════════════════════════════");
 log("TASK: " + task);
+
+// v28 — PHASE_PLAN (Claude v22.2). List what will open vs skip UP FRONT so a
+// skipped phase never reads as "still pending" on the status line.
+let phase_open = ["Preflight"];
+let phase_skip = [];
+if tiny_q {
+    phase_skip.push("Triage");
+    phase_skip.push("Architect");
+    phase_skip.push("Third-eye plan");
+    phase_skip.push("Completeness");
+    phase_skip.push("Synthesize agent");
+} else {
+    phase_open.push("Triage");
+    if items_arg.len() > 0 {
+        phase_skip.push("Architect (caller items[])");
+    } else {
+        phase_open.push("Architect");
+    }
+    if use_third_eye {
+        phase_open.push("Third-eye");
+    } else {
+        phase_skip.push("Third-eye");
+    }
+}
+phase_open.push("Build+Gate");
+phase_open.push("Adversarial");
+phase_open.push("Rework");
+if isolate_mode { phase_open.push("Merge"); } else { phase_skip.push("Merge"); }
+if max_only { phase_open.push("Completeness"); } else if !tiny_q { phase_skip.push("Completeness"); }
+if apply_mode {
+    phase_open.push("Render gate");
+    phase_open.push("Fat version bar");
+} else {
+    phase_skip.push("Render gate (dry-run)");
+    phase_skip.push("Fat version bar (dry-run)");
+}
+phase_open.push("Reachability");
+if apply_mode && do_push { phase_open.push("Ship"); } else { phase_skip.push("Ship (need apply+push)"); }
+if !tiny_q { phase_open.push("Synthesize"); }
+// Manual join — no reliance on Array::join across Rhai host versions.
+let phase_open_s = "";
+let _poi = 0;
+while _poi < phase_open.len() {
+    if _poi > 0 { phase_open_s += " → "; }
+    phase_open_s += phase_open[_poi];
+    _poi += 1;
+}
+let phase_skip_s = "";
+let _psi = 0;
+while _psi < phase_skip.len() {
+    if _psi > 0 { phase_skip_s += ", "; }
+    phase_skip_s += phase_skip[_psi];
+    _psi += 1;
+}
+log("PHASES OPEN (" + phase_open.len().to_string() + "): " + phase_open_s);
+log("   NOT OPENED (" + phase_skip.len().to_string() + ") — skipped, not pending: " + phase_skip_s);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 0) PREFLIGHT — workspace lock (apply only). SHARED dir with Claude Code so
@@ -1289,7 +1353,11 @@ if max_only && apply_mode {
 // 8) RENDER GATE (LAW18 / v26 LOOP) + FAT BAR (LAW17) + REACHABILITY (LAW19)
 // ═══════════════════════════════════════════════════════════════════════════
 let render_gate = #{ available: false, pass: true, reason: "not run", evidence: "", failures: [], screenshots: [], notes: "" };
-let render_loop = #{ passes: 0, fixes: 0, converged: false, stopped: "not run" };
+// v28 stop_reason: PASSED | CEILING | STALLED | N/A | not_run
+// CEILING = hit pass limit, failure still changing → more room or human.
+// STALLED = same failure unchanged across passes → stop and change approach.
+// Folding both into "didn't work" is how the next hour goes into the version that cannot work.
+let render_loop = #{ passes: 0, fixes: 0, converged: false, stopped: "not run", stop_reason: "not_run", last_failures_sig: "" };
 let fat_bar = #{ pass: false, reason: "not run", evidence: "" };
 let reach = #{ pass: false, reason: "not run", evidence: "" };
 
@@ -1310,7 +1378,7 @@ if apply_mode {
     rg_base += "5) LOOK AT THE PICTURES when art/icons/thumbnails changed — say in words what each depicts vs claims.\n";
     rg_base += "   matches:false is a BLOCKER. Empty images[] requires images_na_reason or the gate is not done.\n";
     rg_base += "6) SAVE screenshots to absolute paths in screenshots[]. pass=true ONLY with evidence.\n";
-    rg_base += "Never bind ports the user uses. TASK: " + task + "\n";
+    rg_base += "Never bind ports the user uses. TASK: " + task + "\n" + craft_rules;
 
     let rl_done = false;
     let render_failures = [];
@@ -1388,29 +1456,49 @@ if apply_mode {
                 spawn_errors.push("render gate pass " + rp.to_string() + " failed");
             }
 
+            // Signature of failures — used to distinguish CEILING (changing) from STALLED (same).
+            // A silent check that prints nothing every pass is unreadable as either; require named failures.
+            let fail_sig = json_encode(render_failures);
             if !render_available {
                 render_loop.stopped = "no UI verification in this project";
+                render_loop.stop_reason = "N/A";
                 render_loop.converged = true;
                 rl_done = true;
             } else if render_passed {
                 render_loop.stopped = if rp == 1 { "clean on the first render" } else { "clean after " + (rp - 1).to_string() + " correction(s)" };
+                render_loop.stop_reason = "PASSED";
                 render_loop.converged = true;
-                if rp > 1 { log("✅ RENDER LOOP CONVERGED on pass " + rp.to_string()); }
+                if rp > 1 { log("✅ RENDER LOOP PASSED on pass " + rp.to_string()); }
                 rl_done = true;
             } else if rp == rl_plan[rl_plan.len() - 1] {
-                render_loop.stopped = "ran out of passes (" + render_loop_n.to_string() + ") with " + render_failures.len().to_string() + " failure(s) open";
-                log("⛔ RENDER LOOP EXHAUSTED after " + render_loop_n.to_string() + " pass(es).");
+                // Last pass still dirty: CEILING if failures changed vs prior; STALLED if identical.
+                let prior = render_loop.last_failures_sig;
+                if prior != "" && prior == fail_sig {
+                    render_loop.stop_reason = "STALLED";
+                    render_loop.stopped = "STALLED after " + render_loop_n.to_string() + " pass(es) — same failure unchanged; stop and change approach";
+                } else {
+                    render_loop.stop_reason = "CEILING";
+                    render_loop.stopped = "CEILING after " + render_loop_n.to_string() + " pass(es) — still failing; failure may still be changing";
+                }
+                log("⛔ RENDER LOOP " + render_loop.stop_reason + " — " + render_loop.stopped);
                 rl_done = true;
             } else if agents_spent >= max_agents - 4 {
-                // Reserve agents for fat bar / reachability / report / lock release.
-                render_loop.stopped = "ceiling — correction not affordable (" + agents_spent.to_string() + "/" + max_agents.to_string() + ")";
+                render_loop.stop_reason = "CEILING";
+                render_loop.stopped = "CEILING — agent budget reserved for fat/reachability (" + agents_spent.to_string() + "/" + max_agents.to_string() + ")";
                 log("⚠ RENDER LOOP STOPPED: " + render_loop.stopped);
                 rl_done = true;
+            } else if render_loop.last_failures_sig != "" && render_loop.last_failures_sig == fail_sig && rp > 1 {
+                // Same failure after a fixer already ran → STALLED early (desktop skill rule).
+                render_loop.stop_reason = "STALLED";
+                render_loop.stopped = "STALLED — identical failures after a correction pass; stop and change approach";
+                log("⚠ RENDER LOOP STALLED: " + render_loop.stopped);
+                rl_done = true;
             } else {
+                render_loop.last_failures_sig = fail_sig;
                 log("🔁 RENDER LOOP pass " + rp.to_string() + "/" + render_loop_n.to_string() + " failed with " + render_failures.len().to_string() + " failure(s) — correcting.");
                 let fx_p = "RENDER FIX — pass " + rp.to_string() + " of " + render_loop_n.to_string() + ".\n";
                 fx_p += "The render gate LOOKED at this UI and found the failures below. Fix them in the CODE.\n";
-                fx_p += "FAILURES (may name viewport width):\n" + json_encode(render_failures) + "\n";
+                fx_p += "FAILURES (may name viewport width) — name each one in words; a silent check cannot detect stall:\n" + json_encode(render_failures) + "\n";
                 fx_p += "SCREENSHOTS — OPEN THEM:\n" + json_encode(render_screenshots) + "\n";
                 fx_p += "GATE NOTES: " + render_notes + "\n";
                 fx_p += "RULES (what keeps this loop honest):\n";
@@ -1418,7 +1506,7 @@ if apply_mode {
                 fx_p += "· DIAGNOSE BEFORE EDITING. A one-width layout failure usually lives a step up the tree.\n";
                 fx_p += "· STAY IN SCOPE. No drive-by refactor. NEVER git push. NEVER bump a version.\n";
                 fx_p += "· Honest unfixable[] beats a fake fix that costs the next render pass AND trust.\n";
-                fx_p += "TASK: " + task + "\n";
+                fx_p += "TASK: " + task + "\n" + craft_rules;
                 let fx = agent(fx_p, #{
                     label: "law18:fix-" + rp.to_string(),
                     phase: "Render gate",
@@ -1444,15 +1532,16 @@ if apply_mode {
                 if fx_changed {
                     render_loop.fixes = render_loop.fixes + 1;
                 } else {
-                    // NO PROGRESS ⇒ STOP. Re-rendering unchanged code cannot produce a new picture.
-                    render_loop.stopped = "the fixer changed nothing — re-rendering would print the same result";
-                    log("⚠ RENDER LOOP STOPPED: " + render_loop.stopped);
+                    // NO PROGRESS ⇒ STALLED. Re-rendering unchanged code cannot produce a new picture.
+                    render_loop.stop_reason = "STALLED";
+                    render_loop.stopped = "STALLED — the fixer changed nothing; re-rendering would print the same result";
+                    log("⚠ RENDER LOOP STALLED: " + render_loop.stopped);
                     rl_done = true;
                 }
             }
         }
     }
-    log("🔁 Render loop: " + render_loop.passes.to_string() + " pass(es), " + render_loop.fixes.to_string() + " correction(s) — " + render_loop.stopped);
+    log("🔁 Render loop: " + render_loop.passes.to_string() + " pass(es), " + render_loop.fixes.to_string() + " correction(s) · stop_reason=" + render_loop.stop_reason + " — " + render_loop.stopped);
 
     // FINAL pass is what blocks (same as Claude wiring).
     if render_available && !render_passed {
@@ -1725,7 +1814,11 @@ complete(#{
         shippable_requires_no_thin_panels: true,
         architect_noop_honest: true,
         builders_never_push: true,
+        v28_pace_and_proxy: true,
+        v28_phase_plan: true,
+        v28_render_stop_passed_ceiling_stalled: true,
     },
+    phase_plan: #{ open: phase_open, skip: phase_skip },
     merge: merge,
     thirdEye: #{
         requested: third_eye,
