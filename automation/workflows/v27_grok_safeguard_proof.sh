@@ -66,6 +66,17 @@ has "default third eye claude" 'let third_eye = "claude"'
 has "empty seat not filled by Grok" 'Seat reported empty, never filled by Grok'
 
 echo ""
+echo "v28 PACE + PROXY + PHASE_PLAN + STOP REASONS"
+has "PACE clause (WORK BRISKLY)" 'WORK BRISKLY'
+has "PROXY ban (VERIFY THE THING)" 'VERIFY THE THING, NOT A PROXY'
+has "PHASE_PLAN open ledger" 'PHASES OPEN'
+has "PHASE_PLAN skip honesty" 'NOT OPENED'
+has "stop reason PASSED" 'stop_reason = "PASSED"'
+has "stop reason CEILING" 'stop_reason = "CEILING"'
+has "stop reason STALLED" 'stop_reason = "STALLED"'
+has "v28 safeguards flag" 'v28_render_stop_passed_ceiling_stalled'
+
+echo ""
 if [[ "$fail" -eq 0 ]]; then
   echo "ALL SAFEGUARD CONTRACTS PRESENT."
   exit 0
