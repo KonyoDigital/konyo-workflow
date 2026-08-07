@@ -75,6 +75,14 @@ Not required: Obsidian, a new GitHub org, or foreign names. **Same spirit as a p
 
 ---
 
+## Grok Build only? → [konyo-workflow-grok](https://github.com/KonyoDigital/konyo-workflow-grok)
+
+Public, Grok-only package: shipper + install + safeguard proof. No Claude Code engines.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/KonyoDigital/konyo-workflow-grok/main/install.sh | bash
+```
+
 ## No terminal? → [ship-skill](https://github.com/KonyoDigital/ship-skill)
 
 The Desktop skill moved to its own repo and is maintained there. The copy that lived
