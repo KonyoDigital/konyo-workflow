@@ -1,6 +1,6 @@
 # Grok Build workflows (Konyo)
 
-**Parity target:** Claude Code `konyo-workflow.js` **v27.1** + **v26 render loop** + **v28** (PACE+PROXY, PHASE_PLAN, PASSED|CEILING|STALLED) + **v28.1** early lock release + **v29** scar law (FOUNDING vs LEARNED, EVIDENCE, undo snapshot — desktop skill / Prime Continual Harness).
+**Parity target:** Claude Code `konyo-workflow.js` **v27.1+** + **v26 render loop** + **v28** (PACE+PROXY, PHASE_PLAN, PASSED|CEILING|STALLED) + **v28.1** early lock release + **v29** scar law + **v30** meter routing / fleet caps / thrash+tip honesty (2026-08-07).
 
 | Slash | File | Role |
 |-------|------|------|
@@ -9,7 +9,8 @@
 
 > **2026-08-07:** The Grok shipper was **audit-only** (read-only laws panel, no builders).
 > That body is retired to `konyo-workflow.rhai.bak-audit-only-2026-08-07`.
-> The live script is now an **implementer** with the same quality knob and gates as Claude.
+> The live script is an **implementer**. **v30** adds meter routing after a measured
+> max run burned 2h+ on a “30 whole-console versions” brief (ceiling + thrash).
 
 ## How to invoke (Grok Build)
 
@@ -17,16 +18,21 @@
 # Lean default, dry-run (propose only — safe)
 /konyo-workflow {"task":"…"}
 
-# Actually edit files
+# Actually edit files (default quality = lean)
 /konyo-workflow {"task":"…","apply":true}
 
-# Max when being wrong is expensive
-/konyo-workflow {"task":"…","apply":true,"quality":"max"}
+# Max ONLY when being wrong is expensive AND the list is SMALL
+/konyo-workflow {"task":"…","apply":true,"quality":"max","items":[
+  {"file":"/abs/path","instruction":"…","risk":"high","anchor":"~line N"}
+]}
 
-# Tiny: known edit set, ~15-minute hop budget, every ship gate kept
+# Tiny: known edit set, ~15-minute hop budget, every ship gate kept (max 4 items)
 /konyo-workflow {"task":"…","apply":true,"quality":"tiny","items":[
   {"file":"/abs/path","instruction":"…","risk":"low","anchor":"~line N, symbol"}
 ]}
+
+# Multi-version product arcs: N lean/tiny slices — NOT one max fleet of 30 stamps
+/konyo-workflow {"task":"Arc slice 1 of 4: …","apply":true,"quality":"lean"}
 
 # Standard cheap ladder
 /konyo-workflow {"task":"…","apply":true,"quality":"standard"}
@@ -43,86 +49,69 @@
 | `apply` | `false` | `true` = builders edit; `false` = dry-run diffs only |
 | `quality` | `lean` | `lean` · `max` · `standard` · `tiny` (`fast`→`lean`) |
 | `force` | `false` | Override triage `direct` |
-| `items` | — | `[{file, instruction, risk?, anchor?}]` — **skips architect at ANY quality** (required for tiny). Empty architect plans no longer die as "after caps". |
+| `items` | — | `[{file, instruction, risk?, anchor?}]` — **skips architect at ANY quality** (required for tiny) |
+| `maxItems` | by quality | Hard item cap: **tiny 4 · max 6 · lean 8 · standard 10** (override if you must) |
 | `skeptics` | triage / floor | Explicit seat count; `0` = human opt-out |
 | `isolate` | `false` | Worktree builders + merge (`git apply --check`) |
 | `thirdEye` | `claude` | `claude` (different family) · `grok` (same-family, labelled degraded) · `false` off |
 | `push` | `false` | Ship phase may `git push` only if shippable; never `--force` |
-| `maxAgents` | `24` | Hard ceiling |
+| `maxAgents` | `24` | Hard agent ceiling |
 | `ignoreLock` | `false` | Proceed over a live workspace lock |
 
 ## Quality law (identical spirit to Claude)
 
-- **LEAN (default):** every ship gate runs; one architect; no completeness critic; efficient builders.
-- **MAX:** multi-round rework + completeness critic (hunt unplanned work) + deepest tier prompts.
+- **LEAN (default):** every ship gate runs; one architect; no completeness critic; efficient builders. **Use for volume / multi-stamp arcs.**
+- **MAX:** multi-round rework + completeness critic + deepest prompts. **Use for small high-stakes packages only** (prefer `items[]` ≤6). Not for “ship 30 versions.”
 - **STANDARD:** cheaper ladder; fable-style per-item gate when skeptics=0.
-- **TINY:** skips planning hops only — **never** skips adversarial / LAW17 / LAW18 / LAW19 / lock.
+- **TINY:** skips planning hops only — **never** skips adversarial / LAW17 / LAW18 / LAW19 / lock. Cap 4 items.
 
-`quality` may change **tier depth, panel size, extra phases** — never whether a safeguard runs.
+`quality` may change **tier depth, panel size, extra phases, item cap** — never whether a safeguard runs.
+
+## v30 meter routing (2026-08-07)
+
+Measured: `quality:max` + “30 fat whole-console versions” + `force:true` → ~2h, 28 agents, render CEILING, PARTIAL ship, concurrent VERSION thrash.
+
+| Rule | Meaning |
+|------|---------|
+| **Max ≠ volume** | Task text like “30 versions” / “whole-console versions” logs a loud warning under max |
+| **Item caps** | Hard trim after plan; excess files → `trimmedFromPlan` / PARTIAL, not silent invent |
+| **Tip honesty** | Architect/builders told: VERSION + CHANGELOG + HANDOFF tip must agree; no empty fleet stamps |
+| **Thrash resistance** | No import-time `server.py` rewrites / `_server_body` / `apply_arc_d*` writers |
+
+Prove contracts:
+
+```bash
+bash ~/.grok/workflows/v27_grok_safeguard_proof.sh
+# or: bash ~/konyo-workflow/automation/workflows/v27_grok_safeguard_proof.sh
+```
 
 ## Host differences (named, not papered over)
 
 | | Claude Code host | Grok Build host |
 |--|------------------|-----------------|
 | Engine | `konyo-workflow.js` | `konyo-workflow.rhai` |
-| Builders | Opus/Sonnet/Haiku ladder | Grok agents + **depth directive** in prompt (one model family) |
+| Builders | Opus/Sonnet/Haiku ladder | Grok agents + **depth directive** in prompt |
 | Third eye default | **Grok CLI** | **Claude CLI** (`claude -p --model opus`) |
 | Write boundary | harness tools | `capability_mode`: `read-only` / `read-write` / `all` |
 | Workspace lock | `~/.claude/workflows/.locks/` | **same dir** (fleets exclude each other) |
 
-A same-family stand-in is never a silent fallback. Empty third-eye seat is reported empty.
-
 ## Gates (all qualities when applying)
 
-1. Workspace lock (apply only)
+1. Workspace lock (apply only) — shared with Claude
 2. Adversarial skeptic panel (floor 2 at max/lean apply)
-3. LAW17 fat version bar
-4. **LAW18 painted-UI proof — v26 LOOP** (`available:false` honest when no UI):
-   - NARROW + WIDE viewport (a one-width layout bug is invisible to a single render)
-   - Fixer corrects failures (**FIX THE CODE, NEVER THE ASSERTION**)
-   - Re-render; **final pass** is what blocks (tiny 2 / lean 3 / max 4 passes)
-   - No-progress stop if the fixer changed nothing
-5. LAW19 reachability (caller + writer; tests proven to run)
+3. LAW17 fat version bar (+ v30 arc discipline)
+4. LAW18 painted-UI proof — v26 LOOP (narrow+wide; PASSED|CEILING|STALLED)
+5. LAW19 reachability
 6. Ship push only if shippable **and** `{push:true}`
 
-## Safeguards (v26 · v27 · v27.1)
-
-| Defect closed | Rule |
-|---|---|
-| Vacuous green ship (`items:[]` / zero work) | `SHIPPABLE` requires `apply:true` **and** `passed > 0` |
-| Dry-run reads as "ready to push" | `apply:false` ⇒ never shippable |
-| Dead agent counted as green | `spawn_errors` non-empty ⇒ not shippable |
-| Thin skeptic panel | `thin_panels` non-empty ⇒ not shippable |
-| Empty plan mislabelled "after caps" | `architect_noop` / `architect_empty` honest errors |
-| Caller already named the files | `items:[{file,instruction}]` skips architect at **any** quality |
-| Single-viewport blind spot | Render at narrow **and** wide |
-| Self-correcting loop weakens tests | Fixer: fix code, never the assertion |
-| Builders ship past gates | Builders **never** push; only Ship phase with `{push:true}` |
-| Exhaustive agents burn hours (PACE) | Every agent prompt: prefer verdict scripts, ~12–18 tool calls, never skip evidence |
-| Proxy measurements (PROXY ban) | Open the image / fetch remote / see the test fail — not path/hash/`rev-parse` alone |
-| Status bar lies about pending phases | PHASE_PLAN logs open vs skip up front |
-| Loop “didn’t work” is unreadable | Render stop: **PASSED** · **CEILING** (still changing) · **STALLED** (same failure) |
-| Early bail orphans workspace lock | v28.1: release lock before `complete()` on triage-direct / empty plan / tiny refuse |
-| Learned scar overwrites founding rule | FOUNDING immutable; LEARNED append-only below marker |
-| Scar without evidence becomes superstition | EVIDENCE line: what *this run* proved — not why it sounds sensible |
-| Wrong lesson is permanent | Snapshot before append (`SCARS.prev.md` / `tools/scar.py --rollback`) |
-
-### Prove the contracts (static gate)
-
-```bash
-bash automation/workflows/v27_grok_safeguard_proof.sh
-# Claude vacuous-green proof:
-node automation/claude-code/v27_empty_plan_proof.mjs
-```
-
-## Install
+## Install / sync
 
 ```bash
 # from konyo-workflow repo
-./install.sh
-# or:
 cp automation/workflows/konyo-workflow.rhai ~/.grok/workflows/
-cp grok/konyo-workflow-max.rhai ~/.grok/workflows/   # deprecation notice only
+cp automation/workflows/v27_grok_safeguard_proof.sh ~/.grok/workflows/
+cp grok/konyo-workflow-max.rhai ~/.grok/workflows/
+bash ~/.grok/workflows/v27_grok_safeguard_proof.sh
 ```
 
-Also mirrored at `~/.konyo-workflow/workflows/konyo-workflow.rhai`.
+Or `./install.sh` from the repo root when that path is wired for Grok.
