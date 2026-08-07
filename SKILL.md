@@ -130,6 +130,39 @@ Multi-step “build / fix / polish properly” arcs. Not for one-line errands.
 
 ---
 
+## Meter routing (orchestrated fleets — v30)
+
+When the host has a **quality dial** (`lean` / `max` / `tiny` / `standard`) and an
+**agent ceiling**, the dial is not a “try harder” slider. It chooses **cost shape**.
+
+| Quality | Use for | Do **not** use for |
+|---------|---------|---------------------|
+| **lean** (default) | Daily ships, multi-stamp arcs sliced into fat packages | — |
+| **tiny** | Known `items[{file,instruction}]` (cap ~4) | Diagnosis without a file list |
+| **max** | Small high-stakes lists (security, money, irreversible) | “Ship 30 versions”, whole-product arcs in one run |
+| **standard** | Cheap reversible work | High-stakes money paths |
+
+**Measured (2026-08-07):** `quality:max` + “30 whole-console fat versions” + force
+→ multi-hour run, agent ceiling, render CEILING, PARTIAL/BLOCKED ship, concurrent
+fleets thrashing VERSION. Gates working correctly still means **tokens burned**.
+
+**Rules carved from that run:**
+
+1. **Max ≠ volume.** Volume = N lean/tiny slices, each a fat LAW17 package.
+2. **Prefer `items[]` when the file list is known** — skip the architect hop.
+3. **One owner per tree at a time** — shared workspace lock; don’t stack a max
+   fleet and a live auto-loop on the same repo.
+4. **Tip honesty** — VERSION + CHANGELOG + HANDOFF tip must agree; never rewind
+   VERSION; never invent empty fleet stamps.
+5. **Thrash is not a ship** — no import-time server rewrites, no “apply” scripts
+   that mutate source to fake progress.
+
+Grok Build shipper encodes (1)–(5) in **v30** (`konyo-workflow.rhai` / public
+[konyo-workflow-grok](https://github.com/KonyoDigital/konyo-workflow-grok)).
+Claude Code slash commands (`/KonyoLean`, `/KonyoMax`) state the same routing.
+
+---
+
 ## What this is NOT
 
 - Not a specific AI product or vendor  
