@@ -77,6 +77,12 @@ has "stop reason STALLED" 'stop_reason = "STALLED"'
 has "v28 safeguards flag" 'v28_render_stop_passed_ceiling_stalled'
 
 echo ""
+echo "v28.1 EARLY LOCK RELEASE"
+has "early release on triage-direct" 'lock:release-early'
+has "triage-direct bail releases" 'Early lock release'
+
+
+echo ""
 if [[ "$fail" -eq 0 ]]; then
   echo "ALL SAFEGUARD CONTRACTS PRESENT."
   exit 0

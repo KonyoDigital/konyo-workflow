@@ -570,6 +570,15 @@ if tiny_q {
     if bad != "" {
         log("⛔ TINY REFUSED: " + bad);
         log("   {quality:\"tiny\", apply:true, items:[{file:\"/abs/path\", instruction:\"…\", risk:\"low\", anchor:\"~line N\"}]}");
+        if lock_acquired && lock_token != "" {
+            let rel_e3 = agent(
+                "WORKSPACE LOCK — release. Bash only.\nLOCKDIR=\"$HOME/.claude/workflows/.locks\"\n" +
+                "Find the file whose token is exactly " + json_encode(lock_token) + " and delete ONLY that file.\n" +
+                "Return acquired:false, key:released.",
+                #{ label: "lock:release-early", phase: "Preflight", capability_mode: "execute", output_schema: lock_schema });
+            if rel_e3 != () && rel_e3.success { log("🔓 Workspace lock released (tiny-refuse bail)."); }
+            lock_acquired = false;
+        }
         complete(#{
             verdict: "blocked",
             ship_allowed: false,
@@ -619,6 +628,19 @@ if !tiny_q {
         log("  " + trimmed(triage.why));
         if trimmed(triage.tier) == "direct" && !force_run {
             log("⛔ TRIAGE SAYS DO THIS DIRECTLY — spawning nothing. Re-run with force:true to override.");
+            // v28.1 — RELEASE THE LOCK ON EVERY EARLY EXIT. Workflow-5 took the lock,
+            // bailed as direct, and left Users-konyo.json for 180 minutes — blocking
+            // the next lean apply cold. complete() never reaches the bottom release.
+            if lock_acquired && lock_token != "" {
+                let rel_early = agent(
+                    "WORKSPACE LOCK — release. Bash only.\nLOCKDIR=\"$HOME/.claude/workflows/.locks\"\n" +
+                    "Find the file whose token is exactly " + json_encode(lock_token) + " and delete ONLY that file.\n" +
+                    "Return acquired:false, key:released.",
+                    #{ label: "lock:release-early", phase: "Triage", capability_mode: "execute", output_schema: lock_schema });
+                if rel_early != () && rel_early.success { log("🔓 Workspace lock released (early bail)."); }
+                else { log("⚠ Early lock release uncertain — TTL will expire it."); }
+                lock_acquired = false;
+            }
             complete(#{
                 verdict: "not_run",
                 ship_allowed: false,
@@ -876,6 +898,16 @@ if plan_items.len() == 0 {
     }
     log("⛔ EMPTY PLAN — " + why);
     blockers.push(#{ what: "empty plan", why: why });
+    // v28.1 — release lock before complete() (same orphan bug as triage-direct bail)
+    if lock_acquired && lock_token != "" {
+        let rel_e2 = agent(
+            "WORKSPACE LOCK — release. Bash only.\nLOCKDIR=\"$HOME/.claude/workflows/.locks\"\n" +
+            "Find the file whose token is exactly " + json_encode(lock_token) + " and delete ONLY that file.\n" +
+            "Return acquired:false, key:released.",
+            #{ label: "lock:release-early", phase: "Architect", capability_mode: "execute", output_schema: lock_schema });
+        if rel_e2 != () && rel_e2.success { log("🔓 Workspace lock released (empty-plan bail)."); }
+        lock_acquired = false;
+    }
     complete(#{
         verdict: if err == "architect_noop" { "already_complete_or_noop" } else { "blocked" },
         ship_allowed: false,
