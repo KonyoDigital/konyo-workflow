@@ -12,6 +12,9 @@ if [[ -f "$ROOT/SKILL.md" ]]; then
   [[ -f "$ROOT/docs/SHIP_LAWS.md" ]] && cp "$ROOT/docs/SHIP_LAWS.md" "$DEST/SHIP_LAWS.md" || true
   if [[ -d "$ROOT/automation/workflows" ]]; then
     cp "$ROOT/automation/workflows/"*.rhai "$DEST/workflows/" 2>/dev/null || true
+    # Static safeguard proofs (v27 empty-plan / render-loop contracts) — install
+    # beside the shipper so a host can re-prove without cloning.
+    cp "$ROOT/automation/workflows/"*.sh "$DEST/workflows/" 2>/dev/null || true
     # The Grok CLI loads from ~/.grok/workflows. automation/workflows/ holds the
     # LIVE implementer (parity with Claude Code konyo-workflow.js). grok/*.rhai holds
     # the MAX deprecation notice and host docs. Both must land under ~/.grok/workflows
@@ -19,6 +22,7 @@ if [[ -f "$ROOT/SKILL.md" ]]; then
     # three fewer gates than Claude — the cross-host drift the law table exists to stop).
     if [[ -d "${HOME}/.grok/workflows" ]]; then
       cp "$ROOT/automation/workflows/"*.rhai "${HOME}/.grok/workflows/" 2>/dev/null || true
+      cp "$ROOT/automation/workflows/"*.sh "${HOME}/.grok/workflows/" 2>/dev/null || true
     fi
   fi
   # Grok Build extras (MAX entry is a deprecation notice → quality:"max" on the one body)
@@ -58,7 +62,13 @@ if [[ -d "$HOME/.claude" ]]; then
       curl -fsSL "$BASE/automation/claude-code/${f}.js" -o "$CLAUDE_DEST/${f}.js" 2>/dev/null || true
     fi
   done
-  echo "   Claude Code shippers → $CLAUDE_DEST (konyo-workflow, konyo-workflow-max)"
+  # Proof harnesses (v27 empty-plan) — not required to run the shipper, required to trust it.
+  for f in v27_empty_plan_proof.mjs load_harness.mjs; do
+    if [[ -f "$ROOT/automation/claude-code/${f}" ]]; then
+      cp "$ROOT/automation/claude-code/${f}" "$CLAUDE_DEST/${f}"
+    fi
+  done
+  echo "   Claude Code shippers → $CLAUDE_DEST (konyo-workflow + v27 proof)"
 fi
 
 echo "✅ Konyo Workflow installed to $DEST"
