@@ -22,3 +22,7 @@ reviewer; `{thirdEye:'claude'}` is a labelled same-family stand-in. `{isolate:tr
 worktrees and merges after. `{maxAgents:N}` raises the ceiling.
 
 Faster: `/KonyoFast`. Cheaper: `/KonyoCost`.
+
+## v30 meter routing
+
+**Max is not volume.** Prefer `items[]` of ≤6 files. Multi-version arcs = N lean/tiny slices. Cap: max 6 / lean 8 / tiny 4 / standard 10 (`maxItems` override ≤24).
