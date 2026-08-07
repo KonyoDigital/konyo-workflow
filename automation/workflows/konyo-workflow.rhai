@@ -1,7 +1,7 @@
 let meta = #{
     name: "konyo-workflow",
-    description: "KONYO WORKFLOW for Grok Build — FULL IMPLEMENTER (not audit-only). ONE body, four qualities (lean|max|standard|tiny). LEAN is the default: every ship gate runs (adversarial panel, LAW17/18/19, workspace lock, agent ceiling) while max buys a multi-architect panel, completeness critic, and deeper rework. Pass {apply:true} to edit files; apply:false is dry-run (propose only). Third eye is Claude (different family) via the claude CLI — never a same-family stand-in unless thirdEye:\"claude\". Pass {task, quality, apply, force, items, skeptics, isolate, thirdEye, maxAgents, ignoreLock, push, renderLoop}. items:[{file,instruction}] skips the architect at ANY quality (not only tiny) — empty architect plans no longer die as \"after caps\". v26 render LOOP (narrow+wide, fixer, re-render; final pass blocks). v27/v27.1 SHIPPABLE needs apply+passed>0+no spawn_errors. v28: PACE+PROXY on every agent; PHASE_PLAN open/skip honesty; render-loop stop reasons PASSED|CEILING|STALLED (desktop parity).",
-    when_to_use: "ANY multi-step ship on Grok Build. Bare call = lean + dry-run. {apply:true} to write. {quality:\"max\"} when being wrong is expensive. {quality:\"tiny\", apply:true, items:[{file,instruction}]} for a known small edit set. {quality:\"standard\"} for the cheap ladder. Parity target: Claude Code konyo-workflow.js v27.1 + v26 render loop + desktop stop-reason discipline (v28).",
+    description: "KONYO WORKFLOW for Grok Build — FULL IMPLEMENTER (not audit-only). ONE body, four qualities (lean|max|standard|tiny). LEAN is the default: every ship gate runs (adversarial panel, LAW17/18/19, workspace lock, agent ceiling) while max buys a multi-architect panel, completeness critic, and deeper rework. Pass {apply:true} to edit files; apply:false is dry-run (propose only). Third eye is Claude (different family) via the claude CLI — never a same-family stand-in unless thirdEye:\"claude\". Pass {task, quality, apply, force, items, skeptics, isolate, thirdEye, maxAgents, ignoreLock, push, renderLoop}. items:[{file,instruction}] skips the architect at ANY quality (not only tiny) — empty architect plans no longer die as \"after caps\". v26 render LOOP; v27/v27.1 SHIPPABLE; v28 PACE+PROXY+PHASE_PLAN+PASSED|CEILING|STALLED; v28.1 early lock release; v29 scar law FOUNDING vs LEARNED + EVIDENCE + undo snapshot (desktop/Prime Continual Harness parity).",
+    when_to_use: "ANY multi-step ship on Grok Build. Bare call = lean + dry-run. {apply:true} to write. {quality:\"max\"} when being wrong is expensive. {quality:\"tiny\", apply:true, items:[{file,instruction}]} for a known small edit set. {quality:\"standard\"} for the cheap ladder. Parity target: Claude Code konyo-workflow.js v27.1 + v26 render loop + desktop skill stop reasons + scar founding/learned/evidence (v29).",
     phases: [
         #{ title: "Preflight", detail: "workspace lock when apply:true — shared lock dir with Claude so fleets exclude each other" },
         #{ title: "Triage", detail: "right-size before spending; SKIPPED at tiny" },
@@ -352,6 +352,17 @@ craft_rules += "\nWORK BRISKLY — this run is budgeted: EVERY tool call re-read
 // v28 — PROXY BAN (Claude v16). Three wrong-confident answers in one day were
 // the same mistake: measuring a stand-in for the fact.
 craft_rules += "\nVERIFY THE THING, NOT A PROXY. Named traps: an IMAGE is only correct if you OPENED it and said what it depicts (naturalWidth/path/hash/size are NOT content); REMOTE git needs fetch or ls-remote (rev-parse origin is a CACHED ref); a test proves nothing until seen FAIL on a deliberate break; NULL/absent is never a pass; 'the file changed' is not 'the running system changed' when anything caches. If you could not verify the thing itself, say not established.\n";
+
+// v29 — SCAR LAW (desktop skill + Prime Continual Harness, 2026-08-07).
+// Founding rules are human-authored and never overwritten by a learned lesson.
+// Learned scars need EVIDENCE from THIS run, not a sensible-sounding regret.
+// Wrong lessons must be undoable — snapshot before append.
+craft_rules += "\nSCAR LAW (FOUNDING vs LEARNED):\n";
+craft_rules += "· FOUNDING RULES (hand-written at top of SCARS.md / project scar file) are immutable by this run. Never overwrite, move, or 'improve' them from a bug.\n";
+craft_rules += "· LEARNED SCARS are APPENDED only, below the learned marker. Lower authority on purpose.\n";
+craft_rules += "· Every learned scar needs EVIDENCE: what in THIS run proved the rule (not why it sounds sensible). Without it a workflow fills with untraceable refusals.\n";
+craft_rules += "· Before pasting a new scar: snapshot (SCARS.prev.md or tools/scar.py --rollback path). A wrong lesson is worse than no lesson because you will follow it.\n";
+craft_rules += "· Prefer project tools (e.g. tools/scar.py) over hand-editing machine-parsed blocks when they exist.\n";
 
 let fat_law = "FAT VERSION LAW (LAW17): ONE version packages real work — (A) >=3 user-visible outcomes in one theme, OR (B) one structural bug with root cause + verify + prevention. Toast/label/CSS one-liner alone does NOT clear. Fold outcomes into items; do not inflate fleet.\n";
 
@@ -1712,6 +1723,8 @@ if !tiny_q {
     syn_p += "quality=" + quality + " apply=" + apply_mode.to_string() + " shippable=" + shippable.to_string() + "\n";
     syn_p += "passed=" + passed_n.to_string() + " failed=" + failed_n.to_string() + " blockers=" + blockers.len().to_string() + "\n";
     syn_p += "version_label=" + version_label + "\nTASK: " + task + "\n";
+    syn_p += "If this run earned a LEARNED scar, say so and require EVIDENCE from the run; never claim founding rules changed.\n";
+    syn_p += "If render_loop stop_reason is STALLED vs CEILING, name which in the headline (opposite responses).\n";
     syn_p += "Return version_label, headline (one line), shipped[], follow_ups[].";
     let syn = agent(syn_p, #{
         label: "synthesize",
@@ -1849,6 +1862,10 @@ complete(#{
         v28_pace_and_proxy: true,
         v28_phase_plan: true,
         v28_render_stop_passed_ceiling_stalled: true,
+        v28_1_early_lock_release: true,
+        v29_scar_founding_vs_learned: true,
+        v29_scar_evidence_required: true,
+        v29_scar_undo_snapshot: true,
     },
     phase_plan: #{ open: phase_open, skip: phase_skip },
     merge: merge,

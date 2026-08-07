@@ -1,6 +1,6 @@
 # Grok Build workflows (Konyo)
 
-**Parity target:** Claude Code `konyo-workflow.js` **v27.1** (lean default, apply, army, skeptic gate, LAW17/18/19, items@any quality, no vacuous green ship) **+ v26 render loop** **+ v28** (PACE+PROXY on every agent, PHASE_PLAN open/skip honesty, render stop reasons PASSED|CEILING|STALLED from desktop skill).
+**Parity target:** Claude Code `konyo-workflow.js` **v27.1** + **v26 render loop** + **v28** (PACE+PROXY, PHASE_PLAN, PASSED|CEILING|STALLED) + **v28.1** early lock release + **v29** scar law (FOUNDING vs LEARNED, EVIDENCE, undo snapshot — desktop skill / Prime Continual Harness).
 
 | Slash | File | Role |
 |-------|------|------|
@@ -102,6 +102,10 @@ A same-family stand-in is never a silent fallback. Empty third-eye seat is repor
 | Proxy measurements (PROXY ban) | Open the image / fetch remote / see the test fail — not path/hash/`rev-parse` alone |
 | Status bar lies about pending phases | PHASE_PLAN logs open vs skip up front |
 | Loop “didn’t work” is unreadable | Render stop: **PASSED** · **CEILING** (still changing) · **STALLED** (same failure) |
+| Early bail orphans workspace lock | v28.1: release lock before `complete()` on triage-direct / empty plan / tiny refuse |
+| Learned scar overwrites founding rule | FOUNDING immutable; LEARNED append-only below marker |
+| Scar without evidence becomes superstition | EVIDENCE line: what *this run* proved — not why it sounds sensible |
+| Wrong lesson is permanent | Snapshot before append (`SCARS.prev.md` / `tools/scar.py --rollback`) |
 
 ### Prove the contracts (static gate)
 
