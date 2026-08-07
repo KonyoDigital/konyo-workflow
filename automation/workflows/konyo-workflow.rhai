@@ -1,11 +1,11 @@
 let meta = #{
     name: "konyo-workflow",
-    description: "KONYO WORKFLOW for Grok Build — FULL IMPLEMENTER (not audit-only). ONE body, four qualities (lean|max|standard|tiny). LEAN is the default: every ship gate runs (adversarial panel, LAW17/18/19, workspace lock, agent ceiling) while max buys a multi-architect panel, completeness critic, and deeper rework. Pass {apply:true} to edit files; apply:false is dry-run (propose only). Third eye is Claude (different family) via the claude CLI — never a same-family stand-in unless thirdEye:\"claude\". Pass {task, quality, apply, force, items, skeptics, isolate, thirdEye, maxAgents, ignoreLock, push}.",
+    description: "KONYO WORKFLOW for Grok Build — FULL IMPLEMENTER (not audit-only). ONE body, four qualities (lean|max|standard|tiny). LEAN is the default: every ship gate runs (adversarial panel, LAW17/18/19, workspace lock, agent ceiling) while max buys a multi-architect panel, completeness critic, and deeper rework. Pass {apply:true} to edit files; apply:false is dry-run (propose only). Third eye is Claude (different family) via the claude CLI — never a same-family stand-in unless thirdEye:\"claude\". Pass {task, quality, apply, force, items, skeptics, isolate, thirdEye, maxAgents, ignoreLock, push}. items:[{file,instruction}] skips the architect at ANY quality (not only tiny) — empty architect plans no longer die as \"after caps\".",
     when_to_use: "ANY multi-step ship on Grok Build. Bare call = lean + dry-run. {apply:true} to write. {quality:\"max\"} when being wrong is expensive. {quality:\"tiny\", apply:true, items:[{file,instruction}]} for a known small edit set. {quality:\"standard\"} for the cheap ladder. Parity target: Claude Code konyo-workflow.js (v26+).",
     phases: [
         #{ title: "Preflight", detail: "workspace lock when apply:true — shared lock dir with Claude so fleets exclude each other" },
         #{ title: "Triage", detail: "right-size before spending; SKIPPED at tiny" },
-        #{ title: "Architect", detail: "one-owner-per-file plan; multi-architect at max; SKIPPED at tiny (caller is the plan)" },
+        #{ title: "Architect", detail: "one-owner-per-file plan; multi-architect at max; SKIPPED when caller passes items[] or quality tiny" },
         #{ title: "Third-eye", detail: "Claude (different family) reviews the plan before builders spend" },
         #{ title: "Build+Gate", detail: "builders write when apply:true; one owner per file; patch carrier when isolate" },
         #{ title: "Adversarial gate", detail: "diverse-lens skeptics ARE the gate (floor 2 at max/lean when applying)" },
@@ -542,9 +542,17 @@ let plan = #{};
 let plan_items = [];
 let version_label = "v-unplanned";
 
-if tiny_q {
+// Explicit items[] skip the architect at EVERY quality (not only tiny).
+// Measured: an architect handed a finished tree returns items:[] and the run
+// dies as "empty plan". When the human already named the files, buy no opinion.
+if tiny_q || items_arg.len() > 0 {
     phase("Architect");
-    log("ARCHITECT SKIPPED (quality=tiny) — plan from caller items.");
+    if tiny_q {
+        log("ARCHITECT SKIPPED (quality=tiny) — plan from caller items.");
+    } else {
+        log("ARCHITECT SKIPPED — caller passed items[] (" + items_arg.len().to_string()
+            + "); using that list as the plan (one owner per file checked below).");
+    }
     let i = 0;
     while i < items_arg.len() {
         let it = as_map(items_arg[i]);
@@ -562,8 +570,8 @@ if tiny_q {
         });
         i += 1;
     }
-    version_label = if a.versionLabel != () { trimmed(a.versionLabel) } else if a.version_label != () { trimmed(a.version_label) } else { "v-tiny-r1" };
-    plan = #{ version_label: version_label, summary: "tiny — " + plan_items.len().to_string() + " caller items", items: plan_items };
+    version_label = if a.versionLabel != () { trimmed(a.versionLabel) } else if a.version_label != () { trimmed(a.version_label) } else if tiny_q { "v-tiny-r1" } else { "v-items-r1" };
+    plan = #{ version_label: version_label, summary: (if tiny_q { "tiny" } else { "caller-items" }) + " — " + plan_items.len().to_string() + " caller items", items: plan_items };
 } else {
     phase("Architect");
     let arch_p = tier_note(quality);
@@ -598,9 +606,41 @@ if tiny_q {
     plan = as_map(arch_r.output);
     if plan.version_label != () { version_label = trimmed(plan.version_label); }
     plan_items = as_arr(plan.items);
+    let raw_item_count = plan_items.len();
+    log("Architect raw items: " + raw_item_count.to_string()
+        + (if plan.summary != () { " · summary: " + trimmed(plan.summary).sub_string(0, if trimmed(plan.summary).len() < 160 { trimmed(plan.summary).len() } else { 160 }) } else { "" }));
+
+    // CALLER ITEMS OUTRANK AN EMPTY ARCHITECT. Same law as tiny, available at every
+    // quality: if you passed items:[{file,instruction}], that IS the plan when the
+    // architect returns []. Measured 2026-08-07: a real apply:true run returned
+    // items:[] because the lead had already sealed the work mid-flight — and the
+    // shipper reported "empty plan after caps", which was a lie (caps never ran).
+    if plan_items.len() == 0 && items_arg.len() > 0 {
+        log("Architect returned 0 items — using caller items[] (" + items_arg.len().to_string() + ").");
+        let ci = 0;
+        while ci < items_arg.len() {
+            let it = as_map(items_arg[ci]);
+            let instr = trimmed(it.instruction);
+            if it.anchor != () && trimmed(it.anchor) != "" {
+                instr += "\n\nANCHOR: " + trimmed(it.anchor);
+            }
+            plan_items.push(#{
+                id: if it.id != () { trimmed(it.id) } else { "c" + (ci + 1).to_string() },
+                file: trimmed(it.file),
+                kind: if it.kind != () { trimmed(it.kind) } else { "code" },
+                tier: if it.tier != () { trimmed(it.tier) } else { "sonnet" },
+                risk: if it.risk != () { trimmed(it.risk) } else { "medium" },
+                instruction: instr,
+            });
+            ci += 1;
+        }
+        raw_item_count = plan_items.len();
+    }
+
     // one-owner-per-file dedupe
     let seen = [];
     let deduped = [];
+    let dropped_empty_file = 0;
     let i = 0;
     while i < plan_items.len() {
         let it = as_map(plan_items[i]);
@@ -611,7 +651,9 @@ if tiny_q {
             if seen[j] == f { hit = true; }
             j += 1;
         }
-        if !hit && f != "" {
+        if f == "" {
+            dropped_empty_file += 1;
+        } else if !hit {
             seen.push(f);
             if it.risk == () { it.risk = "medium"; }
             if it.id == () { it.id = "i" + (i + 1).to_string(); }
@@ -621,26 +663,36 @@ if tiny_q {
         i += 1;
     }
     plan_items = deduped;
-    // triage cap
+    if dropped_empty_file > 0 {
+        log("⚠ dropped " + dropped_empty_file.to_string() + " item(s) with empty file path");
+    }
+    let after_dedupe = plan_items.len();
+
+    // triage cap — coerce est_agents (schema may yield int; never silently use 0)
     if triage.est_agents != () {
         let cap = triage.est_agents;
-        if cap < 1 { cap = 1; }
-        if cap > 24 { cap = 24; }
-        if plan_items.len() > cap {
-            log("TRIAGE CAP: architect returned " + plan_items.len().to_string() + " items, trim to " + cap.to_string());
-            let k = cap;
-            while k < plan_items.len() {
-                let d = as_map(plan_items[k]);
-                trimmed_from_plan.push(trimmed(d.file));
-                k += 1;
+        // if a string sneaks through, refuse to treat it as 0
+        if type_of(cap) == "string" {
+            log("⚠ triage.est_agents is a string (" + trimmed(cap) + ") — ignoring cap");
+        } else {
+            if cap < 1 { cap = 1; }
+            if cap > 24 { cap = 24; }
+            if plan_items.len() > cap {
+                log("TRIAGE CAP: architect returned " + plan_items.len().to_string() + " items, trim to " + cap.to_string());
+                let k = cap;
+                while k < plan_items.len() {
+                    let d = as_map(plan_items[k]);
+                    trimmed_from_plan.push(trimmed(d.file));
+                    k += 1;
+                }
+                let kept = [];
+                let m = 0;
+                while m < cap {
+                    kept.push(plan_items[m]);
+                    m += 1;
+                }
+                plan_items = kept;
             }
-            let kept = [];
-            let m = 0;
-            while m < cap {
-                kept.push(plan_items[m]);
-                m += 1;
-            }
-            plan_items = kept;
         }
     }
     // ceiling-aware item trim: each item costs 1 build + seats skeptics
@@ -668,17 +720,43 @@ if tiny_q {
         }
         plan_items = kept2;
     }
-    log("Plan \"" + version_label + "\": " + plan_items.len().to_string() + " item(s).");
+    log("Plan \"" + version_label + "\": " + plan_items.len().to_string()
+        + " item(s) (raw=" + raw_item_count.to_string()
+        + " after_dedupe=" + after_dedupe.to_string()
+        + " trimmed=" + trimmed_from_plan.len().to_string() + ").");
 }
 
 if plan_items.len() == 0 {
-    blockers.push(#{ what: "empty plan", why: "no work items after caps" });
+    // HONEST BRANCHES — never say "after caps" when caps never saw an item.
+    let why = "";
+    let err = "empty plan";
+    if items_arg.len() > 0 {
+        why = "caller items[] were present but none survived (empty file paths or dedupe) — fix items";
+        err = "caller items unusable";
+    } else if tiny_q {
+        why = "tiny requires items:[{file,instruction}] and none survived";
+        err = "tiny items empty";
+    } else {
+        // architect deliberately returned [] (often: work already done mid-flight)
+        let sum = if plan.summary != () { trimmed(plan.summary) } else { "" };
+        if sum != "" {
+            why = "architect returned 0 items on purpose. summary: " + sum.sub_string(0, if sum.len() < 240 { sum.len() } else { 240 });
+            err = "architect_noop";
+        } else {
+            why = "architect returned 0 items (not a cap trim — raw count was 0). Pass items:[{file,instruction}] or quality:\"tiny\" with a work list.";
+            err = "architect_empty";
+        }
+    }
+    log("⛔ EMPTY PLAN — " + why);
+    blockers.push(#{ what: "empty plan", why: why });
     complete(#{
-        verdict: "blocked",
+        verdict: if err == "architect_noop" { "already_complete_or_noop" } else { "blocked" },
         ship_allowed: false,
         shippable: false,
         quality: quality,
-        error: "empty plan",
+        error: err,
+        fix: "Pass items:[{file,instruction}] (works at ANY quality now), or quality:\"tiny\" with the same list. Do not rely on the architect when the work list is already known.",
+        architect_summary: if plan.summary != () { plan.summary } else { () },
         blockers: blockers,
     });
 }
