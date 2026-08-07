@@ -1,6 +1,6 @@
 # Grok Build workflows (Konyo)
 
-**Parity target:** Claude Code `konyo-workflow.js` (v26+ lean default, apply mode, army, skeptic gate, LAW17/18/19).
+**Parity target:** Claude Code `konyo-workflow.js` **v27.1** (lean default, apply mode, army, skeptic gate, LAW17/18/19, items@any quality, no vacuous green ship) **+ v26 render loop**.
 
 | Slash | File | Role |
 |-------|------|------|
@@ -77,9 +77,35 @@ A same-family stand-in is never a silent fallback. Empty third-eye seat is repor
 1. Workspace lock (apply only)
 2. Adversarial skeptic panel (floor 2 at max/lean apply)
 3. LAW17 fat version bar
-4. LAW18 painted-UI proof (`available:false` honest when no UI)
+4. **LAW18 painted-UI proof — v26 LOOP** (`available:false` honest when no UI):
+   - NARROW + WIDE viewport (a one-width layout bug is invisible to a single render)
+   - Fixer corrects failures (**FIX THE CODE, NEVER THE ASSERTION**)
+   - Re-render; **final pass** is what blocks (tiny 2 / lean 3 / max 4 passes)
+   - No-progress stop if the fixer changed nothing
 5. LAW19 reachability (caller + writer; tests proven to run)
 6. Ship push only if shippable **and** `{push:true}`
+
+## Safeguards (v26 · v27 · v27.1)
+
+| Defect closed | Rule |
+|---|---|
+| Vacuous green ship (`items:[]` / zero work) | `SHIPPABLE` requires `apply:true` **and** `passed > 0` |
+| Dry-run reads as "ready to push" | `apply:false` ⇒ never shippable |
+| Dead agent counted as green | `spawn_errors` non-empty ⇒ not shippable |
+| Thin skeptic panel | `thin_panels` non-empty ⇒ not shippable |
+| Empty plan mislabelled "after caps" | `architect_noop` / `architect_empty` honest errors |
+| Caller already named the files | `items:[{file,instruction}]` skips architect at **any** quality |
+| Single-viewport blind spot | Render at narrow **and** wide |
+| Self-correcting loop weakens tests | Fixer: fix code, never the assertion |
+| Builders ship past gates | Builders **never** push; only Ship phase with `{push:true}` |
+
+### Prove the contracts (static gate)
+
+```bash
+bash automation/workflows/v27_grok_safeguard_proof.sh
+# Claude vacuous-green proof:
+node automation/claude-code/v27_empty_plan_proof.mjs
+```
 
 ## Install
 

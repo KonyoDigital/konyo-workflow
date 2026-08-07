@@ -1,7 +1,7 @@
 let meta = #{
     name: "konyo-workflow",
-    description: "KONYO WORKFLOW for Grok Build — FULL IMPLEMENTER (not audit-only). ONE body, four qualities (lean|max|standard|tiny). LEAN is the default: every ship gate runs (adversarial panel, LAW17/18/19, workspace lock, agent ceiling) while max buys a multi-architect panel, completeness critic, and deeper rework. Pass {apply:true} to edit files; apply:false is dry-run (propose only). Third eye is Claude (different family) via the claude CLI — never a same-family stand-in unless thirdEye:\"claude\". Pass {task, quality, apply, force, items, skeptics, isolate, thirdEye, maxAgents, ignoreLock, push}. items:[{file,instruction}] skips the architect at ANY quality (not only tiny) — empty architect plans no longer die as \"after caps\".",
-    when_to_use: "ANY multi-step ship on Grok Build. Bare call = lean + dry-run. {apply:true} to write. {quality:\"max\"} when being wrong is expensive. {quality:\"tiny\", apply:true, items:[{file,instruction}]} for a known small edit set. {quality:\"standard\"} for the cheap ladder. Parity target: Claude Code konyo-workflow.js (v26+).",
+    description: "KONYO WORKFLOW for Grok Build — FULL IMPLEMENTER (not audit-only). ONE body, four qualities (lean|max|standard|tiny). LEAN is the default: every ship gate runs (adversarial panel, LAW17/18/19, workspace lock, agent ceiling) while max buys a multi-architect panel, completeness critic, and deeper rework. Pass {apply:true} to edit files; apply:false is dry-run (propose only). Third eye is Claude (different family) via the claude CLI — never a same-family stand-in unless thirdEye:\"claude\". Pass {task, quality, apply, force, items, skeptics, isolate, thirdEye, maxAgents, ignoreLock, push, renderLoop}. items:[{file,instruction}] skips the architect at ANY quality (not only tiny) — empty architect plans no longer die as \"after caps\". v26: render gate is a LOOP (narrow+wide viewport, fixer, re-render; final pass blocks). v27/v27.1: SHIPPABLE requires apply:true AND passed>0 AND spawn_errors empty; architect_noop/empty never green-ships.",
+    when_to_use: "ANY multi-step ship on Grok Build. Bare call = lean + dry-run. {apply:true} to write. {quality:\"max\"} when being wrong is expensive. {quality:\"tiny\", apply:true, items:[{file,instruction}]} for a known small edit set. {quality:\"standard\"} for the cheap ladder. Parity target: Claude Code konyo-workflow.js (v27.1 + v26 render loop).",
     phases: [
         #{ title: "Preflight", detail: "workspace lock when apply:true — shared lock dir with Claude so fleets exclude each other" },
         #{ title: "Triage", detail: "right-size before spending; SKIPPED at tiny" },
@@ -12,7 +12,7 @@ let meta = #{
         #{ title: "Rework", detail: "failed items get one more attempt (max keeps two)" },
         #{ title: "Merge", detail: "only with {isolate:true}: sequential git apply --check of patches" },
         #{ title: "Completeness", detail: "max ONLY — hunt work nobody planned; lean/tiny/standard report skipped" },
-        #{ title: "Render gate", detail: "LAW18 painted-UI proof when UI exists; blocker when available" },
+        #{ title: "Render gate", detail: "v26 LOOP — LAW18 painted-UI at NARROW+WIDE viewports; fixer corrects; re-render up to RENDERLOOP passes (tiny 2 / lean 3 / max 4). FINAL pass blocks" },
         #{ title: "Fat version bar", detail: "LAW17 — fat package or structural bug; thin ship blocks" },
         #{ title: "Reachability", detail: "LAW19 — added symbols have caller AND writer; tests proven to RUN" },
         #{ title: "Ship", detail: "push ONLY if shippable and {push:true}; never --force / --no-verify" },
@@ -22,9 +22,11 @@ let meta = #{
 
 // ═══════════════════════════════════════════════════════════════════════════
 // KONYO WORKFLOW — Grok Build implementer
-// Parity with ~/.claude/workflows/konyo-workflow.js (lean default, apply mode,
-// army, skeptic gate, LAW17/18/19). Previous Grok rhai was AUDIT-ONLY; that
-// body is preserved as konyo-workflow.rhai.bak-audit-only-2026-08-07.
+// Parity with ~/.claude/workflows/konyo-workflow.js v27.1 (lean default, apply,
+// army, skeptic gate, LAW17/18/19, items@any quality, no vacuous green ship) +
+// v26 render loop (narrow+wide, fixer, re-render). Previous Grok rhai was
+// AUDIT-ONLY (bak-audit-only-2026-08-07). The 2026-08-07 implementer rewrite
+// briefly DROPPED the render loop — restored below.
 //
 // Host differences (named, not papered over):
 //   · Claude thirdEye default = Grok CLI.  Grok thirdEye default = Claude CLI.
@@ -142,6 +144,52 @@ let law_schema = #{
     },
 };
 
+// v26 — render gate schema (richer than law_schema). `pass` is the ship-blocker
+// field Grok already used; `passed` is accepted as a synonym for Claude parity.
+let render_schema = #{
+    "type": "object",
+    "required": ["available", "pass", "reason", "evidence", "failures", "notes", "screenshots"],
+    "properties": #{
+        "available": #{ "type": "boolean" },
+        "pass": #{ "type": "boolean" },
+        "passed": #{ "type": "boolean" },
+        "reason": #{ "type": "string" },
+        "evidence": #{ "type": "string" },
+        "ran": #{ "type": "string" },
+        "failures": #{ "type": "array", "items": #{ "type": "string" } },
+        "notes": #{ "type": "string" },
+        "screenshots": #{ "type": "array", "items": #{ "type": "string" } },
+        "visual": #{ "type": "array", "items": #{ "type": "string" } },
+        "images": #{
+            "type": "array",
+            "items": #{
+                "type": "object",
+                "properties": #{
+                    "surface": #{ "type": "string" },
+                    "path": #{ "type": "string" },
+                    "claims": #{ "type": "string" },
+                    "depicts": #{ "type": "string" },
+                    "matches": #{ "type": "boolean" },
+                },
+            },
+        },
+        "images_na_reason": #{ "type": "string" },
+    },
+};
+
+// v26 — fixer half of the render loop. `changed:false` STOPS the loop rather
+// than re-rendering identical code (no-progress stop).
+let fix_schema = #{
+    "type": "object",
+    "required": ["changed", "what", "files", "unfixable"],
+    "properties": #{
+        "changed": #{ "type": "boolean" },
+        "what": #{ "type": "string" },
+        "files": #{ "type": "array", "items": #{ "type": "string" } },
+        "unfixable": #{ "type": "array", "items": #{ "type": "string" } },
+    },
+};
+
 let final_schema = #{
     "type": "object",
     "required": ["version_label", "headline", "shipped", "follow_ups"],
@@ -235,6 +283,20 @@ let dry_rounds = 1;
 if a.dryRounds != () { dry_rounds = a.dryRounds; }
 if a.dry_rounds != () { dry_rounds = a.dry_rounds; }
 
+// v26 — RENDERLOOP: number of RENDER passes (fixes = RENDERLOOP-1).
+// tiny 2 (one correction) / lean|standard 3 / max 4. Override with renderLoop.
+let render_loop_n = 3;
+if tiny_q { render_loop_n = 2; }
+if max_only { render_loop_n = 4; }
+if a.renderLoop != () { render_loop_n = a.renderLoop; }
+if a.render_loop != () { render_loop_n = a.render_loop; }
+// Build the pass plan as a fixed array (for-in; no break required).
+let rl_plan = [];
+if render_loop_n <= 1 { rl_plan = [1]; }
+else if render_loop_n == 2 { rl_plan = [1, 2]; }
+else if render_loop_n == 3 { rl_plan = [1, 2, 3]; }
+else { rl_plan = [1, 2, 3, 4]; }
+
 let max_agents = 24;
 if a.maxAgents != () { max_agents = a.maxAgents; }
 if a.max_agents != () { max_agents = a.max_agents; }
@@ -319,7 +381,8 @@ log("═════════════════════════
 log("KONYO WORKFLOW · Grok Build IMPLEMENTER · quality=" + quality + (if quality_defaulted { " (default lean)" } else { "" }));
 log("mode=" + mode_label + " · thirdEye=" + third_eye + " · isolate=" + isolate_mode.to_string() + " · push=" + do_push.to_string());
 log("maxRounds=" + max_rounds.to_string() + " · maxAgents=" + max_agents.to_string() + " · skepticFloor=" + skeptic_floor.to_string());
-log("FAT BAR enforced · LAW18 render · LAW19 reachability · shared workspace lock with Claude");
+log("RENDERLOOP=" + render_loop_n.to_string() + " (v26 loop: tiny2/lean3/max4) · SHIPPABLE needs apply+passed>0+no spawn_errors (v27.1)");
+log("FAT BAR · LAW18 render-loop · LAW19 reachability · shared workspace lock with Claude");
 log("════════════════════════════════════════════════════════");
 log("TASK: " + task);
 
@@ -1223,35 +1286,182 @@ if max_only && apply_mode {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 8) RENDER GATE (LAW18) + FAT BAR (LAW17) + REACHABILITY (LAW19)
+// 8) RENDER GATE (LAW18 / v26 LOOP) + FAT BAR (LAW17) + REACHABILITY (LAW19)
 // ═══════════════════════════════════════════════════════════════════════════
-let render_gate = #{ available: false, pass: true, reason: "not run", evidence: "" };
+let render_gate = #{ available: false, pass: true, reason: "not run", evidence: "", failures: [], screenshots: [], notes: "" };
+let render_loop = #{ passes: 0, fixes: 0, converged: false, stopped: "not run" };
 let fat_bar = #{ pass: false, reason: "not run", evidence: "" };
 let reach = #{ pass: false, reason: "not run", evidence: "" };
 
 if apply_mode {
     phase("Render gate");
-    let rp = "LAW18 PAINTED-UI PROOF for KONYO WORKFLOW.\n";
-    rp += "1) If the project has CI UI gates, read `gh run list` / failed logs — report that verdict.\n";
-    rp += "2) Else if the project can drive its own UI, do so without binding ports the user uses.\n";
-    rp += "3) available=false is honest when there is no UI tooling — do NOT invent a pass.\n";
-    rp += "4) pass=true only with evidence. Screenshots paths in evidence if any.\n";
-    rp += "TASK: " + task + "\nWhat changed: list from git status/diff if needed.\n";
-    let rr = agent(rp, #{
-        label: "law18:render",
-        phase: "Render gate",
-        capability_mode: "execute",
-        output_schema: law_schema,
-    });
-    agents_spent += 1;
-    if rr != () && rr.success && rr.output != () {
-        render_gate = as_map(rr.output);
-        if render_gate.available == true && render_gate.pass != true {
-            blockers.push(#{ what: "LAW18 render gate", why: trimmed(render_gate.reason) });
+    // ══ v26 · THE RENDER GATE IS A LOOP, NOT A VERDICT ═══════════════════════════════════════
+    // Restored after the implementer rewrite dropped it. FINAL pass is what blocks — the loop
+    // buys attempts, never a free pass. Fixer rule #1: FIX THE CODE, NEVER THE ASSERTION.
+    let rg_base = "LAW18 PAINTED-UI PROOF for KONYO WORKFLOW (v26 multi-width + look).\n";
+    rg_base += "0) CI FIRST — if `.github/workflows` drives a browser, read `gh run list` / failed logs before spawning chromium.\n";
+    rg_base += "1) Else drive the project's own UI verify (playwright/cypress/test:render). Never edit a test to green it. Never invent a pass.\n";
+    rg_base += "2) available=false is honest when there is NO UI tooling — that is NOT a painted pass; set pass=false when tooling is missing but UI clearly changed.\n";
+    rg_base += "3) VISUAL LAYER — DOM queries are necessary and NOT sufficient. Screenshot + geometry:\n";
+    rg_base += "   (a) key elements boundingBox width>0 AND height>0; (b) no text clipped; (c) no horizontal overflow;\n";
+    rg_base += "   (d) text colour ≠ background; (e) no sibling panel overlap.\n";
+    rg_base += "4) RENDER AT MORE THAN ONE WIDTH — narrow AND wide (e.g. 1280x900 and 1920x1200). A layout bug that\n";
+    rg_base += "   only exists at one width is invisible to a single viewport. Report width beside every failure.\n";
+    rg_base += "5) LOOK AT THE PICTURES when art/icons/thumbnails changed — say in words what each depicts vs claims.\n";
+    rg_base += "   matches:false is a BLOCKER. Empty images[] requires images_na_reason or the gate is not done.\n";
+    rg_base += "6) SAVE screenshots to absolute paths in screenshots[]. pass=true ONLY with evidence.\n";
+    rg_base += "Never bind ports the user uses. TASK: " + task + "\n";
+
+    let rl_done = false;
+    let render_failures = [];
+    let render_screenshots = [];
+    let render_notes = "";
+    let render_available = false;
+    let render_passed = false;
+    let last_rp = 0;
+
+    for rp in rl_plan {
+        if !rl_done {
+            last_rp = rp;
+            render_loop.passes = rp;
+            let rg_full = rg_base;
+            if rp > 1 {
+                let pre = "RE-RENDER — PASS " + rp.to_string() + " of " + render_loop_n.to_string() + ".\n";
+                pre += "A fixer has just edited the code. Report what you SEE NOW. Do NOT assume the fix worked.\n";
+                pre += "Do NOT soften assertions. Re-check failed surfaces AND previously green ones (fixes break neighbours).\n";
+                pre += "Previous failures (untrusted): " + json_encode(render_failures) + "\n";
+                pre += "Last fixer note: " + render_notes + "\n\n";
+                rg_full = pre + rg_base;
+            }
+            let rr = agent(rg_full, #{
+                label: "law18:render-" + rp.to_string(),
+                phase: "Render gate",
+                capability_mode: "execute",
+                output_schema: render_schema,
+            });
+            agents_spent += 1;
+
+            if rr != () && rr.success && rr.output != () {
+                let out = as_map(rr.output);
+                // accept pass OR passed (Claude synonym)
+                let p = out.pass;
+                if p == () { p = out.passed; }
+                render_available = out.available == true;
+                render_passed = p == true;
+                render_failures = as_arr(out.failures);
+                render_screenshots = as_arr(out.screenshots);
+                render_notes = trimmed(out.notes);
+                if render_notes == "" { render_notes = trimmed(out.reason); }
+                // images: matches:false is a blocker even if agent said pass:true
+                let imgs = as_arr(out.images);
+                let wrong = 0;
+                let ii = 0;
+                while ii < imgs.len() {
+                    let im = as_map(imgs[ii]);
+                    if im.matches == false {
+                        wrong += 1;
+                        render_failures.push("wrong image: " + trimmed(im.surface) + " claims " + trimmed(im.claims) + " depicts " + trimmed(im.depicts));
+                        render_passed = false;
+                    }
+                    ii += 1;
+                }
+                // empty images without reason = gate not done (v15 / Claude parity)
+                if imgs.len() == 0 && trimmed(out.images_na_reason) == "" && render_available {
+                    // only enforce when UI was available — otherwise N/A is fine
+                    // soft: note, do not auto-fail if no image surfaces (agent may omit field)
+                }
+                render_gate = #{
+                    available: render_available,
+                    pass: render_passed,
+                    reason: if render_notes != "" { render_notes } else { trimmed(out.reason) },
+                    evidence: trimmed(out.evidence),
+                    failures: render_failures,
+                    screenshots: render_screenshots,
+                    notes: render_notes,
+                };
+            } else {
+                // Fail closed when the agent dies mid-loop: treat as available but failed.
+                render_available = true;
+                render_passed = false;
+                render_failures = ["render gate agent failed — nothing was seen painted"];
+                render_gate = #{ available: true, pass: false, reason: "render agent failed", evidence: "agent failed", failures: render_failures, screenshots: [], notes: "" };
+                spawn_errors.push("render gate pass " + rp.to_string() + " failed");
+            }
+
+            if !render_available {
+                render_loop.stopped = "no UI verification in this project";
+                render_loop.converged = true;
+                rl_done = true;
+            } else if render_passed {
+                render_loop.stopped = if rp == 1 { "clean on the first render" } else { "clean after " + (rp - 1).to_string() + " correction(s)" };
+                render_loop.converged = true;
+                if rp > 1 { log("✅ RENDER LOOP CONVERGED on pass " + rp.to_string()); }
+                rl_done = true;
+            } else if rp == rl_plan[rl_plan.len() - 1] {
+                render_loop.stopped = "ran out of passes (" + render_loop_n.to_string() + ") with " + render_failures.len().to_string() + " failure(s) open";
+                log("⛔ RENDER LOOP EXHAUSTED after " + render_loop_n.to_string() + " pass(es).");
+                rl_done = true;
+            } else if agents_spent >= max_agents - 4 {
+                // Reserve agents for fat bar / reachability / report / lock release.
+                render_loop.stopped = "ceiling — correction not affordable (" + agents_spent.to_string() + "/" + max_agents.to_string() + ")";
+                log("⚠ RENDER LOOP STOPPED: " + render_loop.stopped);
+                rl_done = true;
+            } else {
+                log("🔁 RENDER LOOP pass " + rp.to_string() + "/" + render_loop_n.to_string() + " failed with " + render_failures.len().to_string() + " failure(s) — correcting.");
+                let fx_p = "RENDER FIX — pass " + rp.to_string() + " of " + render_loop_n.to_string() + ".\n";
+                fx_p += "The render gate LOOKED at this UI and found the failures below. Fix them in the CODE.\n";
+                fx_p += "FAILURES (may name viewport width):\n" + json_encode(render_failures) + "\n";
+                fx_p += "SCREENSHOTS — OPEN THEM:\n" + json_encode(render_screenshots) + "\n";
+                fx_p += "GATE NOTES: " + render_notes + "\n";
+                fx_p += "RULES (what keeps this loop honest):\n";
+                fx_p += "· FIX THE CODE, NEVER THE ASSERTION. Weakening a check is the one failure mode a self-correcting loop introduces. If the GATE is wrong, change NOTHING — list it in unfixable[].\n";
+                fx_p += "· DIAGNOSE BEFORE EDITING. A one-width layout failure usually lives a step up the tree.\n";
+                fx_p += "· STAY IN SCOPE. No drive-by refactor. NEVER git push. NEVER bump a version.\n";
+                fx_p += "· Honest unfixable[] beats a fake fix that costs the next render pass AND trust.\n";
+                fx_p += "TASK: " + task + "\n";
+                let fx = agent(fx_p, #{
+                    label: "law18:fix-" + rp.to_string(),
+                    phase: "Render gate",
+                    capability_mode: "all",
+                    output_schema: fix_schema,
+                });
+                agents_spent += 1;
+                let fx_changed = false;
+                if fx != () && fx.success && fx.output != () {
+                    let fo = as_map(fx.output);
+                    if fo.changed == true { fx_changed = true; }
+                    render_notes = trimmed(fo.what);
+                    let unf = as_arr(fo.unfixable);
+                    let ui = 0;
+                    while ui < unf.len() {
+                        log("   ↳ not fixed: " + trimmed(unf[ui]));
+                        ui += 1;
+                    }
+                    if fx_changed { log("   ↳ fixed: " + render_notes); }
+                } else {
+                    spawn_errors.push("render fix pass " + rp.to_string() + " failed");
+                }
+                if fx_changed {
+                    render_loop.fixes = render_loop.fixes + 1;
+                } else {
+                    // NO PROGRESS ⇒ STOP. Re-rendering unchanged code cannot produce a new picture.
+                    render_loop.stopped = "the fixer changed nothing — re-rendering would print the same result";
+                    log("⚠ RENDER LOOP STOPPED: " + render_loop.stopped);
+                    rl_done = true;
+                }
+            }
         }
+    }
+    log("🔁 Render loop: " + render_loop.passes.to_string() + " pass(es), " + render_loop.fixes.to_string() + " correction(s) — " + render_loop.stopped);
+
+    // FINAL pass is what blocks (same as Claude wiring).
+    if render_available && !render_passed {
+        blockers.push(#{ what: "LAW18 render gate", why: render_loop.stopped + " · " + render_failures.len().to_string() + " failure(s)" });
+        log("⛔ RENDER GATE FAILED — SHIP BLOCKER.");
+    } else if !render_available {
+        log("⚠ RENDER GATE: available=false — nothing was seen painted (not a painted pass).");
     } else {
-        render_gate = #{ available: false, pass: true, reason: "render agent failed — treated as N/A only if no UI; recorded", evidence: "agent failed" };
-        spawn_errors.push("render gate failed");
+        log("✅ Render gate passed (" + render_loop.stopped + ").");
     }
 
     phase("Fat version bar");
@@ -1272,6 +1482,7 @@ if apply_mode {
     } else {
         fat_bar = #{ pass: false, reason: "fat-bar agent failed — fail closed", evidence: "" };
         blockers.push(#{ what: "LAW17 fat version bar", why: "agent failed" });
+        spawn_errors.push("fat-bar failed");
     }
 }
 
@@ -1317,13 +1528,21 @@ while ti < results.len() {
     ti += 1;
 }
 
-// Parity with Claude v27.1: dry-run is never shippable; zero passed work is never shippable.
-let shippable = apply_mode && blockers.len() == 0 && failed_n == 0 && passed_n > 0 && !ceiling_hit && trimmed_from_plan.len() == 0;
+// Parity with Claude v27.1 — the WHOLE predicate (do not shorten to the first line):
+//   · apply:true required (dry-run proposed diffs is never "ready to push")
+//   · passed_n > 0 (empty fleet used to be SHIPPABLE because failed=[] is vacuously true)
+//   · spawn_errors empty (a dead agent is missing work, not a green skip)
+//   · thin_panels empty (seats bought ≠ votes cast)
+//   · max completeness went dry when it ran
+let shippable = apply_mode
+    && blockers.len() == 0
+    && failed_n == 0
+    && passed_n > 0
+    && !ceiling_hit
+    && trimmed_from_plan.len() == 0
+    && spawn_errors.len() == 0
+    && thin_panels.len() == 0;
 if max_only && completeness.ran == true && completeness.wentDry != true {
-    shippable = false;
-}
-if thin_panels.len() > 0 && shippable {
-    // degraded, not clean
     shippable = false;
 }
 
@@ -1464,7 +1683,7 @@ md += "- requested: " + third_eye + "\n";
 md += "- seats: " + third_eye_seats.len().to_string() + "\n";
 md += "\n## Completeness\n" + json_encode(completeness) + "\n";
 md += "\n## Ship\n" + json_encode(shipped) + "\n";
-md += "\n_Konyo Workflow · Grok implementer · parity target Claude konyo-workflow.js · audit-only body retired 2026-08-07_\n";
+md += "\n_Konyo Workflow · Grok implementer · parity Claude v27.1 + v26 render loop · audit-only body retired 2026-08-07_\n";
 
 let report_path = write_scratch_file("konyo-report.md", md);
 
@@ -1495,8 +1714,18 @@ complete(#{
     triage: triage,
     completeness: completeness,
     render_gate: render_gate,
+    render_loop: render_loop,
     fat_version: fat_bar,
     reachability: reach,
+    safeguards: #{
+        v26_render_loop: true,
+        v27_items_any_quality: true,
+        v27_1_shippable_apply_and_passed: true,
+        shippable_requires_no_spawn_errors: true,
+        shippable_requires_no_thin_panels: true,
+        architect_noop_honest: true,
+        builders_never_push: true,
+    },
     merge: merge,
     thirdEye: #{
         requested: third_eye,
