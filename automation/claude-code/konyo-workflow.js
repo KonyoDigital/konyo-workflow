@@ -1470,15 +1470,22 @@ if (!plan || !Array.isArray(plan.items)) {
   return bail({ error: 'no plan', fix: 're-run, or pass items:[{file,instruction}] to skip the architect' })
 }
 if (plan.items.length === 0) {
-  const sum = String(plan.summary || plan.why || '').slice(0, 240)
+  // summary only — `why` is often a harness/judge filler and must not rebrand empty as noop.
+  const sum = String(plan.summary || '').trim().slice(0, 240)
   log(`⛔ ARCHITECT RETURNED 0 ITEMS` + (sum ? ` — ${sum}` : ''))
   log('   This is NOT a ceiling trim. Pass items:[{file,instruction}] (works at any quality), or force a real plan.')
+  if (FORCE) {
+    log('   note: force:true overrode triage-direct, but an empty architect plan still cannot ship.')
+  }
   await releaseLock()
   return bail({
     error: sum ? 'architect_noop' : 'architect_empty',
     refused: 'architect returned items:[]',
     architect_summary: sum || null,
-    fix: 'Pass items:[{file,instruction}] at any quality to skip the architect, or re-run with a task that still has work.',
+    force: FORCE,
+    fix: FORCE
+      ? 'force:true got you past triage, not past an empty plan. Pass items:[{file,instruction}] or give the architect real remaining work.'
+      : 'Pass items:[{file,instruction}] at any quality to skip the architect, or re-run with a task that still has work.',
     verdict: sum ? 'ALREADY COMPLETE OR NOOP — architect returned no work items' : 'BLOCKED — architect returned an empty plan',
   })
 }
@@ -2473,7 +2480,11 @@ if (USE_GROK && APPLY) {
    comment that warns against it. node --check passed; the load harness caught it. */
 // v27 — passed.length > 0: a fleet that built nothing used to be SHIPPABLE (failed=[] is vacuously
 // true). Empty success is the same defect class as a gate that never ran reading as a pass.
-const SHIPPABLE = !BLOCKERS.length && !CEILING_HIT && !trimmedFromPlan.length && !failed.length
+// v27.1 — APPLY required: a dry-run that proposed diffs is never shippable. shippable:true used to
+// mean "gates look clean" including dry-runs, which is how a human reads "ready to push" over a
+// run that wrote nothing. Push is already gated on APPLY; the flag must agree.
+const SHIPPABLE = APPLY
+  && !BLOCKERS.length && !CEILING_HIT && !trimmedFromPlan.length && !failed.length
   && !SPAWN_ERRORS.length && !THIN_PANELS.length && (!MAXQ || LEANQ || (dry >= DRYROUNDS && !unbuiltGaps.length))
   && passed.length > 0
 let shipped = { pushed: false, why: 'not attempted' }
