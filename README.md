@@ -77,6 +77,17 @@ Not required: Obsidian, a new GitHub org, or foreign names. **Same spirit as a p
 
 ## No terminal? Use the Claude Desktop skill
 
+### ⬇ Download
+
+**[`konyo-workflow.skill`](https://github.com/KonyoDigital/konyo-workflow/raw/main/automation/claude-desktop/konyo-workflow.skill)** — then in Claude Desktop:
+**Settings → Capabilities → enable "Code execution and file creation"**, then
+**Customize → Skills → + → Create skill → Upload a skill**.
+
+Free, Pro, Max, Team and Enterprise. MIT. It is **two markdown files** — no
+scripts, no dependencies, nothing that runs. Inspect it before you install it;
+that is a reasonable thing to want from anything you load into your assistant.
+
+
 `automation/claude-desktop/konyo-workflow.zip` is the whole method as an uploadable
 skill. **Nothing to install, no API keys, no second AI**, and it works on Free.
 

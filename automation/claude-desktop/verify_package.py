@@ -74,10 +74,16 @@ def check(zf: zipfile.ZipFile) -> list[str]:
              "the SEAL requires the scar's EVIDENCE line — a scar without it is a "
              "superstition, and superstitions accumulate into a workflow that "
              "refuses things for reasons that were never true")
-        want("PASSED, CEILING or STALLED" in seal,
-             "the SEAL requires the stop REASON — 'didn't work' collapses CEILING "
-             "(keep going) and STALLED (change approach), which call for opposite "
-             "responses")
+        # ⚠ CHECK THE PROPERTY, NOT THE PHRASING. This first read
+        # `"PASSED, CEILING or STALLED" in seal` and failed a rewrite that said
+        # `PASSED / CEILING / STALLED` — same requirement, different punctuation.
+        # A gate matching prose measures the author's wording, not the rule, and
+        # blocks correct work while a genuine removal using the blessed phrase
+        # would sail through.
+        want(all(w in seal for w in ("PASSED", "CEILING", "STALLED")),
+             "the SEAL names all three stop reasons in some phrasing — 'didn't "
+             "work' collapses CEILING (keep going) and STALLED (change approach), "
+             "which call for opposite responses")
     want("FOUNDING RULES" in scars and "LEARNED" in scars,
          "SCARS.md ships the founding/learned split — a rule from one bad "
          "afternoon must never sit at the same authority as a rule chosen while "
@@ -116,10 +122,18 @@ def self_test() -> int:
          lambda f: {**f, "konyo-workflow/SKILL.md": md + "\nAsk Grok to review.\n"}),
         ("files loose in the zip root",
          lambda f: {k.split("/")[-1]: v for k, v in f.items()}),
+        # ⚠ MUTATE THE PROPERTY, NOT A PHRASE. This first replaced the literal
+        # "SOLO or MULTI (Step 4b)"; a later rewrite said "SOLO or MULTI,
+        # truthfully" and the mutation became a NO-OP, so the gate stayed green
+        # and --self-test correctly reported it was measuring nothing. A red
+        # proof that cannot fail is worth less than no red proof, because it
+        # certifies the check.
         ("the seal no longer demands the mode",
-         lambda f: {**f, "konyo-workflow/SKILL.md": md.replace("SOLO or MULTI (Step 4b)", "—")}),
+         lambda f: {**f, "konyo-workflow/SKILL.md":
+                    md.replace("SOLO", "x").replace("MULTI", "y")}),
         ("the seal no longer demands the stop reason",
-         lambda f: {**f, "konyo-workflow/SKILL.md": md.replace("PASSED, CEILING or STALLED", "—")}),
+         lambda f: {**f, "konyo-workflow/SKILL.md":
+                    md.replace("STALLED", "x").replace("CEILING", "y")}),
         ("the silent-check trap dropped from the stopping rule",
          lambda f: {**f, "konyo-workflow/SKILL.md": md.replace("Silence is not evidence", "x")}),
         ("SCARS.md loses the founding/learned split",

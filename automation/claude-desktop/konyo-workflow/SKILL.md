@@ -7,18 +7,22 @@ description: Finish serious work properly - code, writing, research or analysis.
 
 A way of finishing work so that "done" means *checked*, not *finished typing*.
 
-Most work fails in one of three ways: it looked right and wasn't, it fixed one
-instance of a problem that existed in five places, or nobody could tell afterwards
-whether it actually worked. This skill exists to make each of those hard.
+Work fails in three ways: it looked right and wasn't, it fixed one instance of a problem
+that existed in five places, or nobody could tell afterwards whether it actually worked.
+Every step below makes one of those harder.
 
-**The shape:** plan → build in rounds → prove each round → adversarial back-pass →
-one verdict.
+**Shape:** read SCARS → understand → build in rounds → prove each round → adversarial
+back-pass → one verdict → record the scar.
+
+**Before Step 1, read `SCARS.md`.** It is short, and it is the only file here written by
+experience rather than by someone guessing in advance what would go wrong.
 
 ---
 
-## Rule 0 — the verdict is one of three words, and it fails closed
+## Rule 0 — one verdict, and it fails closed
 
-Every run ends with exactly one:
+**Every run ends with exactly one of these three words.** It fails closed: anything short of
+proven-good reports as DRAFT or BLOCKED, never as SHIP-with-caveats.
 
 | Verdict | Meaning |
 |---|---|
@@ -26,10 +30,9 @@ Every run ends with exactly one:
 | **DRAFT** | The work is sound but the bar was not fully met — usually missing proof, not missing quality. |
 | **BLOCKED** | A real problem was found. Say what it is and what would unblock it. |
 
-**Missing evidence is not a pass.** If a check could not be run, it is `N/A` and the
-reason must be stated. "I couldn't check the numbers because I don't have the source
-data" is a legitimate N/A. "It looks fine" is not — that is a FAIL wearing a
-friendly face.
+**Missing evidence is not a pass.** A check you could not run is `N/A` with the reason
+stated. *"I can't check the numbers, I don't have the source data"* is a legitimate N/A.
+*"It looks fine"* is a FAIL wearing a friendly face.
 
 Never report SHIP to be agreeable. A wrong SHIP costs far more than an honest DRAFT.
 
@@ -37,231 +40,189 @@ Never report SHIP to be agreeable. A wrong SHIP costs far more than an honest DR
 
 ## Step 1 — Understand before building
 
-Restate the goal in your own words, including:
+**Restate the goal in your own words** — that is what surfaces a misread of the request
+itself. Include: what "done" looks like **concretely**, what is explicitly **out of
+scope**, and anything **ambiguous**. Ask about the ambiguity now; a wrong assumption is
+cheapest to fix here.
 
-- What "done" looks like **concretely** — what must be true at the end.
-- What is explicitly **out of scope**.
-- Anything ambiguous. Ask now; a wrong assumption is cheapest to fix here.
-
-If the request is one small, clearly-specified change, say so and skip to Step 2
-with a single round. **Ceremony proportional to stakes** — a full workflow on a
-two-line fix is a waste of the person's time and they will stop using this.
-
----
-
-## Step 2 — Build in rounds, one coherent theme per round
-
-A round is a set of changes that belong together and can be judged together. Do not
-mix an unrelated cleanup into a round; it makes the round impossible to evaluate and
-impossible to undo.
-
-**Change only what was asked for.** No drive-by improvements, renames, reformatting
-or "while I was in there" tidying. If you notice something else wrong, *say so and
-leave it*. An unrequested change is indistinguishable from a mistake to whoever
-reviews it next, and it is why a one-line fix arrives as a forty-line diff nobody
-can check.
+If the request is one small, clearly-specified change, say so, keep the restatement to a
+single line and run one round.
+**Ceremony proportional to stakes** — a full workflow on a two-line fix wastes the
+person's time and they will stop using this.
 
 ---
 
-## Step 3 — Prove the round (this is the part people skip)
+## Step 2 — Build in rounds, one theme per round
 
-For each round, state what you checked, **with the actual result**.
+A round is a set of changes that belong together and can be judged together. An unrelated
+cleanup mixed into a round makes it impossible to evaluate and impossible to undo.
 
-**A proof that measures something already empty proves nothing.** If you assert "no
-errors remain", and there were zero errors before your change, you have measured
-nothing. Say what the number was *before* and *after*.
+**Change only what was asked for.** No drive-by improvements, renames, reformatting or
+"while I was in there" tidying. If you notice something else wrong, *say so and leave it*.
+An unrequested change is indistinguishable from a mistake to whoever reviews it next, and
+it is why a one-line fix arrives as a forty-line diff nobody can check.
 
-**Restating what you did is not proof.** "I updated the totals" is a description.
-"The totals now read 4,812 and sum to the line items, which they did not before" is
-proof.
+---
 
-**Check the thing, not a proxy for it.** If the goal is "the link works", the proof
-is that the link resolves — not that the text of the link looks correct.
+## Step 3 — Prove the round
 
-**Sweep the class.** When you fix a problem, look for the same shape elsewhere and
-fix every instance — or list the ones you deliberately left, and why. Fixing only
-the one in front of you is how the same mistake ships three times.
+State what you checked **with the actual result**:
 
-**Finish the sweep you print.** If you list the places that need checking, check
-*all* of them. A list you wrote and then half-worked is worse than no list, because
-it looks like diligence. (This is a real failure: a sweep flagged fourteen files,
-eight were checked, and one of the six skipped was broken in exactly the way the
-sweep was looking for.)
+**Description is not proof.** "I updated the totals" describes. "The totals now read
+4,812 and sum to the line items, which they did not before" proves.
 
-**A check that agrees with a mistake will protect it.** The most dangerous thing you
-can find is not a check that fails — it is a check that *passes for the wrong reason*.
-If something was written to expect the old, incorrect answer, it will go on passing
-for exactly as long as the mistake survives, and it will look like coverage the whole
-time. So when two checks on the same thing disagree, do not assume the failing one is
-wrong. **That contradiction is the signal** — it usually means one of them was written
-against a truth that has since changed, and the other has been quietly holding the
-error in place.
+**Give the before, not just the after.** "No errors remain" measures nothing if there were
+zero errors before you started.
 
-**Kill the stale claim.** If you changed how something behaves, find the places that
-*describe* the old behaviour — comments, instructions, a summary paragraph, a
-heading — and correct them in the same round. Two places giving different answers is
-worse than one wrong answer, because nothing catches it.
+**Check the thing, not a proxy.** If the goal is "the link works", the proof is that the
+link resolves — not that the link text looks right.
+
+**Sweep the class.** Fixed a problem? Find the same shape everywhere and fix every
+instance, or list the ones you deliberately left and why. Fixing only the one in front of
+you is how the same mistake ships three times.
+
+**Finish the sweep you print.** If you list places to check, check *all* of them. A
+half-worked list is worse than no list because it looks like diligence. (Real failure: a
+sweep flagged fourteen files, eight got checked, and one of the six skipped was broken in
+exactly the way the sweep was looking for.)
+
+**Distrust a check that passes.** The dangerous one is not the failing check but the one
+that *passes for the wrong reason* — anything written to expect the old, incorrect answer
+keeps passing for as long as the mistake survives, and looks like coverage throughout. So
+when two checks on the same thing disagree, do not assume the failing one is wrong.
+**That contradiction is the signal** — usually one of them was written against a truth that
+has since changed, and the other has been quietly holding the error in place.
+
+**Kill the stale claim.** Changed how something behaves? Correct everything that
+*describes* the old behaviour — comments, instructions, a summary, a heading — in the same
+round. Two places giving different answers is worse than one wrong answer, because nothing
+catches it.
 
 ---
 
 ## Step 4 — The third eye: an adversarial back-pass
 
-Now stop building and try to **break what you just made.**
+Stop building. Try to **break what you made.** Read it as if you had never seen it and
+someone is asking you to approve it — not to admire it.
 
-Read the work as if you had never seen it and someone else is asking you to approve
-it. Your job in this pass is **not** to admire it. Go through these lenses, one at a
-time — they are separate on purpose, because each catches what the others miss:
+Four lenses, **one at a time**, because each catches what the others miss:
 
-1. **Correctness** — is anything here actually *wrong*? Numbers, logic, facts,
-   names, dates, claims.
-2. **Completeness** — what is *missing*? A case not handled, a question not
-   answered, a section promised and never written.
-3. **Blast radius** — what else does this affect that nobody listed? What breaks
-   downstream? How would someone undo it?
-4. **The embarrassment test** — if the most demanding reader saw this, what is the
-   first thing they would object to? Fix that thing.
+1. **Correctness** — is anything actually *wrong*? Numbers, logic, facts, names, dates,
+   claims.
+2. **Completeness** — what is *missing*? A case not handled, a question not answered, a
+   section promised and never written.
+3. **Blast radius** — what does this affect that nobody listed? What breaks downstream?
+   How would someone undo it?
+4. **The embarrassment test** — what is the first thing the most demanding reader would
+   object to? Name it; fixing is Step 5.
 
-Then state your finding honestly:
+> **You are being asked for analysis, not agreement** — and equally, do **not** manufacture
+> a problem to look useful. State the strongest case that this work is wrong, then the
+> strongest case that it is right, and say which you believe and why. If you cannot judge
+> something on the evidence available, say exactly that and **name what you would need**.
+> *"I can't verify this — I'd need X"* is a real answer, worth more than a confident guess.
 
-> **You are being asked for analysis, not agreement** — and equally, do **not**
-> manufacture a problem to look useful. State the strongest case that this work is
-> wrong, then the strongest case that it is right, and say which you actually
-> believe and why. If you cannot judge something on the evidence available, say
-> exactly that and name what you would need. *"I can't verify this — I'd need X"* is
-> a real answer and is worth more than a confident guess.
+### ⚠ The known weakness
 
-### ⚠ The known weakness of this step, stated plainly
+Run in the same conversation, this is **the same model reviewing its own work** — a
+genuine limitation, not a formality. Its blind spots are *correlated*: it finds the errors
+it was already equipped to notice and misses the ones built into how it approached the
+problem. Better than no review, weaker than an independent one. Step 4b is the fix.
 
-**This back-pass is the same model reviewing its own work.** That is a genuine
-limitation, not a formality. A second, different AI catches things Claude
-structurally cannot see about its own output, because its blind spots are in
-different places. Same-model review has *correlated* blind spots — the reviewer
-tends to find the errors it was already capable of noticing, and misses the ones
-built into how it approached the problem in the first place.
+Three things make it less weak, and they are required:
 
-So this step is a **real improvement over no review, and weaker than an independent
-one.** Three things make it less weak, and they are required, not optional:
+- **Re-read the actual artifact** — the real text, the real numbers, the real output. Most
+  self-review failures review the intention instead of the result.
+- **Default to refuted when uncertain.** Treat a maybe-problem as a problem and
+  investigate. Uncertainty resolved as "probably fine" is how everything ships.
+- **Name what you could not check.** End the pass with an **explicit list** of what remains
+  unverified. That list is the honest boundary of this workflow's confidence, and the human
+  reading it can decide whether it matters.
 
-- **Re-read the actual artifact.** Do not review your memory of what you intended to
-  write. Go back to the real text, the real numbers, the real output. Most
-  self-review failures are reviewing the intention instead of the result.
-- **Default to refuted when uncertain.** If you are unsure whether something is a
-  problem, treat it as one and investigate. Uncertainty resolved in favour of
-  "probably fine" is how everything ships.
-- **Name what you could not check.** End the pass with an explicit list of what
-  remains unverified. That list is the honest boundary of this workflow's
-  confidence, and the human reading it can decide whether it matters.
-
-**When it genuinely matters, ask a human — or a different AI — to look.** This skill
-is designed to work alone, not to claim that working alone is as good.
+**When it genuinely matters, ask a human — or a different AI — to look.**
 
 ---
 
-## Step 4b — SOLO or MULTI: how many independent looks this work gets
+## Step 4b — SOLO or MULTI: how independent the review was
 
-Step 4 just told you the truth about itself: **one model reviewing its own work has
-correlated blind spots.** It tends to catch the errors it was already equipped to
-notice, and miss the ones baked into how it approached the problem.
+Correlated blind spots do not yield to trying harder in the same breath. They yield to
+**changing what the reviewer knows.** These modes differ in independence, not effort.
 
-You cannot fix that by trying harder in the same breath. You fix it by **changing
-what the reviewer knows.** So this workflow runs at one of two settings, and the
-difference between them is not effort — it is *independence*.
+**SOLO** — Step 4 in this conversation. The default, and genuinely useful: most defects are
+ordinary and a disciplined re-read finds them. Use it when being wrong is cheap **and
+recoverable** — a draft, an internal note, an experiment, anything you will look at again
+before it matters.
 
-### SOLO — one conversation, structured self-review
+**MULTI** — the review happens somewhere that **never saw the building.** Use it when being
+wrong is expensive: client-facing, published, sent to many people, spending money, or
+embarrassing in public. A reviewer who watched you reason is already persuaded by your
+reasoning; one that sees only the artifact has to be convinced by the artifact — the actual
+test.
 
-The default. Step 4 runs as written, in this same conversation, with the four
-lenses. Fast, free, and genuinely useful: most defects are ordinary and a
-disciplined re-read finds them.
+### The ladder — once you have chosen MULTI, use the highest rung available
 
-Use SOLO when being wrong is cheap and recoverable — a draft, an internal note, an
-experiment, anything you will look at again before it matters.
+(Choosing between SOLO and MULTI is the paragraph above; this table is only about how to run
+a MULTI you have already decided on. Having a subagent available does not make MULTI
+mandatory.)
 
-### MULTI — a reviewer that has not seen you think
+| Rung | What it removes |
+|---|---|
+| **1. A different model family** | Contamination, and blind spots that sit in different places. The strongest MULTI. Name the model. |
+| **2. A fresh subagent / agent task** | Most of the contamination — no manual step where this exists (Claude Code, Cowork, Agent SDK). Two caveats: *you* write its prompt, so contamination goes down by discipline rather than being removed by the mechanism; and a subagent may run a different, often smaller model than yours, so name what it was if you can find out. |
+| **3. A new conversation**, pasted by hand | Same as rung 2, more effort, no prompt-authoring advantage lost. The fallback in chat-only Claude. |
+| **4. Same conversation** | Nothing. This is SOLO — call it SOLO. |
 
-Use MULTI when being wrong is expensive: anything going to a client, published,
-sent to a lot of people, spending money, or that you would be embarrassed to get
-wrong in public.
+**Rung 3 means a new conversation, not a new message.** A fresh message in this thread still
+has all of the building in its context and buys nothing. And MULTI happens *after* Steps 1-3
+are finished — you review an artifact, not a work in progress.
 
-MULTI means the review happens **in a fresh conversation that never saw the
-building.** That is the whole mechanism, and it is worth understanding why it
-works: a reviewer who watched you reason has already been persuaded by your
-reasoning. One that sees only the artifact has to be convinced by the artifact
-itself — which is the actual test.
+**The reviewer gets exactly four things:** the artifact, the original request, the four
+lenses, and one question — *would you approve this, and what is the strongest argument that
+it is wrong?* Nothing about *how you built it*: not your plan, your reasoning, "here's what I
+was going for", or your verdict. Those are exactly what would contaminate it. Bring the
+findings to Step 5.
 
-**How to run it (this is a real, manual step — there is no way to fake it):**
+**MULTI is not "SOLO with more steps."** Reviewing in the same conversation and calling it
+MULTI buys the ceremony, none of the independence, and a seal that claims something untrue.
 
-1. Finish Steps 1-3. You now have a finished artifact.
-2. Open a **new conversation**. Not a new message — a new conversation, so none of
-   the building is in its context.
-3. Paste **only the artifact and the original request.** Not your plan, not your
-   reasoning, not "here's what I was going for", and not your own verdict. Those
-   are exactly the things that would contaminate the review.
-4. Ask it to run **Step 4's four lenses** and answer one question: *would you
-   approve this, and what is the strongest argument that it is wrong?*
-5. Bring the findings back and continue at Step 5.
+> **Say which mode in the seal. "SOLO" is an honest answer, not a confession** — the
+> dishonest answer is an unearned "MULTI".
 
-**One more turn of the same crank, when it really matters:** run step 3 twice more
-with a different lens named each time — once reading only for factual correctness,
-once reading only as the least sympathetic reader you can imagine. Separate passes
-beat one combined pass, because a reviewer looking for everything reliably drifts
-into looking for nothing.
-
-> **Say which mode you ran.** The seal in Step 6 must name SOLO or MULTI. A reader
-> deciding how much to trust this needs to know whether anything independent
-> actually looked at it — and "SOLO" is an honest answer, not a confession.
-
-### If you have access to a second AI
-
-Then use it for the Step 4 pass instead of a fresh Claude conversation. A different
-model family has blind spots in genuinely different places, which is strictly better
-than a fresh conversation with the same one. This skill does not require it and
-never assumes it — but if it is available, that is the strongest version of MULTI,
-and you should say which model reviewed.
-
-**MULTI is not "SOLO with more steps."** If you run the review in the same
-conversation and call it MULTI, you have the cost of the ceremony and none of the
-independence — which is worse than honestly running SOLO, because now the seal
-claims something untrue.
+**When it really matters,** add single-lens passes: one reading only for factual
+correctness, one as the least sympathetic reader you can imagine. Separate passes beat one
+combined pass, because a reviewer looking for everything drifts into looking for nothing.
 
 ---
 
 ## Step 5 — Fix, then re-prove
 
-Anything the back-pass found gets fixed, and then **proven again**. A fix is not
-done because it was applied; it is done because the failure it addresses no longer
-happens and you have said so with evidence.
+Everything the back-pass found gets fixed and **proven again**. A fix is done when the
+failure no longer happens and you have said so with evidence — not when it was applied. If
+a fix touches what an earlier round proved, that proof is stale. Redo it.
 
-If a fix touches something the earlier rounds proved, that proof is stale — redo it.
-
-### How many times round — and how to stop honestly
-
-Fix → re-prove is a loop, and loops need a way out that is not "I got tired". Set a
-ceiling **before you start going round** — three passes is right for most work —
-and then stop for one of exactly **three** reasons. Say which one:
+Set a ceiling **before** looping — three passes suits most work — then stop for one of
+exactly three reasons, and **say which**:
 
 | | |
 |---|---|
 | **PASSED** | The check succeeds. The only real success. |
-| **CEILING** | You hit the pass limit, still failing — **and the failure kept changing.** It may well be converging; it just needs more room than you allowed, or a decision from a human. |
-| **STALLED** | The same failure, unchanged, two or three passes running. **Stop immediately.** |
+| **CEILING** | Hit the limit, still failing, **and the failure kept changing.** Possibly converging — it needs more room than you allowed. |
+| **STALLED** | The same failure **twice** running, unchanged. **Stop immediately.** |
 
-The distinction between the last two is the whole reason to name them separately.
-Both mean "not fixed", and they call for opposite responses: CEILING says *give it
-another pass or ask someone*, STALLED says *stop and change the approach, because
-more of the same will produce more of the same.* Collapse them into "didn't work"
-and you will reliably spend the next hour on the version that cannot work.
+Both of the last two mean "not fixed", and the difference is what they license. **Both stop
+the loop and get reported** — the ceiling you set is the discipline, and drifting past it is
+how "a few more passes" becomes an afternoon. What differs is what happens next: CEILING
+means *another run is worth granting*, so either a human decides or you set a new ceiling
+**deliberately, with the reason stated**. STALLED means *more passes buy nothing* — change
+the approach, the assumption under it, or what you are checking, then start a fresh count.
 
-**When you are stalled, do not raise the ceiling.** That is the instinct and it is
-wrong — going round twice more on an unchanged failure buys nothing. Change
-something real: the approach, the assumption underneath it, or what you are
-checking. Then start the count again.
+**When stalled, do not raise the ceiling.** That is the instinct and it is wrong. Collapse
+these two into "didn't work" and you will reliably spend the next hour on the version that
+cannot work.
 
-> ⚠ **One trap worth naming, because it is invisible.** If your check produces *no
-> output* when it fails — many do — then every failed pass looks identical whether
-> you are making progress or not. You cannot read a stall off a silent check. When
-> the check is silent, make it say something, or judge progress on the work itself.
-> **Silence is not evidence of being stuck, and it is not evidence of progress
-> either.**
+> ⚠ **Invisible trap.** A check that produces *no output* on failure makes every failed
+> pass look identical whether you are progressing or not. Make it say something, or judge
+> progress on the work itself. **Silence is not evidence of being stuck, or of progress.**
 
 ---
 
@@ -270,53 +231,46 @@ checking. Then start the count again.
 Report, briefly:
 
 - **Verdict** — SHIP / DRAFT / BLOCKED.
-- **What changed** — in plain language, what a reader would notice.
-- **How it was proven** — the checks and their results.
+- **What changed** — plain language, what a reader would notice.
+- **How it was proven** — checks and results.
 - **What was NOT checked** — the honest boundary.
-- **How to undo it** — if it is the kind of work that can be undone.
-- **Stopped because** — PASSED, CEILING or STALLED (Step 5), and after how many passes.
-- **Mode** — SOLO or MULTI (Step 4b). If MULTI, say what reviewed it. A reader
-  deciding how far to trust this needs to know whether anything independent
-  actually looked, and SOLO is an honest answer.
-- **Scars** — did any existing scar apply, and did you follow its rule? Did this
-  run produce a new one? If yes, **print the scar block here**, ready to paste
-  (Step 7), including its EVIDENCE line. If no, say "no scar" — that is a real
-  answer, and saying it is what stops the step being quietly skipped forever.
+- **How to undo it** — if it is that kind of work.
+- **Stopped because** — PASSED / CEILING / STALLED, after how many passes.
+- **Mode** — SOLO or MULTI, truthfully; if MULTI, which rung and what reviewed it.
+- **Scars** — did an existing scar apply, and did you follow it? Did this run produce a
+  new one? If yes, **print the scar block, ready to paste, including its EVIDENCE line.** If
+  no, say "no scar" — saying it out loud is what stops this step being quietly skipped
+  forever.
 
-Then stop. Do not append a list of things you did not do and call it next steps
-unless they were asked for.
+Then stop. Do not append things you did not do and call them next steps unless asked.
 
 ---
 
 ## Step 7 — SCARS: turn what went wrong into something that cannot go wrong again
 
-Every workflow above this line makes *this* piece of work better. This step is the
-only one that makes the **next** piece of work better, and it is the reason to keep
-using the skill rather than just reading it once.
+Everything above improves *this* work. This step is the only one that improves the **next**
+work. A conversation ends and everything it learned dies with it; notes don't help, because
+nobody re-reads their notes before starting. **A scar is a mistake converted into a rule
+that loads itself.**
 
-Here is the problem it solves. A conversation ends and everything it learned dies
-with it. The next conversation starts from zero and is free to repeat the exact
-mistake you just spent an hour finding. Writing "be careful about X" in your notes
-does not help, because nobody re-reads their notes before starting.
+### Two layers, and the difference is authority
 
-**A scar is a mistake that has been converted into a rule that loads itself.**
+**FOUNDING RULES are yours** — written by hand, deliberately, at the top of `SCARS.md`.
+Not lessons from a bug but the terms your work runs on ("never send a client a number I
+haven't traced to source"). **Nothing learned may ever overwrite one.**
+
+**LEARNED SCARS append below**, at lower authority on purpose: a rule extracted from one
+bad afternoon should not weigh the same as one you chose while thinking clearly.
+
+A fresh copy of `SCARS.md` may also carry a **CANDIDATES** block — proposed founding rules
+that nobody has ratified. **It has no authority at all: not a founding rule, not a scar, and
+not an "entry" for the purposes of the seal's scar question.** Ignore it when working and
+mention once that it is waiting to be filled in or deleted.
 
 ### Recording one
 
-`SCARS.md` has **two layers, and the difference is authority.**
-
-**FOUNDING RULES are yours.** Written by hand, deliberately, at the top of the file.
-They are not lessons from a bug — they are the terms your work runs on ("never send
-a client a number I haven't traced to source"). **Nothing learned may ever overwrite
-one.**
-
-**LEARNED SCARS are appended below them**, from runs that went wrong. Lower
-authority on purpose: a rule extracted from one bad afternoon should not carry the
-same weight as one you chose while thinking clearly.
-
-When something went genuinely wrong this run — a real error, a wrong assumption, a
-thing that had to be redone — write it down in exactly this shape and add it to the
-LEARNED section:
+When something went genuinely wrong — a real error, a wrong assumption, a thing that had
+to be redone — write it in exactly this shape and add it to the LEARNED section:
 
 ```
 WHAT BROKE   the summary quoted a number that was never in the source
@@ -329,101 +283,84 @@ EVIDENCE     the figure appeared in my draft and in no paragraph of the source;
              I searched all 14 pages before concluding that
 ```
 
-**All six lines, every time.** Four of them are a diary. The last two are what make
-it a defence, and they are the two people skip.
+**All six lines, every time.** The first four are a diary; the last two make it a defence,
+and they are the two people skip:
 
-- **RULE must be an instruction, not a regret.** "Be more careful with numbers" is
-  not a rule — nothing can follow it. "Trace every figure to the sentence it came
-  from" is a rule, because you can tell whether you did it.
-- **GUARD names where the rule now lives.** A step in this skill, a line in a
-  checklist, a question you now always ask. If you genuinely cannot think of one,
-  write `GUARD: NONE` — **honestly**. An honest NONE is a bug you know you can still
-  hit. A made-up guard is worse than nothing, because it reads as protected.
-- **EVIDENCE names what in *this run* proves the rule.** Not why it sounds
-  sensible — what actually happened. This is the whole difference between a rule
-  and a superstition. Without it, a workflow slowly fills with confident
-  restrictions nobody can trace, refusing things for reasons that were never true.
+- **RULE is an instruction, not a regret.** "Be more careful with numbers" is not a rule —
+  nothing can follow it. "Trace every figure to the sentence it came from" is, because you
+  can tell whether you did it.
+- **GUARD names where the rule now lives** — a step here, a checklist line, a question you
+  now always ask. If there genuinely isn't one, write `GUARD: NONE` **honestly**. An honest
+  NONE is a hazard you know about; an invented guard reads as protected and is worse than
+  nothing.
+- **EVIDENCE names what in *this run* proved it** — what happened, not why it sounds
+  sensible. This is the difference between a rule and a superstition. Without it, the
+  workflow fills with confident restrictions nobody can trace, refusing things for reasons
+  that were never true.
 
 ### Undoing one
 
-**Before pasting a new scar, keep the previous version.** Copy `SCARS.md` to
-`SCARS.prev.md`, or just keep the old text somewhere for a day.
+**Copy `SCARS.md` to `SCARS.prev.md` before adding a scar** — or just keep the old text
+somewhere for a day. A lesson from one confusing afternoon can be **wrong** — wrong cause,
+or rule drawn too wide — and a wrong rule is worse than no rule because you will actually
+follow it. Without a copy it is permanent; with one, undoing it takes ten seconds.
+**Founding rules are untouched by this**; they change only by hand.
 
-That sounds fussy and it is not. A lesson drawn from one confusing afternoon can be
-**wrong** — wrong cause identified, or the rule drawn too wide — and a wrong rule is
-worse than no rule, because you will actually follow it. Without a previous copy a
-bad scar is permanent; with one, undoing it takes ten seconds.
+### Getting the scar into the file — check, do not assume
 
-**Founding rules are untouched by any of this.** They change only when you change
-them, by hand, on purpose.
+**Whether Claude can persist a change to `SCARS.md` depends on the environment.** Establish
+which case you are in — and note that reading the file back proves *the write*, never *the
+durability*, so read-back is not the test:
 
-### Reading them
+- **Real files in a local project** (Claude Code in a repo or a folder you own). Copy to
+  `SCARS.prev.md`, edit `SCARS.md`, read it back. Persists.
+- **A synced or ephemeral copy** (Cowork and similar: the skill came from an account, and
+  the workspace is discarded at the end). A write here *succeeds locally and changes nothing
+  durable* — and `SCARS.prev.md` written into that same workspace disappears with it, so the
+  backup has to live somewhere the user keeps. Deliver the updated `SCARS.md` as a file and
+  say plainly that saving it is their step.
+- **The write simply fails.** Report it and fall back to printing.
 
-**At the start of every run, read `SCARS.md` first.** Before Step 1. It is usually
-short, and it is the only thing in the folder written by experience rather than by
-someone guessing in advance what would go wrong.
+The tell is where the skill came from, not whether the write errored: a synced account skill
+is case 2 however writable the path looks.
 
-Then, at Step 6, answer one question in the seal: *did any scar apply to this work,
-and did I follow its rule?*
+Either way, **print the scar block in the seal**, formatted and ready. It costs one short
+block and it is the only version that survives if the file handling goes wrong.
+
+Skip the paste and the scar is lost with nothing to warn you: the run still looks
+successful. Hence the seal's scar question, which makes the loss visible now instead of
+three months from now.
 
 ### Carving a new skill out of scars — the part that compounds
 
-Watch for **three or more scars in the same territory.** Not the same mistake three
-times — the same *area*: three about handling numbers, three about tone in client
-emails, three about a particular file or system.
+Watch for **three or more scars in the same territory** — not the same mistake three times
+but the same *area*: three about numbers, three about client-email tone, three about one
+system. That area is recurring work and has earned its own instructions:
 
-Three scars in one area is a signal. It means that area is not an occasional
-hazard, it is a **recurring kind of work** that deserves its own instructions.
+1. **Write a sibling skill folder** named for the territory — `checking-figures`,
+   `client-emails`, `monthly-report`.
+2. **Put the rules in as procedure**, not warnings: steps, order, specific checks, the
+   phrasing that worked, the trap that keeps catching you. Scars are raw material; the
+   skill is the finished procedure.
+3. **Name the scar each rule came from.** Recorded origins survive someone asking "do we
+   still need this?"; a rule without one gets deleted by the first person tidying up, and
+   then it happens again.
+4. **Leave a pointer here**, so this skill loads the child in that territory.
+5. **Delete those entries from `SCARS.md`.** Not housekeeping — the file stays short
+   *because* things graduate out of it, and one nobody reads has failed like notes fail.
 
-When you see it, do this:
-
-1. **Write a new skill.** A folder next to this one, with its own `SKILL.md`, named
-   for the territory — `checking-figures`, `client-emails`, `monthly-report`.
-2. **Put the rules in it,** turned from "don't do X" into how the work is done:
-   the steps, the order, the specific checks, the phrasing that worked, the trap
-   that keeps catching you. The scars are the raw material; the skill is the
-   finished procedure.
-3. **Say where they came from.** Each rule keeps a line naming the scar that
-   produced it. A rule whose origin is recorded survives someone asking "do we
-   still need this?" — a rule without one gets deleted by the first person tidying
-   up, and then it happens again.
-4. **Leave a pointer here,** so this skill knows to load the child when the work
-   is in that territory.
-
-That is the loop, and it is worth stating plainly because it is the whole idea:
-**doing the work produces scars → scars accumulate into a territory → the territory
-becomes a skill → the skill makes that work reliable → and the workflow is now
-better at your job specifically, not at jobs in general.**
-
-A generic workflow is worth something. One that has been shaped by twenty of your
-own real mistakes is worth considerably more, and nobody else can hand it to you —
-it can only be grown.
-
-### ⚠ The honest limitation
-
-**Claude cannot write to the skill folder by itself.** So the mechanism has exactly
-one manual step, and pretending otherwise would guarantee it silently stops working:
-
-> Claude ends the run by **printing the scar block**, formatted and ready. You paste
-> it into `SCARS.md`. Ten seconds.
-
-If you skip the paste, the scar is lost and nothing warns you — the run still looks
-successful. So the seal in Step 6 asks whether a scar was produced, which at least
-makes the loss visible at the moment it happens rather than three months later when
-you hit the same bug again.
-
-**And do not let it grow into a wall of text.** A `SCARS.md` nobody reads has failed
-in the same way notes fail. When one area gets crowded, that is not a problem to
-tidy up — it is the signal to carve it into a skill and remove those entries from
-the list. The file should stay short *because* things keep graduating out of it.
+The loop: **work produces scars → scars accumulate into a territory → the territory becomes
+a skill → the skill makes that work reliable → and the workflow is now better at your job
+specifically, not at jobs in general.** Nobody can hand you that version; it can only be
+grown.
 
 ---
 
-## The checks (mark each PASS / FAIL / N/A-with-reason)
+## The checks — mark each PASS / FAIL / N/A-with-reason
 
-Skip what does not apply — but say you skipped it and why. Silence reads as "passed".
+Skip what does not apply, but **say you skipped it and why.** Silence reads as "passed".
 
-**Applies to all work**
+**All work**
 
 | Check | Question |
 |---|---|
@@ -433,56 +370,52 @@ Skip what does not apply — but say you skipped it and why. Silence reads as "p
 | Clarity | Would the intended reader understand it without you explaining? |
 | Stale claims | Does anything still describe the old behaviour? |
 | Reversible | Can this be undone, and is that written down? |
-| Scars read | Did you read `SCARS.md` before starting, and did any entry apply here? |
+| Scars read | Did you read `SCARS.md` first, and did any entry apply? |
 | Mode named | Does the seal say SOLO or MULTI, truthfully? |
 
-**Applies to code and technical work** *(mark N/A for writing, research or analysis)*
+**Code and technical work** *(mark N/A for writing, research or analysis)*
 
 | Check | Question |
 |---|---|
 | Tests | Do tests exist for *this* change, and did they actually run? |
 | Syntax | Does it parse / lint cleanly? |
 | Security | Secrets, injection, permissions, unsafe defaults. |
-| Reachability | Is every new thing actually *reached* by something? Code nobody calls is dead, and dead code described as a feature is worse than a missing feature — nobody looks again. |
-| Version + record | Is the version bumped and the change recorded where the project already records changes? |
+| Reachability | Is every new thing actually *reached* by something? Dead code described as a feature is worse than a missing feature — nobody looks again. |
+| Version + record | Version bumped, and change recorded where the project already records changes? |
 | Rollback | Is the reverse path known? |
 
-**On tests specifically:** "the suite is green" is not evidence that *your* tests ran.
-Prove they executed — a count before and after, or the new test names in the output.
-And a test that cannot fail proves nothing: if you strengthened a check, make sure
-the case it guards against can actually occur, or you have bought confidence without
-coverage.
+**On tests:** "the suite is green" is not evidence that *your* tests ran — prove they
+executed, with a count before and after or the new test names in the output. And a test
+that cannot fail proves nothing: if you strengthened a check, make sure the case it guards
+against can actually occur, or you bought confidence without coverage.
 
 ---
 
-## Scaling — and how to ask for more or less
-
-By default, judge the depth yourself from the stakes:
+## Scaling
 
 | Situation | What to do |
 |---|---|
 | Small, clear, low stakes | One round, prove it, brief back-pass. Minutes. |
-| Normal work | The full six steps, one or two rounds. |
-| High stakes / irreversible / public | Full workflow, extra back-pass lenses, and **say out loud** that an independent reviewer is recommended before it goes out. |
+| Normal work | Full steps, one or two rounds, SOLO. |
+| High stakes / irreversible / public | Full workflow, extra single-lens passes, MULTI at the highest rung available, and **say out loud** that an independent reviewer is recommended before it goes out. |
 
-The person can override that judgement by saying so:
+The person can override:
 
 | They say | You do |
 |---|---|
-| "quick pass", "just a sanity check", "don't overthink this" | One round. Still check it and still give a verdict — **speed never removes the verdict or the honesty about what you did not check.** |
-| *(nothing)* | Judge from the stakes, as above. |
-| "be thorough", "this really matters", "go deep" | Every back-pass lens, separately. Re-read the artifact twice with a gap. State explicitly that an independent human or a different AI should look before this goes out. |
+| "quick pass", "sanity check", "don't overthink it" | One round. Still check it, still give a verdict. |
+| *(nothing)* | Judge from the stakes. |
+| "be thorough", "this really matters", "go deep" | Every lens separately, artifact re-read twice with a gap, MULTI, and **state explicitly** that an independent human or a different AI should look before this goes out. |
 
-**What "quick" may never do:** skip the verdict, hide an uncertainty, or report SHIP
-on something unchecked. It reduces how *much* you examine, never how *honestly* you
-report it. If a quick pass finds something serious, stop being quick and say so.
+**What "quick" may never do:** skip the verdict, hide an uncertainty, or report SHIP on
+something unchecked. It reduces how *much* you examine, never how *honestly* you report
+it. If a quick pass finds something serious, stop being quick and say so.
 
-> **Note if you know the Claude Code version:** that one has `tiny` / `lean` / `max`
-> qualities which control how many parallel agents get spawned and how long a run
-> takes. None of that exists here — this skill runs in one conversation with no
-> agents to spawn — so those names would be labels controlling nothing. The table
-> above is the honest equivalent: it changes depth, which is the only thing that
-> actually varies.
+> **On `tiny`/`lean`/`max`:** those belong to a different tool, where they control how many
+> parallel agents get spawned and how long a run takes. Honouring the word here would be
+> theatre — a label controlling nothing. If someone asks for `max`, read it as "go deep" in
+> the table above and say that is what you did. Depth and independence are the things that
+> actually vary here.
 
 ---
 
@@ -492,6 +425,8 @@ report it. If a quick pass finds something serious, stop being quick and say so.
 - Say SHIP when a required check has no evidence behind it.
 - Hide an uncertainty to sound more confident.
 - Expand the job beyond what was asked without saying so.
+- Claim MULTI for a review that happened in the same conversation.
 
-*Created by Konyo. The discipline is his; this is the version that runs anywhere,
-with no second AI required.*
+*Created by Konyo. The discipline is his. This version runs anywhere and requires no second
+AI — it uses an independent reviewer when the stakes call for one and the environment has
+one, and never claims that working alone is as good.*

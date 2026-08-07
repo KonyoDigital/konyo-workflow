@@ -1,6 +1,12 @@
 # Installing the Konyo Workflow in Claude Desktop
 
-`konyo-workflow.zip` in this folder is the installable skill.
+**Download:** [`konyo-workflow.skill`](https://github.com/KonyoDigital/konyo-workflow/raw/main/automation/claude-desktop/konyo-workflow.skill)
+· or [`konyo-workflow.zip`](https://github.com/KonyoDigital/konyo-workflow/raw/main/automation/claude-desktop/konyo-workflow.zip)
+
+Both files are identical in content. `.skill` is what Claude Desktop's uploader
+expects; `.zip` works too and is easier to inspect first. **You should inspect it
+first** — it is two markdown files and nothing else. No scripts, no dependencies,
+nothing that runs.
 
 ## First time only — turn on the capability
 
