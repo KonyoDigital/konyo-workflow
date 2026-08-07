@@ -97,10 +97,22 @@ change the approach, don't raise the limit). Collapsing the last two into "didn'
 work" is how an hour goes into the version that cannot work.
 
 **And it learns.** Each run that goes wrong ends with a *scar block*: what broke,
-what it cost, how it was caught, the rule that prevents it, and where that rule now
-lives. You paste it into `SCARS.md`, which the skill reads before every run. When
-three scars land in the same territory, that territory has earned its own skill —
-the workflow carves a child skill and moves the rules into it.
+what it cost, how it was caught, the rule that prevents it, where that rule now
+lives, and **the evidence from that run that proves it** — the line separating a
+rule from a superstition. You paste it into `SCARS.md`, which the skill reads before
+every run. When three scars land in the same territory, that territory has earned
+its own skill — the workflow carves a child skill and moves the rules into it.
+
+`SCARS.md` has **two layers, and the difference is authority.** FOUNDING rules are
+hand-written by you and nothing learned may overwrite them; LEARNED scars append
+below, deliberately lower authority, because a rule extracted from one bad afternoon
+should not outrank one you chose while thinking clearly. And you keep the previous
+copy before pasting — a lesson can be *wrong*, and a wrong rule is worse than no
+rule because you will follow it.
+
+*(That structure is lifted from [Prime Intellect's Continual
+Harness](https://github.com/PrimeIntellect-ai/prime-agent) — immutable base,
+supplemental learned state, snapshots for rollback, evidence-backed updates.)*
 
 That is the compounding part: a generic workflow is worth something; one shaped by
 twenty of your own real mistakes is worth considerably more, and it can only be
