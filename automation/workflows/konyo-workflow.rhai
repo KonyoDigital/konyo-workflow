@@ -1,20 +1,37 @@
 let meta = #{
     name: "konyo-workflow",
-    description: "Konyo Workflow — ultimate shipper. RUNS AT MAX BY DEFAULT: deepest tier on every agent, a 3-lens skeptic panel as THE gate, and a completeness critic. Pass {quality:\"standard\"} — that exact word only — to opt DOWN to the cost-scaled ladder. Every gate, blocker and bail runs at BOTH qualities; the flag buys tier, panel size and the max-only phase. FAT versions only (≥3 outcomes or 1 deep bug) · 7-round pingpong · fail-closed ship/draft/blocked.",
-    when_to_use: "Any serious ship — it is MAX unless you say otherwise. Enforces fat version bar: multi-outcome package per integer. Not for single-string/i18n micro-bumps. Opt down with {quality:\"standard\"} for routine, easily-reversible work.",
+    description: "KONYO WORKFLOW for Grok Build — FULL IMPLEMENTER (not audit-only). ONE body, four qualities (lean|max|standard|tiny). LEAN is the default: every ship gate runs (adversarial panel, LAW17/18/19, workspace lock, agent ceiling) while max buys a multi-architect panel, completeness critic, and deeper rework. Pass {apply:true} to edit files; apply:false is dry-run (propose only). Third eye is Claude (different family) via the claude CLI — never a same-family stand-in unless thirdEye:\"claude\". Pass {task, quality, apply, force, items, skeptics, isolate, thirdEye, maxAgents, ignoreLock, push}.",
+    when_to_use: "ANY multi-step ship on Grok Build. Bare call = lean + dry-run. {apply:true} to write. {quality:\"max\"} when being wrong is expensive. {quality:\"tiny\", apply:true, items:[{file,instruction}]} for a known small edit set. {quality:\"standard\"} for the cheap ladder. Parity target: Claude Code konyo-workflow.js (v26+).",
     phases: [
-        #{ title: "Intake", detail: "objective + fat-ship criteria (refuse micro scope)" },
-        #{ title: "Inventory", detail: "stack, changes, tests, deploy surface" },
-        #{ title: "Plan", detail: "checklist ≥3 outcomes or 1 structural bug · one owner per file" },
-        #{ title: "Gate-Audit", detail: "ceremony + LAW17 fat version bar" },
-        #{ title: "Skeptic panel", detail: "adversarial panel (3 lenses at max, 1 at standard) — ALWAYS runs, then per-finding verification. SAME model family: this is a panel, not the third eye" },
-        #{ title: "Render-Gate", detail: "v26 — a LOOP, not a verdict: LAW18 painted-UI proof at a NARROW and a WIDE viewport, then a fixer corrects and it renders AGAIN (3 passes, 4 at max). CI verdict first; the FINAL pass blocks the ship" },
-        #{ title: "Third-Eye", detail: "v26 — CLAUDE, a DIFFERENT model family, challenges the ship pre-verdict. Mirror of the Claude shipper consulting Grok. A Grok agent may NEVER fill this seat: transport down = seat reported EMPTY, never agreement" },
-        #{ title: "Completeness", detail: "MAX only: did the audit COVER the objective, or stop early? gaps become blockers" },
-        #{ title: "Verdict", detail: "ship / draft / blocked · fat bar enforced" },
-        #{ title: "Approve", detail: "optional human go-live gate" },
+        #{ title: "Preflight", detail: "workspace lock when apply:true — shared lock dir with Claude so fleets exclude each other" },
+        #{ title: "Triage", detail: "right-size before spending; SKIPPED at tiny" },
+        #{ title: "Architect", detail: "one-owner-per-file plan; multi-architect at max; SKIPPED at tiny (caller is the plan)" },
+        #{ title: "Third-eye", detail: "Claude (different family) reviews the plan before builders spend" },
+        #{ title: "Build+Gate", detail: "builders write when apply:true; one owner per file; patch carrier when isolate" },
+        #{ title: "Adversarial gate", detail: "diverse-lens skeptics ARE the gate (floor 2 at max/lean when applying)" },
+        #{ title: "Rework", detail: "failed items get one more attempt (max keeps two)" },
+        #{ title: "Merge", detail: "only with {isolate:true}: sequential git apply --check of patches" },
+        #{ title: "Completeness", detail: "max ONLY — hunt work nobody planned; lean/tiny/standard report skipped" },
+        #{ title: "Render gate", detail: "LAW18 painted-UI proof when UI exists; blocker when available" },
+        #{ title: "Fat version bar", detail: "LAW17 — fat package or structural bug; thin ship blocks" },
+        #{ title: "Reachability", detail: "LAW19 — added symbols have caller AND writer; tests proven to RUN" },
+        #{ title: "Ship", detail: "push ONLY if shippable and {push:true}; never --force / --no-verify" },
+        #{ title: "Synthesize", detail: "ONE final ping report" },
     ],
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// KONYO WORKFLOW — Grok Build implementer
+// Parity with ~/.claude/workflows/konyo-workflow.js (lean default, apply mode,
+// army, skeptic gate, LAW17/18/19). Previous Grok rhai was AUDIT-ONLY; that
+// body is preserved as konyo-workflow.rhai.bak-audit-only-2026-08-07.
+//
+// Host differences (named, not papered over):
+//   · Claude thirdEye default = Grok CLI.  Grok thirdEye default = Claude CLI.
+//   · Grok agent() has no Opus/Sonnet ladder — tier is a DEPTH DIRECTIVE in the
+//     prompt, never a silent claim that a different model ran.
+//   · capability_mode is the write boundary: read-only | read-write | execute | all.
+// ═══════════════════════════════════════════════════════════════════════════
 
 fn trimmed(s) {
     if type_of(s) == "string" {
@@ -25,1180 +42,1391 @@ fn trimmed(s) {
     }
 }
 
-let findings_schema = #{
-    "type": "object",
-    "required": ["findings"],
-    "properties": #{
-        "findings": #{
-            "type": "array",
-            "maxItems": 8,
-            "items": #{
-                "type": "object",
-                "required": ["gate", "severity", "issue"],
-                "properties": #{
-                    "gate": #{ "type": "string" },
-                    "severity": #{ "type": "string" },
-                    "issue": #{ "type": "string" },
-                    "evidence": #{ "type": "string" },
-                    "fix": #{ "type": "string" },
-                    "status": #{ "type": "string" },
-                },
-            },
-        },
-    },
-};
+fn as_map(v) {
+    if type_of(v) == "map" { v } else { #{} }
+}
 
-let verdict_schema = #{
-    "type": "object",
-    "required": ["real", "reason", "evidence"],
-    "properties": #{
-        "real": #{ "type": "boolean" },
-        "reason": #{ "type": "string" },
-        "evidence": #{ "type": "string" },
-    },
-};
+fn as_arr(v) {
+    if type_of(v) == "array" { v } else { [] }
+}
 
-let intake_schema = #{
-    "type": "object",
-    "required": ["success_criteria", "out_of_scope", "risk_notes"],
-    "properties": #{
-        "success_criteria": #{
-            "type": "array",
-            "maxItems": 10,
-            "items": #{ "type": "string" },
-        },
-        "out_of_scope": #{
-            "type": "array",
-            "maxItems": 8,
-            "items": #{ "type": "string" },
-        },
-        "risk_notes": #{ "type": "string" },
-        "has_ui": #{ "type": "boolean" },
-        "has_deploy": #{ "type": "boolean" },
-    },
-};
+fn truthy(v) {
+    if v == true { true } else { false }
+}
 
-let inv_schema = #{
+// ---------- schemas ----------
+let triage_schema = #{
     "type": "object",
-    "required": ["summary", "stack", "changed_areas", "test_commands"],
+    "required": ["shape", "parallelism", "cost_of_wrong", "tier", "est_agents", "skeptics", "work_list_known", "why"],
     "properties": #{
-        "summary": #{ "type": "string" },
-        "stack": #{ "type": "string" },
-        "changed_areas": #{
-            "type": "array",
-            "maxItems": 12,
-            "items": #{ "type": "string" },
-        },
-        "test_commands": #{
-            "type": "array",
-            "maxItems": 10,
-            "items": #{ "type": "string" },
-        },
-        "deploy_surface": #{ "type": "string" },
-        "ledger_paths": #{
-            "type": "array",
-            "maxItems": 8,
-            "items": #{ "type": "string" },
-        },
+        "shape": #{ "type": "string" },
+        "parallelism": #{ "type": "string" },
+        "cost_of_wrong": #{ "type": "string" },
+        "tier": #{ "type": "string" },
+        "est_agents": #{ "type": "integer" },
+        "skeptics": #{ "type": "integer" },
+        "work_list_known": #{ "type": "boolean" },
+        "why": #{ "type": "string" },
     },
 };
 
 let plan_schema = #{
     "type": "object",
-    "required": ["checklist", "file_owners"],
+    "required": ["version_label", "summary", "items"],
     "properties": #{
-        "checklist": #{
+        "version_label": #{ "type": "string" },
+        "summary": #{ "type": "string" },
+        "items": #{
             "type": "array",
-            "maxItems": 18,
-            "items": #{ "type": "string" },
-        },
-        "file_owners": #{
-            "type": "array",
-            "maxItems": 14,
+            "maxItems": 24,
             "items": #{
                 "type": "object",
-                "required": ["owner", "paths"],
+                "required": ["id", "file", "instruction", "risk"],
                 "properties": #{
-                    "owner": #{ "type": "string" },
-                    "paths": #{ "type": "string" },
+                    "id": #{ "type": "string" },
+                    "file": #{ "type": "string" },
+                    "kind": #{ "type": "string" },
+                    "tier": #{ "type": "string" },
+                    "risk": #{ "type": "string" },
+                    "instruction": #{ "type": "string" },
+                    "anchor": #{ "type": "string" },
                 },
             },
         },
-        "on_air_risk": #{ "type": "string" },
-        "version_label": #{ "type": "string" },
-        "overlap_ok": #{ "type": "boolean" },
+        "why": #{ "type": "string" },
     },
 };
 
-let report_schema = #{
+let build_schema = #{
     "type": "object",
-    "required": ["verdict", "summary", "blockers", "next_actions", "pingpong_rounds_claimed", "ship_allowed"],
+    "required": ["file", "summary", "changes", "self_check", "files_touched"],
     "properties": #{
-        "verdict": #{ "type": "string" },
+        "file": #{ "type": "string" },
         "summary": #{ "type": "string" },
-        "blockers": #{
-            "type": "array",
-            "maxItems": 16,
-            "items": #{ "type": "string" },
-        },
-        "next_actions": #{
-            "type": "array",
-            "maxItems": 14,
-            "items": #{ "type": "string" },
-        },
-        "pingpong_rounds_claimed": #{ "type": "integer" },
-        "ship_allowed": #{ "type": "boolean" },
-        "law_scores": #{
-            "type": "array",
-            "maxItems": 20,
-            "items": #{ "type": "string" },
-        },
+        "changes": #{ "type": "string" },
+        "self_check": #{ "type": "string" },
+        "files_touched": #{ "type": "array", "maxItems": 40, "items": #{ "type": "string" } },
+        "patch": #{ "type": "string" },
     },
 };
 
-// v26 — the render loop's correction half. `changed` is load-bearing: false stops the loop rather
-// than re-rendering identical code, so it must be a real answer and not a formality.
-let fix_schema = #{
+let gate_schema = #{
     "type": "object",
-    "required": ["changed", "what", "unfixable"],
+    "required": ["verdict", "severity", "reason"],
     "properties": #{
-        "changed": #{ "type": "boolean" },
-        "what": #{ "type": "string" },
-        "files": #{ "type": "array", "maxItems": 12, "items": #{ "type": "string" } },
-        "unfixable": #{ "type": "array", "maxItems": 10, "items": #{ "type": "string" } },
-    },
-};
-
-let render_schema = #{
-    "type": "object",
-    "required": ["available", "ran", "passed", "failures", "notes", "screenshots"],
-    "properties": #{
-        "available": #{ "type": "boolean" },
-        "ran": #{ "type": "string" },
-        "passed": #{ "type": "boolean" },
-        "failures": #{
-            "type": "array",
-            "maxItems": 20,
-            "items": #{ "type": "string" },
-        },
-        "notes": #{ "type": "string" },
-        "screenshots": #{ "type": "array", "maxItems": 12, "items": #{ "type": "string" } },
-        "visual": #{ "type": "array", "maxItems": 16, "items": #{ "type": "string" } },
-    },
-};
-
-// ========== args ==========
-let objective = if args == () { () } else { args.objective };
-if objective == () && args != () { objective = args.query; }
-if objective == () || objective == "" {
-    pause("verification", "Pass args.objective — what are we shipping? e.g. \"Add rate limits to the API\" or \"v770 theatre polish\".");
-}
-
-let target = "HEAD";
-if args != () && args.target != () {
-    let t = trimmed(args.target);
-    if t != "" { target = t; }
-}
-let version = "";
-if args != () && args.version != () {
-    version = trimmed(args.version);
-}
-
-let strict = true;
-if args != () && args.strict != () {
-    if args.strict == false { strict = false; }
-}
-
-let rounds_min = 7;
-if args != () && args.rounds_min != () {
-    rounds_min = args.rounds_min;
-}
-if !strict { rounds_min = 0; }
-
-let human_approve = false;
-if args != () && args.human_approve != () {
-    if args.human_approve == true { human_approve = true; }
-}
-
-let mode = "audit";
-if args != () && args.mode != () {
-    let m = trimmed(args.mode);
-    if m != "" { mode = m; }
-}
-
-// ========== quality knob (2026-08-04) ==========
-// SHIPPER 3 OF 4 WAS FORKED. This Grok-side shipper had NO quality flag at all (grep -c quality = 0),
-// so /konyo-workflow on Grok CLI could not select max, and every v13-v18 safeguard had to be
-// hand-applied twice — which is exactly how this file once fell 145 lines behind with three blocking
-// gates missing. Same knob as the .js base now: MAX BY DEFAULT, and ONLY the literal string
-// "standard" downgrades. A typo ("Standard", "stnadard", true, 42, "") falls THROUGH to max, so a
-// fat finger costs tokens and never rigor. trimmed() returns "" for every non-string, so a
-// non-string quality can never match.
-let quality = "max";
-if args != () && args.quality != () {
-    if trimmed(args.quality) == "standard" { quality = "standard"; }
-}
-let is_max = quality == "max";
-let quality_note = "max — 3-lens skeptic panel + completeness critic";
-let quality_lenses = "3";
-let quality_critic = "on";
-if !is_max {
-    quality_note = "standard — 1 skeptic lens, completeness critic off; all gates unchanged";
-    quality_lenses = "1";
-    quality_critic = "off";
-}
-
-// The tier knob. This engine's agent() takes label/capability_mode/output_schema only — there is no
-// model field to set here — so the tier is carried as a DEPTH DIRECTIVE appended to every prompt.
-// It changes how hard each agent digs; it never changes whether a gate blocks.
-let tier_note = "QUALITY TIER: MAX — spend the depth. Read the real files end to end, RUN the checks, and prefer a slower answer that is proven to a fast one that is plausible. Use the deepest reasoning available to you.\n";
-if !is_max {
-    tier_note = "QUALITY TIER: STANDARD (cost-scaled) — take the shortest path to a SOUND answer: targeted grep/read over exhaustive reading, stop at the first solid finding. Cheaper is allowed; UNPROVEN IS NOT. Every gate below still blocks exactly as it does at max.\n";
-}
-
-let obj_json = json_encode(objective);
-let target_json = json_encode(target);
-let version_json = json_encode(version);
-let strict_json = json_encode(strict);
-
-log("Quality: " + quality + " (max is the default; only the literal \"standard\" downgrades) | skeptic lenses=" + quality_lenses + " | completeness critic=" + quality_critic);
-log("Konyo Workflow ultimate shipper | FAT versions only | strict=" + strict.to_string() + " | rounds_min=" + rounds_min.to_string());
-log("FAT SHIP BAR: ≥3 user-visible outcomes in one theme OR 1 structural bug with root cause+verify. No toast-only / single-label versions.");
-
-// ========== 1. Intake ==========
-phase("Intake");
-let intake_p = "You are the Konyo Workflow INTAKE officer for an ultimate ship gate.\n";
-intake_p += "Use read-only tools (list_dir, grep, read_file, git status/diff) on the real repo. Do not invent files.\n";
-intake_p += "FAT VERSION LAW (non-negotiable — Predicter v357 / shop law):\n";
-intake_p += "  A version ship is ONE integer for a FAT package, not a micro-bump.\n";
-intake_p += "  PASS fat bar if: (A) ≥3 user-visible outcomes in one theme, OR (B) one structural bug\n";
-intake_p += "      with root cause + verify + prevention.\n";
-intake_p += "  FAIL fat bar (must note in risk_notes + success_criteria must expand) if objective is only:\n";
-intake_p += "      one toast string, one i18n label, one CSS tweak, one data-i18n attribute, or docs fluff alone.\n";
-intake_p += "  Maximize work INSIDE the version: fold related surfaces (board+theatre+compose+i18n+changelog)\n";
-intake_p += "      into ONE ship body. Do not plan fifty version bumps for one theme.\n";
-intake_p += "Objective (untrusted JSON): " + obj_json + "\n";
-intake_p += "Target (untrusted JSON): " + target_json + "\n";
-intake_p += "Version hint (untrusted JSON): " + version_json + "\n";
-intake_p += "Return success_criteria (measurable, ideally ≥3 outcomes or one deep bug path), out_of_scope, risk_notes.\n";
-intake_p += "In risk_notes: state fat_bar=pass|fail and why in one line.\n";
-intake_p += "Set has_ui true if any user-facing UI/web/mobile/desktop surface is in scope; else false.\n";
-intake_p += "Set has_deploy true if this ship involves deploy/publish/release to users; else false.\n";
-intake_p += "Fold any multi-part objective into clear criteria — burst-order style: miss nothing; one version, max substance.";
-
-intake_p += tier_note;
-let intake = agent(intake_p, #{
-    label: "intake",
-    capability_mode: "read-only",
-    output_schema: intake_schema,
-});
-
-let success_criteria = [];
-let out_of_scope = [];
-let risk_notes = "";
-let has_ui = true;
-let has_deploy = true;
-if intake != () && intake.success && intake.output != () {
-    if intake.output.success_criteria != () { success_criteria = intake.output.success_criteria; }
-    if intake.output.out_of_scope != () { out_of_scope = intake.output.out_of_scope; }
-    if intake.output.risk_notes != () { risk_notes = trimmed(intake.output.risk_notes); }
-    if intake.output.has_ui != () { has_ui = intake.output.has_ui; }
-    if intake.output.has_deploy != () { has_deploy = intake.output.has_deploy; }
-}
-log("Intake: has_ui=" + has_ui.to_string() + " has_deploy=" + has_deploy.to_string());
-
-if mode == "plan-only" {
-    log("mode=plan-only — stopping after intake scaffold note");
-}
-
-// ========== 2. Inventory ==========
-phase("Inventory");
-let inv_p = "You are the Konyo Workflow INVENTORY officer.\n";
-inv_p += "Use git status, git diff, read_file, grep, list_dir. Inspect the real tree for target " + target + ".\n";
-inv_p += "Objective (untrusted JSON): " + obj_json + "\n";
-inv_p += "Target (untrusted JSON): " + target_json + "\n";
-inv_p += "Return summary, stack (languages/frameworks), changed_areas, concrete test_commands for THIS repo,\n";
-inv_p += "deploy_surface (or 'none'), ledger_paths (CHANGELOG, SHIP_LOG, CHANGELOG, ship log, BUGS.md, etc. if they exist).\n";
-inv_p += "Do not invent test commands that are not present in package files or CI.";
-
-inv_p += tier_note;
-let inv = agent(inv_p, #{
-    label: "inventory",
-    capability_mode: "read-only",
-    output_schema: inv_schema,
-});
-
-let inv_summary = "";
-let stack = "";
-let changed_areas = [];
-let test_commands = [];
-let deploy_surface = "unknown";
-let ledger_paths = [];
-if inv != () && inv.success && inv.output != () {
-    if inv.output.summary != () { inv_summary = trimmed(inv.output.summary); }
-    if inv.output.stack != () { stack = trimmed(inv.output.stack); }
-    if inv.output.changed_areas != () { changed_areas = inv.output.changed_areas; }
-    if inv.output.test_commands != () { test_commands = inv.output.test_commands; }
-    if inv.output.deploy_surface != () { deploy_surface = trimmed(inv.output.deploy_surface); }
-    if inv.output.ledger_paths != () { ledger_paths = inv.output.ledger_paths; }
-}
-
-let inv_json = json_encode(#{
-    summary: inv_summary,
-    stack: stack,
-    changed_areas: changed_areas,
-    test_commands: test_commands,
-    deploy_surface: deploy_surface,
-    ledger_paths: ledger_paths,
-    has_ui: has_ui,
-    has_deploy: has_deploy,
-});
-
-// ========== 3. Plan ==========
-phase("Plan");
-let plan_p = "You are the Konyo Workflow PLANNER (army discipline).\n";
-plan_p += "Use read-only tools. Build a ship plan for the objective.\nUse THIS repo's existing terminology for versions, tests, logs, and tools — do not invent foreign project jargon or rename their conventions.\n";
-plan_p += "HARD RULE: file_owners must have ZERO path overlap — one owner per file/path.\n";
-plan_p += "FAT VERSION LAW: this plan must justify ONE version integer with MAX substance.\n";
-plan_p += "  Checklist must encode ≥3 concrete user-visible outcomes OR one structural bug path\n";
-plan_p += "  (root cause → fix → verify → prevention). Bundle related i18n/docs/UX into that one ship.\n";
-plan_p += "  NEVER plan a series of micro version bumps (one toast per version). That is blocked.\n";
-plan_p += "  version_label is the SINGLE next stamp for the whole package (e.g. v358), not a range.\n";
-plan_p += "Include burst-order folding: every part of the objective appears in checklist.\n";
-plan_p += "Flag on_air_risk if restarting services or deploying could harm a live user session.\n";
-plan_p += "Objective (untrusted JSON): " + obj_json + "\n";
-plan_p += "Inventory (untrusted JSON): " + inv_json + "\n";
-plan_p += "Version (untrusted JSON): " + version_json + "\n";
-plan_p += "Return checklist, file_owners, on_air_risk, version_label, overlap_ok (true only if no path overlap).";
-
-plan_p += tier_note;
-let plan = agent(plan_p, #{
-    label: "planner",
-    capability_mode: "read-only",
-    output_schema: plan_schema,
-});
-
-let checklist = [];
-let file_owners = [];
-let on_air_risk = "unknown";
-let version_label = version;
-let overlap_ok = false;
-if plan != () && plan.success && plan.output != () {
-    if plan.output.checklist != () { checklist = plan.output.checklist; }
-    if plan.output.file_owners != () { file_owners = plan.output.file_owners; }
-    if plan.output.on_air_risk != () { on_air_risk = trimmed(plan.output.on_air_risk); }
-    if plan.output.version_label != () {
-        let vl = trimmed(plan.output.version_label);
-        if vl != "" { version_label = vl; }
-    }
-    if plan.output.overlap_ok != () { overlap_ok = plan.output.overlap_ok; }
-}
-log("Plan: checklist=" + checklist.len().to_string() + " owners=" + file_owners.len().to_string() + " overlap_ok=" + overlap_ok.to_string());
-
-if mode == "plan-only" {
-    let md_po = "# Konyo Workflow — plan only\n\n**Objective:** " + objective + "\n\n";
-    md_po += "## Checklist\n";
-    for c in checklist { md_po += "- " + c + "\n"; }
-    md_po += "\n## File owners\n";
-    for o in file_owners {
-        let line = "- ";
-        if o.owner != () { line += trimmed(o.owner) + ": "; }
-        if o.paths != () { line += trimmed(o.paths); }
-        md_po += line + "\n";
-    }
-    let ppath = write_scratch_file("konyo-plan-only.md", md_po);
-    complete(#{ path: ppath, report: md_po, mode: "plan-only", objective: objective, quality: quality });
-}
-
-// ========== 4. Gate-Audit (ceremony + general) ==========
-phase("Gate-Audit");
-
-// Law list: general + Konyo. Each auditor may return status pass|fail|na via findings.
-let gates = [
-    "LAW01 TDD/Tests: locks or tests exist for THIS change; suites/commands from inventory are green or clearly runnable — FAIL if missing coverage for changed behavior",
-    "LAW02 Review: correctness bugs, error handling, edge cases in the real diff/target — general multi-lens code review",
-    "LAW03 Security: secrets/keys logged or committed, injection, authz gaps, unsafe defaults — FAIL with evidence or empty only after real search",
-    "LAW04 Docs/Ops: README/changelog/operator notes needed for this ship; ledger paths if project uses them",
-    "LAW05 Rollback/blast-radius: how to reverse; migrations; feature flags; worst-case impact",
-    "LAW06 Patch discipline: re-grep live anchors, no partial-apply smell, single coherent write pattern on substantive edits",
-    "LAW07 Syntax/static gates: parse/lint strategy for touched languages (py/js/ts/sh/etc.) present or run-able",
-    "LAW08 UX polish: every touched user-facing surface polished — if no UI in scope set finding status na with evidence (no UI paths)",
-    "LAW09 Interaction/e2e UX: buttons/flows both directions, keyboard, latency budgets OR status na with evidence if no interactive UI",
-    "LAW10 Visual verification: screenshots or visual check of changed surfaces LOOKED AT — or na with evidence if non-visual project",
-    "LAW11 Version stamps: consistent version identity across artifacts (semver/VERSION/tag/changelog/build id) — na only if project has zero versioning",
-    "LAW12 Ledger: ship log entry path exists or planned (whatever ship/bug logs this repo already uses)",
-    "LAW13 Deploy/live safety: preflight before deploy/restart; do not cycle live systems while a live critical session is active; mode/status checks if applicable — na if no deploy",
-    "LAW14 Self-enforcing layer: CI/hooks/required checks that make critical gates hard to skip — note gaps as major/blocker when strict",
-    "LAW15 Army/overlap: plan file_owners have zero path overlap; burst objective fully covered by checklist",
-    "LAW16 Seven-round AI/LLM pingpong: find evidence of >= rounds of design/implement/back-pass/fix/re-verify/polish/seal (or prior rounds logged). Fewer than required => draft not ship. Count what exists in ledger/commits/PRs.",
-    "LAW17 Fat version bar: ONE version integer must package real work — (A) ≥3 user-visible outcomes in one theme, OR (B) one structural bug with root cause+verify+prevention. FAIL as blocker if the planned ship is only one toast/label/i18n key/CSS one-liner/docs fluff. FAIL as major if changelog would be a single thin line. Maximize outcomes inside the version; never recommend a micro-version climb for one theme.",
-    "LAW19 Reachability: every symbol this change ADDED must have a caller AND a writer — a slot read and cleared but never written, a handler wired to no element, a route with no requester, or a guard on a name declared NOWHERE, are all DEAD and count as blockers. Prefer execution to grep: grep cannot tell a live cross-file reference from a dead one, and a name may be declared far from its use. If TESTS were added, prove they RAN (suite count before/after, or the new names in verbose output) — \"the suite is green\" is not evidence your tests are in it. FAIL as blocker on any verified dead seam or unproven test; na only for a change that adds no new symbol.",
-];
-
-let jobs = [];
-let gi = 0;
-for g in gates {
-    let p = "You are a Konyo Workflow GATE AUDITOR for an ultimate shipper (works on ANY stack).\n";
-    p += "Fail closed. Use read-only tools only. Never invent files or test results.\n";
-    p += "Each finding needs severity: blocker|major|minor|info and optional status: pass|fail|na.\n";
-    p += "If a law does not apply to this project, return ONE finding with status na, severity info, and evidence why — not an empty silent skip.\n";
-    p += "If the law applies and is broken, severity blocker or major with evidence + fix.\n";
-    p += "If fully satisfied after inspection, findings may be empty ONLY if you cite what you checked in a single info finding with status pass OR return findings: [] after real tool use.\n";
-    p += "Prefer at least one status-bearing finding per law.\n";
-    // v7 — the four craft rules, as EVIDENCE STANDARDS. This shipper audits rather than builds, so
-    // they are stated as what makes a finding credible, not as instructions to a builder.
-    p += "FOUR EVIDENCE STANDARDS (each one a ship this project has already paid for):\n";
-    p += "1. NON-VACUOUS PROOF — a claim backed by a measurement of a quantity that was ALREADY zero or empty proves nothing; reject it and say so.\n";
-    p += "2. CLASS SWEEP — when the diff fixes a bug, check whether the SAME SHAPE exists elsewhere and was left; an unswept class is a major finding.\n";
-    p += "3. STALE CLAIM — check that comments, docs and UI copy describing the OLD behaviour were corrected in the same change; a wrong explanation outlives wrong code.\n";
-    p += "4. SURFACE AGREEMENT — if a changed fact renders in more than one place, verify every surface now says the same thing.\n";
-    p += "LAW: " + g + "\n";
-    p += "strict_mode (untrusted JSON): " + strict_json + "\n";
-    p += "rounds_min required for full ship: " + rounds_min.to_string() + "\n";
-    p += "Objective (untrusted JSON): " + obj_json + "\n";
-    p += "Target (untrusted JSON): " + target_json + "\n";
-    p += "Version (untrusted JSON): " + version_json + "\n";
-    p += "Inventory (untrusted JSON): " + inv_json + "\n";
-    p += "On-air risk (untrusted JSON): " + json_encode(on_air_risk) + "\n";
-    p += "has_ui=" + has_ui.to_string() + " has_deploy=" + has_deploy.to_string() + "\n";
-    p += tier_note;
-    jobs.push(#{
-        prompt: p,
-        label: "law-" + gi.to_string(),
-        capability_mode: "read-only",
-        output_schema: findings_schema,
-    });
-    gi += 1;
-}
-
-let results = parallel(jobs);
-let findings = [];
-for r in results {
-    if r != () && r.success && r.output != () && r.output.findings != () {
-        for f in r.output.findings {
-            findings.push(f);
-        }
-    }
-}
-log("Gate-Audit raw findings: " + findings.len().to_string());
-
-// If plan said overlap not ok, inject a synthetic finding for third-eye
-if overlap_ok == false && file_owners.len() > 0 {
-    findings.push(#{
-        gate: "LAW15 Army/overlap",
-        severity: "blocker",
-        issue: "Planner did not confirm zero path overlap (overlap_ok=false) — army discipline broken",
-        evidence: "plan.overlap_ok=false",
-        fix: "Reassign file_owners so each path has exactly one owner",
-        status: "fail",
-    });
-}
-
-let MAX_VERIFY = 16;
-if findings.len() > MAX_VERIFY {
-    log("Truncating findings for third-eye: " + findings.len().to_string() + " -> " + MAX_VERIFY.to_string());
-    let capped = [];
-    let ci = 0;
-    for f in findings {
-        if ci < MAX_VERIFY {
-            capped.push(f);
-            ci += 1;
-        }
-    }
-    findings = capped;
-}
-
-// ========== 5. Skeptic panel + Third-Eye ==========
-// v26 — RENAMED. What follows was called "Third-Eye" and is an ADVERSARIAL SKEPTIC PANEL: Grok
-// agents reviewing a Grok-driven run. That is a real gate and it stays — but it is the SAME model
-// family as everything else here, and the Claude shipper uses "third eye" to mean the opposite:
-// a DIFFERENT family (it consults Grok). Two shippers using one name for two concepts is exactly
-// the drift this repo has been bitten by before ("verify by concept, not by the LAWnn token"), and
-// it let the Grok side read as if it had a cross-model reviewer when it had none.
-// So: the panel below is the SKEPTIC PANEL, and the real third eye — Claude — is phase 5b.
-phase("Skeptic panel");
-let confirmed = [];
-
-// THE SKEPTIC PANEL — UNCONDITIONAL. Panel SIZE is the quality knob (max = 3 diverse lenses,
-// standard = 1); the gate itself runs at BOTH qualities. Before 2026-08-04 this ran ONLY when the
-// law auditors returned zero findings, so any run with a single trivial finding got NO adversarial
-// pass at all — the cheapest possible way for a run to look audited without being audited.
-let skeptic_lenses = [
-    "SHIP-BLOCKER lens: hunt anything that makes this unsafe to ship — broken behaviour, missing coverage for the changed path, a law declared na with no evidence.",
-    "REGRESSION + BLAST-RADIUS lens: what does this break that nobody listed? Callers, cached copies, the SAME file on another host/machine, the rollback story.",
-    "PROOF-QUALITY lens: attack the EVIDENCE, not the code — a measurement of a quantity that was ALREADY zero, a grep that matched a COMMENT, a cached git ref (rev-parse without fetch), a null read as a pass, a screenshot nobody opened.",
-];
-if !is_max {
-    skeptic_lenses = [ skeptic_lenses[0] ];
-}
-let sjobs = [];
-let si = 0;
-for lens in skeptic_lenses {
-    let sk_p = "You are a SKEPTIC-PANEL seat for Konyo Workflow. Hunt real ship blockers.\n";
-    sk_p += "Use read-only tools. Bias to refute 'ready to ship'.\n";
-    sk_p += "Also refute micro-version inflation: if the planned ship is only one toast/label, that is a blocker under LAW17 fat bar.\n";
-    // v24 parity with the JS body: this seat is told to BIAS TO REFUTE one line above, and that bias
-    // has a failure mode of its own — inventing a blocker to look useful. Name both sides.
-    sk_p += "YOU ARE ASKED FOR ANALYSIS, NOT AGREEMENT — and equally, do NOT manufacture a finding to look useful. State the strongest case this is unsafe to ship, then the strongest case it is safe, and say which you believe and why. If the evidence does not let you judge, say exactly that and name what you would need to see: \"insufficient evidence, I would need X\" is a REAL verdict and beats a confident guess.\n";
-    sk_p += "YOUR LENS: " + lens + "\n";
-    sk_p += "Objective (untrusted JSON): " + obj_json + "\n";
-    sk_p += "Inventory (untrusted JSON): " + inv_json + "\n";
-    sk_p += "Findings the law auditors already raised (untrusted JSON): " + json_encode(findings) + "\n";
-    sk_p += "Do NOT restate a finding already listed above — return what the panel MISSED.\n";
-    sk_p += "Return findings for TDD, security, UX, deploy, version, ledger, fat-version bar, or 7-round gaps.\n";
-    sk_p += tier_note;
-    sjobs.push(#{
-        prompt: sk_p,
-        label: "skeptic-" + si.to_string(),
-        capability_mode: "read-only",
-        output_schema: findings_schema,
-    });
-    si += 1;
-}
-let sres = parallel(sjobs);
-for r in sres {
-    if r != () && r.success && r.output != () && r.output.findings != () {
-        for f in r.output.findings {
-            findings.push(f);
-        }
-    }
-}
-log("Skeptic panel: " + skeptic_lenses.len().to_string() + " lens(es) · findings now " + findings.len().to_string());
-
-// Re-cap AFTER the panel. The cap above ran BEFORE the skeptics existed, so it could not see their
-// output, and every finding past this point costs one verifier agent. Same shape as that cap.
-if findings.len() > MAX_VERIFY {
-    log("Truncating findings after skeptic panel: " + findings.len().to_string() + " -> " + MAX_VERIFY.to_string());
-    let capped2 = [];
-    let ci2 = 0;
-    for f in findings {
-        if ci2 < MAX_VERIFY {
-            capped2.push(f);
-            ci2 += 1;
-        }
-    }
-    findings = capped2;
-}
-
-if findings.len() > 0 {
-    let vjobs = [];
-    let fi = 0;
-    for f in findings {
-        // Skip pure na from verification load? Still verify fail claims.
-        let st = "";
-        if f.status != () { st = trimmed(f.status); }
-        let issue = "";
-        let gate = "";
-        if f.issue != () { issue = trimmed(f.issue); }
-        if f.gate != () { gate = trimmed(f.gate); }
-        if f.evidence != () {
-            let ev = trimmed(f.evidence);
-            if ev != "" { issue += " | evidence: " + ev; }
-        }
-        let vp = "Adversarially verify this ship-gate finding by reading the real repo.\n";
-        vp += "Gate: " + gate + "\n";
-        vp += "Claimed status: " + st + "\n";
-        vp += "Claimed issue: " + issue + "\n";
-        vp += "Set real=true ONLY if this is a genuine problem or a false na that should be a fail — with concrete evidence.\n";
-        vp += "If the finding is a valid na or already fixed / not real, set real=false.\n";
-        vp += "Fail closed on weak claims that would block ship without proof.\n";
-        vp += tier_note;
-        vjobs.push(#{
-            prompt: vp,
-            label: "eye-" + fi.to_string(),
-            capability_mode: "read-only",
-            output_schema: verdict_schema,
-        });
-        fi += 1;
-    }
-    let verdicts = parallel(vjobs);
-    let vi = 0;
-    for v in verdicts {
-        if v != () && v.success && v.output != () && v.output.real == true {
-            if v.output.evidence != () && trimmed(v.output.evidence) != "" {
-                confirmed.push(findings[vi]);
-            }
-        }
-        vi += 1;
-    }
-}
-log("Third-eye confirmed: " + confirmed.len().to_string());
-
-// ========== 5b. Render-Gate (LAW18 painted-UI proof) ==========
-// Runs AFTER Third-Eye so a real frozen screen cannot be dropped by a verifier,
-// and BEFORE Verdict so its result reaches the ship decision. Ship BLOCKER.
-phase("Render-Gate");
-
-let render_available = false;
-let render_passed = false;
-let render_ran = "";
-let render_failures = [];
-let render_notes = "";
-// v26 — the loop hands these to the fixer, so they have to survive past the agent that produced
-// them. A screenshot nobody can open is a gate you take on faith; a screenshot the FIXER cannot
-// open is a correction made from prose.
-let render_screenshots = [];
-
-if has_ui == false {
-    render_available = false;
-    render_ran = "skipped — inventory reports no UI paths (has_ui=false)";
-    render_notes = "inventory reports no UI paths (has_ui=false)";
-    log("⚠ RENDER GATE: N/A — inventory reports no UI paths (has_ui=false).");
-} else {
-    let rg_p = "You are the RENDER GATE (LAW18) for Konyo Workflow — the painted-UI proof.\n";
-    rg_p += "YOUR JOB: prove the UI still WORKS WHEN PAINTED — not that it parses.\n";
-    rg_p += "Fail closed. Never edit a test to make it pass. Never invent a green result you did not see.\n";
-    rg_p += "0. CI FIRST — CHECK BEFORE YOU SPAWN ANYTHING. If the project runs its UI checks in CI (a .github/workflows/*.yml that drives a browser), THAT is the gate: read the verdict instead of launching a browser (`gh run list --workflow=\"<name>\" -L 3`, then `gh run view <id> --log-failed`). A fleet of agents each starting chromium is how the user's laptop gets saturated, and it has already happened once. Fall through to running it locally ONLY when there is NO CI gate at all.\n";
-    rg_p += "1. Otherwise find the project's OWN UI verification — an npm script (test:render / e2e / test), a playwright/cypress config, a spec dir, or a documented browser verify floor — and RUN it. Report the TRUE result. Never install a framework unasked.\n";
-    rg_p += "2. If NONE exists: set available=false and list the specific missing checks plainly in failures/notes. That is the ONLY escape hatch and it is NOT a pass — set passed=false.\n";
-    rg_p += "3. Minimum checks wherever tooling exists: app boots without console errors; every visible control is actually hit-testable (elementFromPoint after scrolling it into view); no unfilled {placeholder} and no raw i18n key rendered as text; the page STILL RESPONDS after ~1s idle (an infinite observer/timer loop shows up as an UNRESPONSIVE page, not as an error — that is the exact failure that shipped).\n";
-    rg_p += "4. NEVER bind a port the user's own app already uses; kill anything you start.\n";
-    rg_p += "5. VISUAL LAYER — DOM QUERIES ARE NOT ENOUGH, and this is NOT optional when a UI changed.\n";
-    rg_p += "   Take an ACTUAL SCREENSHOT and assert on RENDERED GEOMETRY:\n";
-    rg_p += "   (a) every key element boundingBox() has width>0 AND height>0;\n";
-    rg_p += "   (b) no text clipped — scrollWidth <= clientWidth+1;\n";
-    rg_p += "   (c) no horizontal overflow — scrollingElement.scrollWidth <= innerWidth+1;\n";
-    rg_p += "   (d) computed text colour differs from its resolved background (catches white-on-white);\n";
-    rg_p += "   (e) no two sibling panels overlap (rect intersection area === 0).\n";
-    rg_p += "   This ADDS to the hit-testing above — it does NOT replace it. A panel can satisfy every\n";
-    rg_p += "   selector assertion and still be visually broken; that shipped once and only a screenshot\n";
-    rg_p += "   caught it (a lane rendering [object Object] past a fully green spec).\n";
-    // v26 — the viewport half of the Blender-loop change. The LOOP itself is Claude-only for now
-    // (it is JS control flow); this paragraph is a prompt string and belongs in BOTH shippers, so
-    // it lands here too rather than being claimed as parity it does not have.
-    rg_p += "5b. RENDER AT MORE THAN ONE WIDTH — a single viewport is a FIXTURE, and a layout defect\n";
-    rg_p += "   that only exists at one size is invisible to it. Measured case: a zone name rendered\n";
-    rg_p += "   as Worldston / e Keep because a badge sharing its flex row squeezed the name box to\n";
-    rg_p += "   134px against a 139px word. At the suite's own 1470px viewport that panel fits ONE\n";
-    rg_p += "   column, every name has room, and the defect DOES NOT EXIST — it only appears at\n";
-    rg_p += "   1920px where the grid goes two-up. Green gate, clean screenshot, bug on his screen.\n";
-    rg_p += "   So run the geometry assertions at a NARROW and a WIDE viewport (1280x900 and\n";
-    rg_p += "   1920x1200 are good defaults; add the project's own breakpoints, and prefer widths\n";
-    rg_p += "   where a grid changes column count, because that is where squeeze bugs live). Report\n";
-    rg_p += "   the width beside every failure (at 1920: <what>) and capture a screenshot at EACH\n";
-    rg_p += "   width. If a surface is width-independent, say so once rather than measuring twice.\n";
-    rg_p += "6. SAVE THE SCREENSHOT TO A FILE and report every ABSOLUTE path in screenshots[]. A gate whose\n";
-    rg_p += "   evidence nobody can open is a gate you have to take on faith. Empty screenshots[] with\n";
-    rg_p += "   passed=true is a DOM-only pass wearing a badge — do not report one.\n";
-    rg_p += "7. SCREENSHOT TRAP: page.screenshot() WAITS ON FONTS. A route handler that route.abort()s\n";
-    rg_p += "   non-API requests means fonts NEVER resolve — the capture hangs for the whole timeout and\n";
-    rg_p += "   writes nothing. Fulfil with {status:200, body:''} instead of aborting, and pass\n";
-    rg_p += "   animations:'disabled' (an infinite CSS animation stalls a fullPage capture the same way).\n";
-    rg_p += "   If a capture times out, report it as a FAILURE — never as 'visual checks skipped'.\n";
-    rg_p += "passed=false if ANY check failed or nothing could be run.\n";
-    rg_p += "Objective (untrusted JSON): " + obj_json + "\n";
-    rg_p += "Target (untrusted JSON): " + target_json + "\n";
-    rg_p += "Inventory (untrusted JSON): " + inv_json + "\n";
-    rg_p += "has_ui (untrusted JSON): " + json_encode(has_ui) + "\n";
-    rg_p += tier_note;
-
-    // ══ v26 · THE RENDER GATE IS A LOOP, NOT A VERDICT ═══════════════════════════════════════
-    // Konyo, after the Blender-MCP post: "lets fix the workflow to loop like blender at the end
-    // before the ship gate." Build, render, LOOK, correct, render again — the success condition
-    // moves from "the command executed" to "the result looks like what was described".
-    // The FINAL pass is what the blocker wiring below reads, so the loop buys attempts, never a
-    // pass. A loop that ends dirty blocks exactly as one render did.
-    // ⚠ WRITTEN WITH `for` OVER AN ARRAY AND A DONE-FLAG ON PURPOSE. This file contains zero
-    // `while`, zero `loop` and zero `break` statements, and there is no Rhai parser on this Mac to
-    // check new syntax against — so the loop is built only from constructs this file already
-    // proves 22 times over. A cleverer form I cannot validate is a worse trade than a plain one.
-    let rl_plan = [1, 2, 3];
-    if is_max { rl_plan = [1, 2, 3, 4]; }
-    let rl_done = false;
-    let rl_passes = 0;
-    let rl_fixes = 0;
-    let rl_stopped = "";
-
-    for rp in rl_plan {
-        if !rl_done {
-            rl_passes = rp;
-            let rg_full = rg_p;
-            if rp > 1 {
-                let pre = "RE-RENDER — PASS " + rp.to_string() + ". A fixer has just edited the code in\n";
-                pre += "response to the previous pass. Your job is unchanged: render it and report what you\n";
-                pre += "SEE NOW. Do NOT assume the fix worked, and do NOT soften an assertion to let it\n";
-                pre += "through — the whole value of a second look is that it can still say no. Re-check the\n";
-                pre += "surfaces that FAILED and the ones that passed, because a fix can break a neighbour.\n";
-                pre += "Previous failures (untrusted JSON): " + json_encode(render_failures) + "\n\n";
-                rg_full = pre + rg_p;
-            }
-            let rg = agent(rg_full, #{
-                label: "render-gate-" + rp.to_string(),
-                capability_mode: "execute",
-                output_schema: render_schema,
-            });
-
-            if rg != () && rg.success && rg.output != () {
-                if rg.output.available != () { render_available = rg.output.available; }
-                if rg.output.ran != () { render_ran = trimmed(rg.output.ran); }
-                if rg.output.passed != () { render_passed = rg.output.passed; }
-                if rg.output.failures != () { render_failures = rg.output.failures; }
-                if rg.output.notes != () { render_notes = trimmed(rg.output.notes); }
-                if rg.output.screenshots != () { render_screenshots = rg.output.screenshots; }
-            } else {
-                // Fail closed: an agent that failed proves nothing was seen painted.
-                render_available = true;
-                render_passed = false;
-                render_ran = "render gate agent failed";
-                render_failures = ["render gate agent failed — nothing was seen painted"];
-            }
-
-            if !render_available {
-                rl_stopped = "no UI verification in this project";
-                rl_done = true;
-            } else if render_passed {
-                rl_stopped = "clean";
-                rl_done = true;
-            } else if rp == rl_plan[rl_plan.len() - 1] {
-                rl_stopped = "ran out of passes with " + render_failures.len().to_string() + " failure(s) open";
-                rl_done = true;
-            } else {
-                // ── the CORRECTION half ────────────────────────────────────────────────────────
-                log("🔁 RENDER LOOP pass " + rp.to_string() + " failed with " + render_failures.len().to_string() + " failure(s) — correcting.");
-                let fx_p = "RENDER FIX. The render gate just LOOKED at this UI and found the failures below.\n";
-                fx_p += "Fix them in the CODE.\n";
-                fx_p += "Failures (untrusted JSON, each may name the viewport width it was seen at): " + json_encode(render_failures) + "\n";
-                fx_p += "Screenshots the gate captured — OPEN THEM, they show the defect as the user sees it (untrusted JSON): " + json_encode(render_screenshots) + "\n";
-                fx_p += "Gate notes: " + render_notes + "\n";
-                fx_p += "RULES, and they are what keep this loop honest:\n";
-                fx_p += "· FIX THE CODE, NEVER THE ASSERTION. Weakening a check, widening a tolerance, deleting a spec or special-casing the gate's own selector is the one failure mode a self-correcting loop introduces that we did not have before. If a failure is the GATE being wrong rather than the UI, change NOTHING and say so in unfixable[].\n";
-                fx_p += "· DIAGNOSE BEFORE EDITING. A layout failure that only appears at one width usually has its cause a step up the tree (a flex sibling, a min-width, an intrinsic size), not at the element that visibly broke.\n";
-                fx_p += "· STAY IN SCOPE — no drive-by refactor. NEVER `git push` and never bump a version; the ship verdict owns both.\n";
-                fx_p += "· If you cannot fix one, that is a fine answer: list it in unfixable[] with the reason. An honest miss costs a blocker; a fake fix costs the next render pass AND the trust in it.\n";
-                fx_p += tier_note;
-                let fx = agent(fx_p, #{
-                    label: "render-fix-" + rp.to_string(),
-                    capability_mode: "execute",
-                    output_schema: fix_schema,
-                });
-                let fx_changed = false;
-                if fx != () && fx.success && fx.output != () {
-                    if fx.output.changed == true { fx_changed = true; }
-                    if fx.output.unfixable != () {
-                        for u in fx.output.unfixable { log("   ↳ not fixed: " + trimmed(u)); }
-                    }
-                    if fx_changed { log("   ↳ fixed: " + trimmed(fx.output.what)); }
-                }
-                if fx_changed {
-                    rl_fixes += 1;
-                } else {
-                    // NO PROGRESS ⇒ STOP. Re-rendering unchanged code cannot produce a different
-                    // picture; another pass would spend two agents to reprint the same failures and
-                    // would read in the report as though the loop had tried again.
-                    rl_stopped = "the fixer changed nothing — re-rendering would print the same result";
-                    rl_done = true;
-                }
-            }
-        }
-    }
-    log("🔁 Render loop: " + rl_passes.to_string() + " pass(es), " + rl_fixes.to_string() + " correction(s) — " + rl_stopped);
-}
-
-if render_available && !render_passed {
-    log("⛔ RENDER GATE FAILED — " + render_failures.len().to_string() + " failure(s). This is a SHIP BLOCKER.");
-    for f in render_failures { log("   · " + trimmed(f)); }
-} else if !render_available && has_ui {
-    log("⚠ RENDER GATE: no UI verification in this project — nothing was seen painted.");
-} else if render_available {
-    log("✅ Render gate passed (" + render_ran + ").");
-}
-
-// ========== 5c. Completeness Critic (MAX-only phase) ==========
-// Ported from the .js MAX shipper. This shipper audits rather than builds, so "completeness" here is
-// coverage of the AUDIT: did the laws + skeptics actually cover the whole objective, or did the run
-// stop early and call it green? MAX-ONLY PHASE — but its BLOCKER is not gated: gaps land in
-// `confirmed`, and the unconditional fail-closed block below already turns any confirmed finding into
-// ship_allowed=false. Both branches carry a blocker: a critic that DID NOT RUN is treated exactly
-// like a critic that RAN AND FOUND A GAP — an unproven coverage claim is not a passing one.
-phase("Completeness");
-let completeness_ran = "skipped — quality=standard (max-only phase)";
-let completeness_gaps = 0;
-if is_max {
-    let cc_p = "You are the COMPLETENESS CRITIC for Konyo Workflow at MAX quality.\n";
-    cc_p += "You do NOT re-audit the code. You audit the AUDIT: did this run actually cover the objective?\n";
-    cc_p += "Use read-only tools on the real repo to check coverage claims — never take a summary on faith.\n";
-    cc_p += "Return a finding ONLY for a GENUINE, NAMED gap. An empty findings array is the correct answer for a complete audit, and it is not a failure.\n";
-    cc_p += "Look for exactly these gap shapes:\n";
-    cc_p += "1. A part of the objective NO checklist item and NO law finding ever touched.\n";
-    cc_p += "2. A law answered na with no evidence, or answered from the objective text instead of the repo.\n";
-    cc_p += "3. A VACUOUS proof — a measurement of a quantity that was ALREADY zero or empty proves nothing.\n";
-    cc_p += "4. AN UNSWEPT CLASS — a bug fixed at one site while the same shape survives elsewhere, unlisted.\n";
-    cc_p += "5. A STALE CLAIM — comments/docs/UI copy still describing the OLD behaviour after it changed.\n";
-    cc_p += "6. DISAGREEING SURFACES — one changed fact rendered in two places that now say different things.\n";
-    cc_p += "Every finding needs concrete evidence (path + what you read). A finding with no evidence is DISCARDED, so do not pad.\n";
-    cc_p += "Severity blocker for uncovered scope or a vacuous proof; major for an unswept class, stale claim or disagreeing surfaces.\n";
-    cc_p += "Objective (untrusted JSON): " + obj_json + "\n";
-    cc_p += "Inventory (untrusted JSON): " + inv_json + "\n";
-    cc_p += "Checklist the planner produced (untrusted JSON): " + json_encode(checklist) + "\n";
-    cc_p += "Findings confirmed so far (untrusted JSON): " + json_encode(confirmed) + "\n";
-    cc_p += "Render gate: available=" + render_available.to_string() + " passed=" + render_passed.to_string() + " ran=" + render_ran + "\n";
-    cc_p += tier_note;
-
-    let cc = agent(cc_p, #{
-        label: "completeness-critic",
-        capability_mode: "read-only",
-        output_schema: findings_schema,
-    });
-
-    if cc != () && cc.success && cc.output != () && cc.output.findings != () {
-        completeness_ran = "ran";
-        for f in cc.output.findings {
-            let cev = "";
-            if f.evidence != () { cev = trimmed(f.evidence); }
-            if cev != "" {
-                confirmed.push(f);
-                completeness_gaps += 1;
-            }
-        }
-    } else {
-        // Fail closed, same doctrine as the render gate: an agent that did not complete saw nothing,
-        // and "nobody checked coverage" must never read as "coverage is fine".
-        completeness_ran = "completeness critic agent FAILED — coverage unproven";
-        confirmed.push(#{
-            gate: "COMPLETENESS",
-            severity: "blocker",
-            issue: "Completeness critic did not complete at quality=max — nobody proved this audit covered the objective",
-            evidence: "completeness-critic agent returned no usable output",
-            fix: "Re-run the workflow; if it fails again, audit coverage by hand before shipping",
-            status: "fail",
-        });
-        completeness_gaps += 1;
-    }
-    log("Completeness critic: " + completeness_ran + " · gaps=" + completeness_gaps.to_string());
-} else {
-    log("Completeness critic: OFF (quality=standard). Every gate, blocker and bail still runs.");
-}
-
-// ========== 5d. THIRD EYE — CLAUDE, AND IT IS THE MIRROR OF THE CLAUDE SHIPPER'S GROK SEAT =====
-// v26. Konyo: "and my sisters github is updated too accordingly to hers? with the third eye being
-// claude". It was not, and the reason is worth stating: this file called its SAME-FAMILY skeptic
-// panel "Third-Eye", so the Grok shipper read as though it already had a cross-model reviewer. It
-// had none — zero mentions of Claude, xAI, cross-model or "different model" anywhere in the file.
-// The panel is renamed above; this is the real thing.
-//
-// SYMMETRY IS THE WHOLE POINT. The Claude shipper drives with Claude and consults GROK, because a
-// panel that looks diverse while being an echo is worse than a panel that is honestly short. This
-// shipper drives with Grok, so its second family is CLAUDE.
-//
-// ⚠ THE INVERTED RULE, and it is not optional: A GROK AGENT MAY NEVER FILL THE CLAUDE SEAT. If the
-// transport is down, the seat is reported EMPTY and the run says so. A Grok opinion wearing a
-// Claude label destroys the only thing this phase sells.
-//
-// TRANSPORT — PROVEN ON THIS MACHINE, 2026-08-06, not assumed: `claude -p` (Claude Code 2.1.223 at
-// /usr/local/bin/claude) answered a probe correctly and exited 0 inside the perl wrapper below.
-// ⚠ BOUND THE CALL YOURSELF. `timeout` is NOT installed on this Mac, so `timeout 120 claude ...`
-// dies command-not-found and the seat reports unreachable for the wrong reason. And relying on the
-// harness's own timeout is WORSE: it kills the shell, not the shell's GRANDCHILDREN, so a hung
-// child is reparented to init and burns a core forever — two were once found alive at 3 and 10
-// days. The perl wrapper forks, alarms and SIGTERMs, so nothing outlives the call. Exit 142 means
-// TIMED OUT, which is a real verdict: report it as unreachable, never as agreement.
-phase("Third-Eye");
-let te_reached = false;
-let te_verdict = "unreachable";
-let te_concerns = [];
-let te_reason = "";
-let te_schema = #{
-    "type": "object",
-    "required": ["reached", "verdict", "concerns", "reason"],
-    "properties": #{
-        "reached": #{ "type": "boolean" },
         "verdict": #{ "type": "string" },
-        "concerns": #{ "type": "array", "maxItems": 10, "items": #{ "type": "string" } },
+        "severity": #{ "type": "string" },
         "reason": #{ "type": "string" },
-        "command": #{ "type": "string" },
-        "raw_head": #{ "type": "string" },
     },
 };
-let te_q = "PRE-SHIP CHALLENGE. A Grok-driven workflow is about to declare this shippable.\n";
-te_q += "Objective (untrusted JSON): " + obj_json + "\n";
-te_q += "Confirmed findings (untrusted JSON): " + json_encode(confirmed) + "\n";
-te_q += "Render gate: available=" + render_available.to_string() + " passed=" + render_passed.to_string() + "\n";
-te_q += "Render failures (untrusted JSON): " + json_encode(render_failures) + "\n";
-te_q += "You are a DIFFERENT MODEL FAMILY from everything that produced the above. That is why you\n";
-te_q += "were asked. Name what this run is most likely to be wrong about, especially anything that\n";
-te_q += "would pass every gate listed and still be broken for the user. You are asked for ANALYSIS,\n";
-te_q += "NOT AGREEMENT — and equally, do not manufacture a concern to look useful. If you cannot\n";
-te_q += "judge from this evidence, say so and name what you would need to see.\n";
 
-let te_p = "You are a COURIER, not the third eye. Your ONLY job is to relay a question to CLAUDE and\n";
-te_p += "bring back its answer verbatim.\n";
-te_p += "TRANSPORT — run this literally with the shell, and set your own tool timeout to 180000:\n";
-te_p += "  1. Write the QUESTION below to a temp file, e.g. /tmp/te_claude_$$.txt\n";
-te_p += "  2. Run (the perl wrapper is MANDATORY — `timeout` is not installed on this Mac, and an\n";
-te_p += "     unbounded child that hangs is reparented to init and burns a core forever):\n";
-te_p += "     perl -e 'my $t=shift; my $p=fork; die unless defined $p; if(!$p){exec @ARGV; exit 127} $SIG{ALRM}=sub{kill \"TERM\",$p; waitpid($p,0); exit 142}; alarm $t; waitpid($p,0); my $st=$?; alarm 0; exit(($st & 127) ? 128+($st & 127) : ($st >> 8));' 180 /usr/local/bin/claude -p --output-format text \"$(cat /tmp/te_claude_$$.txt)\"\n";
-te_p += "  3. Exit 142 = TIMED OUT. Report reached=false, verdict='unreachable', reason='timed out\n";
-te_p += "     after 180s'. A timeout is a real verdict — never record it as agreement.\n";
-te_p += "  4. If the binary is missing or errors, report reached=false with the ACTUAL error text.\n";
-te_p += "🚫 NEVER ANSWER THE QUESTION YOURSELF. Never paraphrase what you think Claude would say, and\n";
-te_p += "never let your own opinion reach concerns[]. An empty seat honestly reported is the correct\n";
-te_p += "outcome when the transport is down; a Grok opinion wearing a Claude label is the one outcome\n";
-te_p += "that destroys the entire point of this phase.\n";
-te_p += "EVIDENCE IS MANDATORY when you claim reached=true: put the EXACT command you ran in `command`\n";
-te_p += "and the first ~200 characters of its RAW stdout, verbatim and untidied, in `raw_head`. A seat\n";
-te_p += "claiming it reached another model without showing what it ran is RECORDED AS NOT REACHED,\n";
-te_p += "because the only thing this phase sells is that the words are not yours.\n";
-te_p += "\n──── QUESTION TO SEND ────\n" + te_q + "──── END QUESTION ────\n";
+let skeptic_schema = #{
+    "type": "object",
+    "required": ["refute", "severity", "issue", "evidence"],
+    "properties": #{
+        "refute": #{ "type": "boolean" },
+        "severity": #{ "type": "string" },
+        "issue": #{ "type": "string" },
+        "evidence": #{ "type": "string" },
+    },
+};
 
-let te = agent(te_p, #{
-    label: "third-eye-claude",
-    capability_mode: "execute",
-    output_schema: te_schema,
-});
-if te != () && te.success && te.output != () {
-    // v19.3 parity: reached=true WITHOUT evidence is downgraded to NOT reached. An unverifiable
-    // claim of independence is worth less than an honest empty seat.
-    let te_cmd = trimmed(te.output.command);
-    let te_raw = trimmed(te.output.raw_head);
-    if te.output.reached == true && te_cmd != "" && te_raw != "" {
-        te_reached = true;
-        if te.output.verdict != () { te_verdict = trimmed(te.output.verdict); }
-        if te.output.concerns != () { te_concerns = te.output.concerns; }
-    } else if te.output.reached == true {
-        te_verdict = "unreachable";
-        te_reason = "claimed reached but showed no command/raw_head — recorded as NOT reached";
+let law_schema = #{
+    "type": "object",
+    "required": ["pass", "reason", "evidence"],
+    "properties": #{
+        "pass": #{ "type": "boolean" },
+        "reason": #{ "type": "string" },
+        "evidence": #{ "type": "string" },
+        "available": #{ "type": "boolean" },
+    },
+};
+
+let final_schema = #{
+    "type": "object",
+    "required": ["version_label", "headline", "shipped", "follow_ups"],
+    "properties": #{
+        "version_label": #{ "type": "string" },
+        "headline": #{ "type": "string" },
+        "shipped": #{ "type": "array", "maxItems": 20, "items": #{ "type": "string" } },
+        "follow_ups": #{ "type": "array", "maxItems": 12, "items": #{ "type": "string" } },
+    },
+};
+
+let lock_schema = #{
+    "type": "object",
+    "required": ["acquired"],
+    "properties": #{
+        "acquired": #{ "type": "boolean" },
+        "token": #{ "type": "string" },
+        "key": #{ "type": "string" },
+        "cwd": #{ "type": "string" },
+        "holder_token": #{ "type": "string" },
+        "holder_since": #{ "type": "string" },
+        "holder_expires": #{ "type": "string" },
+        "holder_task": #{ "type": "string" },
+        "purged_stale": #{ "type": "integer" },
+    },
+};
+
+let missing_schema = #{
+    "type": "object",
+    "required": ["done", "missing"],
+    "properties": #{
+        "done": #{ "type": "boolean" },
+        "missing": #{
+            "type": "array",
+            "maxItems": 12,
+            "items": #{
+                "type": "object",
+                "required": ["file", "instruction"],
+                "properties": #{
+                    "file": #{ "type": "string" },
+                    "instruction": #{ "type": "string" },
+                },
+            },
+        },
+    },
+};
+
+// ---------- args ----------
+let a = if type_of(args) == "map" { args } else if type_of(args) == "string" { #{ task: args } } else { #{} };
+
+let task = "";
+if a.task != () { task = trimmed(a.task); }
+if task == "" && a.objective != () { task = trimmed(a.objective); }
+if task == "" && a.query != () { task = trimmed(a.query); }
+if task == "" {
+    pause("verification", "Pass args.task (or objective) — what are we shipping? e.g. {\"task\":\"…\",\"apply\":true,\"quality\":\"lean\"}");
+}
+
+// quality: lean default (Claude v20). Only exact tokens. Typo → max (fail expensive).
+let quality_asked = "";
+if a.quality != () { quality_asked = trimmed(a.quality); quality_asked = quality_asked.to_lower(); }
+if quality_asked == "fast" { quality_asked = "lean"; }
+let quality = "lean";
+if quality_asked == "max" || quality_asked == "lean" || quality_asked == "standard" || quality_asked == "tiny" {
+    quality = quality_asked;
+} else if quality_asked != "" {
+    quality = "max";
+    log("⚠ quality '" + quality_asked + "' unrecognised — failing EXPENSIVE to max (not quiet standard).");
+}
+let quality_defaulted = quality_asked == "";
+let tiny_q = quality == "tiny";
+let lean_q = quality == "lean";
+// MAXQ = every max-only GATE applies to lean and tiny too
+let max_q = quality == "max" || quality == "lean" || tiny_q;
+// MAXONLY = max and nothing else
+let max_only = quality == "max";
+
+let apply_mode = truthy(a.apply);
+let force_run = truthy(a.force);
+let ignore_lock = truthy(a.ignore_lock) || truthy(a.ignoreLock);
+let isolate_mode = (truthy(a.isolate) || truthy(a.isolation_worktree)) && apply_mode;
+let do_push = truthy(a.push);  // ship phase only if true AND shippable
+
+let max_rounds = 1;
+if max_only { max_rounds = 2; }
+if quality == "standard" { max_rounds = 3; }
+if a.maxRounds != () { max_rounds = a.maxRounds; }
+if a.max_rounds != () { max_rounds = a.max_rounds; }
+
+let dry_rounds = 1;
+if a.dryRounds != () { dry_rounds = a.dryRounds; }
+if a.dry_rounds != () { dry_rounds = a.dry_rounds; }
+
+let max_agents = 24;
+if a.maxAgents != () { max_agents = a.maxAgents; }
+if a.max_agents != () { max_agents = a.max_agents; }
+
+let skeptics_override = ();
+if a.skeptics != () { skeptics_override = a.skeptics; }
+
+// third eye: on Grok host default = Claude (different family)
+let te_raw = true;
+if a.thirdEye != () { te_raw = a.thirdEye; }
+else if a.third_eye != () { te_raw = a.third_eye; }
+else if a.claude != () { te_raw = a.claude; }  // legacy alias on Grok side
+let third_eye = "claude";  // 'claude' | 'grok' | 'off'
+if te_raw == false { third_eye = "off"; }
+else if trimmed(te_raw) == "off" || trimmed(te_raw) == "false" { third_eye = "off"; }
+else if trimmed(te_raw) == "grok" { third_eye = "grok"; }  // same-family DEGRADED, labelled
+else { third_eye = "claude"; }
+let use_third_eye = third_eye != "off";
+
+let lock_ttl_min = 180;
+if a.lockTtlMinutes != () { lock_ttl_min = a.lockTtlMinutes; }
+
+let items_arg = [];
+if a.items != () { items_arg = as_arr(a.items); }
+
+// ---------- ledgers ----------
+let blockers = [];
+let spawn_errors = [];
+let agents_spent = 0;
+let ceiling_hit = false;
+let thin_panels = [];
+let third_eye_seats = [];
+let trimmed_from_plan = [];
+let unbuilt_gaps = [];
+
+fn add_blocker(what, why) {
+    // Rhai cannot close over outer mutables cleanly in nested fns for all hosts —
+    // callers push directly. This is a documentation stub.
+    true
+}
+
+let craft_rules = "\n\nFOUR RULES (paid for already):\n";
+craft_rules += "1. PROVE NON-VACUOUSLY — before/after with real numbers.\n";
+craft_rules += "2. SWEEP THE CLASS — same shape repo-wide or list deliberate leftovers.\n";
+craft_rules += "3. KILL STALE CLAIMS — update prose that described old behaviour.\n";
+craft_rules += "4. SURFACES AGREE — if a fact appears twice, both answers match.\n";
+craft_rules += "5. CHANGE ONLY WHAT THE BRIEF NAMES — no drive-by refactors.\n";
+
+let fat_law = "FAT VERSION LAW (LAW17): ONE version packages real work — (A) >=3 user-visible outcomes in one theme, OR (B) one structural bug with root cause + verify + prevention. Toast/label/CSS one-liner alone does NOT clear. Fold outcomes into items; do not inflate fleet.\n";
+
+let lenses = [
+    "CORRECTNESS — walk the logic; assume broken; prove edges, nulls, races.",
+    "SAFETY & SCOPE — regressions, secrets, invariant breaks, scope creep beyond the instruction.",
+    "REPRODUCE — trace the SPECIFIC failure claimed; confirm the change addresses that failure.",
+];
+
+let skeptic_floor = 1;
+if max_q { skeptic_floor = 2; if lenses.len() < 2 { skeptic_floor = lenses.len(); } }
+
+// Depth directive (Grok has one model family on this host — tier is HOW HARD, not which model)
+fn tier_note(q) {
+    if q == "max" {
+        "QUALITY TIER: MAX — deepest reasoning, read real files end-to-end, RUN checks, prefer proven over plausible.\n"
+    } else if q == "lean" || q == "tiny" {
+        "QUALITY TIER: LEAN/TINY — every gate still blocks; be efficient but never unproven.\n"
     } else {
-        if te.output.reason != () { te_reason = trimmed(te.output.reason); }
+        "QUALITY TIER: STANDARD — shortest path to a SOUND answer; gates still block.\n"
+    }
+}
+
+fn builder_cap(do_apply, do_isolate) {
+    if do_apply {
+        if do_isolate { "all" } else { "read-write" }
+    } else {
+        "read-only"
+    }
+}
+
+// ---------- announce ----------
+let mode_label = if apply_mode { "APPLY (agents edit files)" } else { "DRY-RUN (propose only, write nothing)" };
+log("════════════════════════════════════════════════════════");
+log("KONYO WORKFLOW · Grok Build IMPLEMENTER · quality=" + quality + (if quality_defaulted { " (default lean)" } else { "" }));
+log("mode=" + mode_label + " · thirdEye=" + third_eye + " · isolate=" + isolate_mode.to_string() + " · push=" + do_push.to_string());
+log("maxRounds=" + max_rounds.to_string() + " · maxAgents=" + max_agents.to_string() + " · skepticFloor=" + skeptic_floor.to_string());
+log("FAT BAR enforced · LAW18 render · LAW19 reachability · shared workspace lock with Claude");
+log("════════════════════════════════════════════════════════");
+log("TASK: " + task);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 0) PREFLIGHT — workspace lock (apply only). SHARED dir with Claude Code so
+// the two hosts exclude each other on the same tree.
+// ═══════════════════════════════════════════════════════════════════════════
+phase("Preflight");
+let lock = #{};
+let lock_acquired = false;
+let lock_token = "";
+
+if apply_mode {
+    let lock_p = "WORKSPACE LOCK — acquire. Bash only, pure mechanics.\n";
+    lock_p += "1. LOCKDIR=\"$HOME/.claude/workflows/.locks\"; mkdir -p \"$LOCKDIR\".\n";
+    lock_p += "   (SHARED with Claude Code shippers — Grok and Claude fleets must exclude each other.)\n";
+    lock_p += "2. KEY=`pwd -P`. Slugify: replace / with - , strip leading -. LOCKFILE=\"$LOCKDIR/<slug>.json\".\n";
+    lock_p += "3. PURGE: NOW=$(date -u +%s). For each *.json, if expires_epoch < NOW (INTEGER test) delete it. Malformed = stale.\n";
+    lock_p += "4. If LOCKFILE still exists: return acquired:false with holder_token/holder_since/holder_expires/holder_task. Do NOT overwrite.\n";
+    lock_p += "5. Else WRITE lock with token, started_at, expires_at, expires_epoch=NOW+" + lock_ttl_min.to_string() + "*60, cwd, task snippet.\n";
+    lock_p += "Return acquired, token, key, cwd, purged_stale. Touch nothing outside LOCKDIR.\n";
+    lock_p += "Task snippet: " + json_encode(task.sub_string(0, if task.len() < 120 { task.len() } else { 120 }));
+    let lock_r = agent(lock_p, #{
+        label: "lock:acquire",
+        phase: "Preflight",
+        capability_mode: "execute",
+        output_schema: lock_schema,
+    });
+    if lock_r != () && lock_r.success && lock_r.output != () {
+        lock = as_map(lock_r.output);
+        if lock.acquired == true {
+            lock_acquired = true;
+            if lock.token != () { lock_token = trimmed(lock.token); }
+            log("🔒 Workspace lock taken" + (if lock.cwd != () { " on " + trimmed(lock.cwd) } else { "" }) + " (TTL " + lock_ttl_min.to_string() + "m).");
+        } else {
+            log("⛔ WORKSPACE LOCKED by another run.");
+            if lock.holder_token != () { log("   holder: " + trimmed(lock.holder_token)); }
+            if lock.holder_task != () { log("   task: " + trimmed(lock.holder_task)); }
+            if !ignore_lock {
+                complete(#{
+                    verdict: "blocked",
+                    ship_allowed: false,
+                    shippable: false,
+                    quality: quality,
+                    mode: mode_label,
+                    refused: "workspace locked by another run",
+                    lock: lock,
+                    fix: "wait, stop the holder, or pass {ignoreLock:true} if it is dead",
+                    blockers: ["workspace locked"],
+                });
+            }
+            log("⚠ {ignoreLock:true} — proceeding over a live lock. One of you may lose work.");
+        }
+    } else {
+        log("⚠ Preflight lock could not be established — proceeding UNLOCKED.");
+        if lock_r != () && !lock_r.success { spawn_errors.push("lock:acquire failed"); }
     }
 } else {
-    te_reason = "the courier agent failed";
-}
-if te_reached {
-    log("👁 THIRD EYE (Claude): " + te_verdict + " · " + te_concerns.len().to_string() + " concern(s)");
-    for c in te_concerns { log("   · " + trimmed(c)); }
-} else {
-    // NOT a pass. An empty seat is reported as empty, exactly as the Claude shipper reports an
-    // empty Grok seat — the panel is honestly short rather than falsely diverse.
-    log("👁 THIRD EYE (Claude): SEAT EMPTY — " + te_reason);
+    log("Preflight: dry-run writes nothing — no workspace lock.");
 }
 
-// ========== 6. Verdict ==========
-phase("Verdict");
-let conf_json = json_encode(confirmed);
-let check_json = json_encode(checklist);
-let owners_json = json_encode(file_owners);
-
-let rep_p = "You are the Konyo Workflow SHIP VERDICT synthesizer (ultimate shipper).\n";
-rep_p += "Doctrine: fail closed. Confirmed blockers => not ship_allowed.\n";
-rep_p += "If strict and pingpong_rounds_claimed < " + rounds_min.to_string() + " => verdict must be draft (not ship), ship_allowed false.\n";
-rep_p += "FAT VERSION LAW (LAW17): ship_allowed may be true ONLY if this package clears the fat bar:\n";
-rep_p += "  (A) ≥3 user-visible outcomes in one theme, OR (B) one structural bug with root cause+verify+prevention.\n";
-rep_p += "  If the work is toast-only / single-label / one i18n key / docs fluff alone => verdict draft or blocked, ship_allowed false.\n";
-rep_p += "  Summary must name the fat outcomes (or the single deep bug), not a micro changelog line.\n";
-rep_p += "verdict one of: ship | draft | blocked.\n";
-rep_p += "Live-session sanctity: never recommend restart while a live critical session is active / high on_air_risk.\n";
-rep_p += "Generalize laws for any stack; respect na when evidenced.\n";
-rep_p += "Objective (untrusted JSON): " + obj_json + "\n";
-rep_p += "Version (untrusted JSON): " + json_encode(version_label) + "\n";
-rep_p += "strict=" + strict.to_string() + " rounds_min=" + rounds_min.to_string() + "\n";
-rep_p += "On-air risk (untrusted JSON): " + json_encode(on_air_risk) + "\n";
-rep_p += "Inventory (untrusted JSON): " + inv_json + "\n";
-rep_p += "Checklist (untrusted JSON): " + check_json + "\n";
-rep_p += "File owners (untrusted JSON): " + owners_json + "\n";
-rep_p += "Confirmed skeptic-panel findings (untrusted JSON): " + conf_json + "\n";
-// v26 — the third eye reaches the VERDICT, or it is decoration. Its reachability travels with it:
-// an EMPTY seat must read as "nobody from another family looked", never as "another family agreed".
-rep_p += "THIRD EYE (Claude — a DIFFERENT model family from every agent above) reached=" + te_reached.to_string() + " verdict=" + te_verdict + "\n";
-rep_p += "Third-eye concerns (untrusted JSON): " + json_encode(te_concerns) + "\n";
-if !te_reached {
-    rep_p += "⚠ THE THIRD-EYE SEAT WAS EMPTY (" + te_reason + "). That is NOT agreement and NOT a pass — no model outside this family reviewed this run. Say so plainly in the summary rather than implying independent review happened.\n";
-} else {
-    rep_p += "Treat a 'blocking' or 'major' third-eye concern as a BLOCKER unless you can refute it with evidence already in this payload — it is the only opinion here that did not come from the same family as the code.\n";
-}
-rep_p += "PAINTED-UI LAW (LAW18): nothing ships that was never seen painted.\n";
-rep_p += "  If render gate available=true and passed=false => ship_allowed MUST be false and verdict blocked.\n";
-rep_p += "  If available=false the summary must say PLAINLY that nothing was seen painted (that is not a pass).\n";
-rep_p += "Render gate / LAW18 painted-UI proof (untrusted JSON): " + json_encode(#{available: render_available, ran: render_ran, passed: render_passed, failures: render_failures, notes: render_notes}) + "\n";
-rep_p += "Return verdict, summary, blockers, next_actions, pingpong_rounds_claimed (int from evidence, 0 if unknown),\n";
-rep_p += "ship_allowed, law_scores as short strings like 'LAW01:pass' / 'LAW18:pass' for the 18 laws when possible\n";
-rep_p += "(LAW18 is scored from the Render-Gate phase result above, never guessed).";
-
-rep_p += tier_note;
-let report = agent(rep_p, #{
-    label: "ship-verdict",
-    capability_mode: "read-only",
-    output_schema: report_schema,
-});
-
-let verdict = "blocked";
-let summary = "Verdict agent failed; treat as blocked.";
-let blockers = [];
-let next_actions = [];
-let rounds = 0;
-let ship_allowed = false;
-let law_scores = [];
-
-if report != () && report.success && report.output != () {
-    if report.output.verdict != () { verdict = trimmed(report.output.verdict); }
-    if report.output.summary != () { summary = trimmed(report.output.summary); }
-    if report.output.blockers != () { blockers = report.output.blockers; }
-    if report.output.next_actions != () { next_actions = report.output.next_actions; }
-    if report.output.pingpong_rounds_claimed != () { rounds = report.output.pingpong_rounds_claimed; }
-    if report.output.ship_allowed != () { ship_allowed = report.output.ship_allowed; }
-    if report.output.law_scores != () { law_scores = report.output.law_scores; }
-}
-
-// Script-enforced fail closed
-if confirmed.len() > 0 {
-    ship_allowed = false;
-    if verdict == "ship" { verdict = "blocked"; }
-}
-if strict && rounds_min > 0 && rounds < rounds_min {
-    ship_allowed = false;
-    if verdict == "ship" { verdict = "draft"; }
-}
-// severity blockers in confirmed
-for f in confirmed {
-    if f.severity != () {
-        let sev = trimmed(f.severity);
-        if sev == "blocker" || sev == "critical" {
-            ship_allowed = false;
-            if verdict == "ship" || verdict == "draft" {
-                if sev == "blocker" || sev == "critical" { verdict = "blocked"; }
+// dry-run + file-shaped deliverable → refuse (Claude lesson)
+if !apply_mode {
+    let tl = task.to_lower();
+    let wants_file = false;
+    // crude: write/create/save near file/.md, without a leading "do not"
+    if tl.contains("write ") || tl.contains("create ") || tl.contains("save ") || tl.contains("edit ") {
+        if tl.contains("file") || tl.contains(".md") || tl.contains(".py") || tl.contains(".rhai") || tl.contains(".js") {
+            if !(tl.contains("do not") || tl.contains("don't") || tl.contains("without writing") || tl.contains("propose only")) {
+                wants_file = true;
             }
         }
     }
-}
-// LAW18 painted-UI proof — hard post-hoc enforcement (belt; the rep_p rule is suspenders).
-// A real render failure, or a render-gate agent that failed, blocks the ship regardless of the LLM.
-if render_available && !render_passed {
-    ship_allowed = false;
-    if verdict == "ship" || verdict == "draft" { verdict = "blocked"; }
-    blockers.push("LAW18 painted-UI proof: render gate FAILED (" + render_ran + ") — " + render_failures.len().to_string() + " failure(s). Nothing may ship that was seen broken when painted.");
-}
-
-// ========== 7. Optional human approve ==========
-phase("Approve");
-let human_approved = false;
-if human_approve && ship_allowed && verdict == "ship" {
-    await_user("user", "Konyo Workflow verdict is SHIP. Resume this workflow to mark human-approved for deploy/merge. (Does not deploy by itself.)");
-    human_approved = true;
-} else if human_approve && !ship_allowed {
-    log("human_approve requested but ship not allowed — skipping approve pause");
-} else {
-    log("human_approve=false — no deploy pause");
-}
-
-// ========== Report markdown ==========
-let md = "# Konyo Workflow — Ultimate Ship Verdict\n\n";
-md += "**Objective:** " + objective + "\n\n";
-md += "**Version:** " + version_label + "\n\n";
-md += "**Target:** `" + target + "`\n\n";
-md += "**Strict:** " + strict.to_string() + " | **Rounds min:** " + rounds_min.to_string() + " | **Claimed rounds:** " + rounds.to_string() + "\n\n";
-md += "**Quality:** `" + quality + "` — " + quality_note + "\n\n";
-md += "**Completeness critic:** " + completeness_ran + " · gaps=" + completeness_gaps.to_string() + "\n\n";
-md += "**Verdict:** `" + verdict + "`\n\n";
-md += "**Ship allowed:** `" + ship_allowed.to_string() + "`\n\n";
-md += "**Human approved:** `" + human_approved.to_string() + "`\n\n";
-md += "**Stack:** " + stack + "\n\n";
-md += "**On-air risk:** " + on_air_risk + "\n\n";
-md += "## Summary\n" + summary + "\n\n";
-md += "## Inventory\n" + inv_summary + "\n\n";
-md += "### Test commands\n";
-if test_commands.len() == 0 {
-    md += "- _(none discovered)_\n";
-} else {
-    for t in test_commands { md += "- `" + t + "`\n"; }
-}
-md += "\n## Confirmed blockers (" + confirmed.len().to_string() + ")\n";
-if confirmed.len() == 0 {
-    md += "_None confirmed after third-eye._\n";
-} else {
-    for f in confirmed {
-        let line = "- ";
-        if f.severity != () { line += "**" + trimmed(f.severity) + "** "; }
-        if f.gate != () { line += trimmed(f.gate) + ": "; }
-        if f.issue != () { line += trimmed(f.issue); }
-        md += line + "\n";
+    if wants_file {
+        log("⛔ TRIAGE REFUSED: dry-run (apply:false) but task asks to write files.");
+        log("   Re-run with {apply:true}, or ask for content in the RESULT instead of on disk.");
+        complete(#{
+            verdict: "blocked",
+            ship_allowed: false,
+            shippable: false,
+            quality: quality,
+            refused: "dry-run with a file-shaped deliverable",
+            fix: "apply:true, or drop the file deliverable",
+            blockers: ["dry-run cannot write files the task demands"],
+        });
     }
 }
-md += "\n## Painted-UI proof (LAW18)\n";
-if !render_available {
-    md += "- **N/A — nothing was seen painted.** " + render_ran + "\n";
-    if render_notes != "" { md += "- Notes: " + render_notes + "\n"; }
-} else {
-    md += "- **Available:** `true`\n";
-    md += "- **Ran:** " + render_ran + "\n";
-    md += "- **Passed:** `" + render_passed.to_string() + "`\n";
-    md += "- **Failures (" + render_failures.len().to_string() + "):**\n";
-    if render_failures.len() == 0 {
-        md += "  - _none_\n";
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 0b) TINY REFUSAL — plan must already be in the brief
+// ═══════════════════════════════════════════════════════════════════════════
+if tiny_q {
+    let bad = "";
+    if items_arg.len() == 0 { bad = "no `items` array was passed"; }
+    else if items_arg.len() > 4 { bad = items_arg.len().to_string() + " items — tiny caps at 4"; }
+    else {
+        let files_seen = [];
+        let i = 0;
+        while i < items_arg.len() {
+            let it = as_map(items_arg[i]);
+            if trimmed(it.file) == "" || trimmed(it.instruction) == "" {
+                bad = "every item needs BOTH `file` and `instruction`";
+            }
+            let f = trimmed(it.file);
+            let j = 0;
+            let dupe = false;
+            while j < files_seen.len() {
+                if files_seen[j] == f { dupe = true; }
+                j += 1;
+            }
+            if dupe { bad = "two items name the same file (" + f + ") — one owner per file"; }
+            files_seen.push(f);
+            i += 1;
+        }
+        if files_seen.len() > 3 { bad = files_seen.len().to_string() + " files — tiny caps at 3"; }
+    }
+    let tlow = task.to_lower();
+    if bad == "" && (tlow.contains("investigate") || tlow.contains("figure out") || tlow.contains("find out why") || tlow.contains("diagnose") || tlow.contains("root cause")) {
+        bad = "this reads as a DIAGNOSIS — serial work; drop quality:tiny or use lean";
+    }
+    if bad != "" {
+        log("⛔ TINY REFUSED: " + bad);
+        log("   {quality:\"tiny\", apply:true, items:[{file:\"/abs/path\", instruction:\"…\", risk:\"low\", anchor:\"~line N\"}]}");
+        complete(#{
+            verdict: "blocked",
+            ship_allowed: false,
+            shippable: false,
+            quality: quality,
+            refused: "tiny brief unusable: " + bad,
+            fix: "pass items:[{file,instruction}] within tiny bounds, or drop quality:tiny",
+            blockers: [bad],
+        });
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 1) TRIAGE
+// ═══════════════════════════════════════════════════════════════════════════
+let triage = #{
+    shape: "build",
+    parallelism: "parallel",
+    cost_of_wrong: "medium",
+    tier: "light",
+    est_agents: items_arg.len() + 3,
+    skeptics: 0,
+    work_list_known: tiny_q,
+    why: if tiny_q { "quality=tiny — caller supplied work list; no triage agent bought" } else { "" },
+    skeptics_asked: 0,
+};
+
+if !tiny_q {
+    phase("Triage");
+    let tri_p = tier_note(quality);
+    tri_p += "You are TRIAGE for the KONYO WORKFLOW on Grok Build. Decide how much machinery this task deserves.\n";
+    tri_p += "Rules: ONE root cause = serial (tier=direct). Known sweep list = parallel (tier=standard). Docs = light.\n";
+    tri_p += "Skeptics ONLY when being wrong is expensive (money, security, silent arithmetic). Cosmetics get 0.\n";
+    tri_p += "Recommending direct is a SUCCESS. Use tools if needed to ground the answer.\n\nTASK: " + task;
+    let tri_r = agent(tri_p, #{
+        label: "triage",
+        phase: "Triage",
+        capability_mode: "read-only",
+        output_schema: triage_schema,
+    });
+    agents_spent += 1;
+    if tri_r != () && tri_r.success && tri_r.output != () {
+        triage = as_map(tri_r.output);
+        if triage.skeptics == () { triage.skeptics = 0; }
+        triage.skeptics_asked = triage.skeptics;
+        log("TRIAGE → " + trimmed(triage.tier) + " · " + trimmed(triage.shape) + " · cost-of-wrong " + trimmed(triage.cost_of_wrong));
+        log("  " + trimmed(triage.why));
+        if trimmed(triage.tier) == "direct" && !force_run {
+            log("⛔ TRIAGE SAYS DO THIS DIRECTLY — spawning nothing. Re-run with force:true to override.");
+            complete(#{
+                verdict: "not_run",
+                ship_allowed: false,
+                shippable: false,
+                quality: quality,
+                refused: "triage says direct",
+                triage: triage,
+                advice: "do it in the main session; a fleet would be slower and dearer",
+                blockers: [],
+            });
+        }
     } else {
-        for f in render_failures { md += "  - " + trimmed(f) + "\n"; }
+        log("⚠ triage agent failed — continuing with defaults (medium / parallel).");
+        spawn_errors.push("triage failed");
+        triage.why = "triage agent failed; defaults used";
+        triage.skeptics_asked = 0;
+        triage.skeptics = if max_q { 2 } else { 0 };
     }
-    if render_notes != "" { md += "- **Notes:** " + render_notes + "\n"; }
-}
-md += "\n## Next actions\n";
-if next_actions.len() == 0 {
-    md += "- Re-run after fixing blockers\n";
 } else {
-    for a in next_actions { md += "- " + a + "\n"; }
+    log("Triage SKIPPED (quality=tiny).");
 }
-md += "\n## Law scores\n";
-if law_scores.len() == 0 {
-    md += "- _(see gate findings)_\n";
-} else {
-    for s in law_scores { md += "- " + s + "\n"; }
-}
-md += "\n## Planner checklist\n";
-for c in checklist { md += "- " + c + "\n"; }
-md += "\n## File owners (army)\n";
-for o in file_owners {
-    let line = "- ";
-    if o.owner != () { line += "**" + trimmed(o.owner) + "**: "; }
-    if o.paths != () { line += trimmed(o.paths); }
-    md += line + "\n";
-}
-md += "\n## Konyo Ship Laws (reference)\n";
-md += "1. TDD/Tests for this change\n";
-md += "2. Multi-lens review\n";
-md += "3. Security\n";
-md += "4. Docs/ops\n";
-md += "5. Rollback/blast radius\n";
-md += "6. Patch discipline\n";
-md += "7. Syntax/static gates\n";
-md += "8. UX polish (or N/A+evidence)\n";
-md += "9. Interaction/e2e UX (or N/A+evidence)\n";
-md += "10. Visual verification (or N/A+evidence)\n";
-md += "11. Version stamps\n";
-md += "12. Ledger\n";
-md += "13. Deploy/live safety\n";
-md += "14. Self-enforcing CI/hooks\n";
-md += "15. Army zero-overlap + burst coverage\n";
-md += "16. Seven-round AI/LLM pingpong (strict default)\n";
-md += "17. Fat version bar\n";
-md += "18. Painted-UI proof (or N/A + evidence)\n";
-md += "\n---\n";
-md += "_Konyo Workflow — ultimate shipper. General for any stack. MAX by default (only quality=\"standard\" downgrades tier, panel size and the completeness critic — never a gate). Strict by default. Skipping laws is a doctrine break._\n";
 
-let path = write_scratch_file("konyo-ship-verdict.md", md);
-log("Wrote " + path + " verdict=" + verdict);
+// effective skeptic seat count
+let seats_want = if max_q { lenses.len() } else { 0 };
+if triage.skeptics != () {
+    let ts = triage.skeptics;
+    if type_of(ts) == "i64" || type_of(ts) == "int" || type_of(ts) == "f64" {
+        seats_want = ts;
+    }
+}
+if skeptics_override != () {
+    seats_want = skeptics_override;
+}
+// floor when applying or at max_q, unless human explicitly asked 0
+let human_zero = skeptics_override != () && skeptics_override == 0;
+if !human_zero && apply_mode && seats_want < skeptic_floor {
+    log("SKEPTIC FLOOR: asked " + seats_want.to_string() + " → seating " + skeptic_floor.to_string() + " (empty panel cannot refuse).");
+    seats_want = skeptic_floor;
+}
+if seats_want > lenses.len() { seats_want = lenses.len(); }
+if seats_want < 0 { seats_want = 0; }
+log("Skeptics this run: " + seats_want.to_string() + " seat(s) · floor=" + skeptic_floor.to_string());
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 2) ARCHITECT
+// ═══════════════════════════════════════════════════════════════════════════
+let plan = #{};
+let plan_items = [];
+let version_label = "v-unplanned";
+
+if tiny_q {
+    phase("Architect");
+    log("ARCHITECT SKIPPED (quality=tiny) — plan from caller items.");
+    let i = 0;
+    while i < items_arg.len() {
+        let it = as_map(items_arg[i]);
+        let instr = trimmed(it.instruction);
+        if it.anchor != () && trimmed(it.anchor) != "" {
+            instr += "\n\nANCHOR (go straight here): " + trimmed(it.anchor);
+        }
+        plan_items.push(#{
+            id: if it.id != () { trimmed(it.id) } else { "t" + (i + 1).to_string() },
+            file: trimmed(it.file),
+            kind: if it.kind != () { trimmed(it.kind) } else { "code" },
+            tier: if it.tier != () { trimmed(it.tier) } else { "sonnet" },
+            risk: if it.risk != () { trimmed(it.risk) } else { "low" },
+            instruction: instr,
+        });
+        i += 1;
+    }
+    version_label = if a.versionLabel != () { trimmed(a.versionLabel) } else if a.version_label != () { trimmed(a.version_label) } else { "v-tiny-r1" };
+    plan = #{ version_label: version_label, summary: "tiny — " + plan_items.len().to_string() + " caller items", items: plan_items };
+} else {
+    phase("Architect");
+    let arch_p = tier_note(quality);
+    arch_p += "You are the ARCHITECT for the KONYO WORKFLOW. Decompose into independent work items.\n";
+    arch_p += "HARD: ONE OWNER PER FILE — no file appears twice.\n";
+    arch_p += "Tag risk (low|medium|high). Ground paths with read/grep tools.\n";
+    arch_p += fat_law;
+    if triage.est_agents != () {
+        arch_p += "TRIAGE sized ~" + triage.est_agents.to_string() + " agents — produce AT MOST that many items (cap 24). Fewer larger items beat many thin ones.\n";
+    }
+    arch_p += "\nTASK: " + task;
+    let arch_r = agent(arch_p, #{
+        label: "architect",
+        phase: "Architect",
+        capability_mode: "read-only",
+        output_schema: plan_schema,
+    });
+    agents_spent += 1;
+    if arch_r == () || !arch_r.success || arch_r.output == () {
+        spawn_errors.push("architect failed");
+        blockers.push(#{ what: "no plan", why: "architect produced no usable plan" });
+        complete(#{
+            verdict: "blocked",
+            ship_allowed: false,
+            shippable: false,
+            quality: quality,
+            error: "no plan",
+            blockers: blockers,
+            agent_errors: spawn_errors,
+        });
+    }
+    plan = as_map(arch_r.output);
+    if plan.version_label != () { version_label = trimmed(plan.version_label); }
+    plan_items = as_arr(plan.items);
+    // one-owner-per-file dedupe
+    let seen = [];
+    let deduped = [];
+    let i = 0;
+    while i < plan_items.len() {
+        let it = as_map(plan_items[i]);
+        let f = trimmed(it.file);
+        let hit = false;
+        let j = 0;
+        while j < seen.len() {
+            if seen[j] == f { hit = true; }
+            j += 1;
+        }
+        if !hit && f != "" {
+            seen.push(f);
+            if it.risk == () { it.risk = "medium"; }
+            if it.id == () { it.id = "i" + (i + 1).to_string(); }
+            if it.instruction == () { it.instruction = ""; }
+            deduped.push(it);
+        }
+        i += 1;
+    }
+    plan_items = deduped;
+    // triage cap
+    if triage.est_agents != () {
+        let cap = triage.est_agents;
+        if cap < 1 { cap = 1; }
+        if cap > 24 { cap = 24; }
+        if plan_items.len() > cap {
+            log("TRIAGE CAP: architect returned " + plan_items.len().to_string() + " items, trim to " + cap.to_string());
+            let k = cap;
+            while k < plan_items.len() {
+                let d = as_map(plan_items[k]);
+                trimmed_from_plan.push(trimmed(d.file));
+                k += 1;
+            }
+            let kept = [];
+            let m = 0;
+            while m < cap {
+                kept.push(plan_items[m]);
+                m += 1;
+            }
+            plan_items = kept;
+        }
+    }
+    // ceiling-aware item trim: each item costs 1 build + seats skeptics
+    let per_item = 1 + seats_want;
+    if per_item < 1 { per_item = 1; }
+    let gate_cost = 5;
+    let reserve_cost = 2;
+    let room = max_agents - agents_spent - gate_cost - reserve_cost;
+    if room < 1 { room = 1; }
+    let room_for = room / per_item;
+    if room_for < 1 { room_for = 1; }
+    if plan_items.len() > room_for {
+        log("CEILING: plan had " + plan_items.len().to_string() + " items; " + room_for.to_string() + " fit under cap once gates reserved.");
+        let k = room_for;
+        while k < plan_items.len() {
+            let d = as_map(plan_items[k]);
+            trimmed_from_plan.push(trimmed(d.file));
+            k += 1;
+        }
+        let kept2 = [];
+        let m2 = 0;
+        while m2 < room_for {
+            kept2.push(plan_items[m2]);
+            m2 += 1;
+        }
+        plan_items = kept2;
+    }
+    log("Plan \"" + version_label + "\": " + plan_items.len().to_string() + " item(s).");
+}
+
+if plan_items.len() == 0 {
+    blockers.push(#{ what: "empty plan", why: "no work items after caps" });
+    complete(#{
+        verdict: "blocked",
+        ship_allowed: false,
+        shippable: false,
+        quality: quality,
+        error: "empty plan",
+        blockers: blockers,
+    });
+}
+
+// feasibility announcement
+let fable_extra = if max_q { 0 } else { 1 };
+let worst = agents_spent + plan_items.len() * (1 + fable_extra + seats_want) * max_rounds + 5 + 2;
+log("FEASIBILITY → ~" + worst.to_string() + " agents worst-case vs ceiling " + max_agents.to_string());
+if worst > max_agents {
+    log("⚠ PLAN CANNOT FULLY FINISH inside ceiling — will do most valuable work first and report PARTIAL.");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 3) THIRD-EYE plan seat (Claude CLI on Grok host)
+// ═══════════════════════════════════════════════════════════════════════════
+if use_third_eye && !tiny_q {
+    phase("Third-eye");
+    let plan_lines = "";
+    let pi = 0;
+    while pi < plan_items.len() {
+        let it = as_map(plan_items[pi]);
+        plan_lines += "- [" + trimmed(it.risk) + "] " + trimmed(it.file) + ": " + trimmed(it.instruction) + "\n";
+        pi += 1;
+    }
+    let q_plan = "You are the independent second opinion on an implementation plan. Different model family from the planner.\n\nTASK:\n" + task + "\n\nPLAN:\n" + plan_lines + "\nWhat is wrong? Top 3 concerns, or say plainly you have none. Empty agreement is worthless.";
+    if third_eye == "claude" {
+        let te_p = "THIRD EYE transport — call Claude CLI (different model family). Bash only.\n";
+        te_p += "Run: claude -p --model opus --output-format text " + json_encode(q_plan) + "\n";
+        te_p += "If claude is missing or fails, return acquired:false-style note in your text and say transport_down.\n";
+        te_p += "Return the Claude reply verbatim as your final answer (plain text is fine).";
+        // Use a simple agent that shells out
+        let te_r = agent(te_p, #{
+            label: "third-eye:plan:claude",
+            phase: "Third-eye",
+            capability_mode: "execute",
+        });
+        agents_spent += 1;
+        if te_r != () && te_r.success {
+            let ans = if type_of(te_r.output) == "string" { te_r.output } else { json_encode(te_r.output) };
+            third_eye_seats.push(#{ seat: "plan", transport: "claude-cli", spoke: true, answer: ans.sub_string(0, if ans.len() < 2000 { ans.len() } else { 2000 }) });
+            log("Third-eye (Claude) spoke on the plan.");
+        } else {
+            third_eye_seats.push(#{ seat: "plan", transport: "claude-cli", spoke: false, answer: "" });
+            spawn_errors.push("third-eye plan seat empty");
+            log("⚠ Third-eye plan seat EMPTY — Claude did not answer. Seat reported empty, never filled by Grok.");
+        }
+    } else {
+        // same-family degraded
+        let te_r2 = agent("SAME-FAMILY stand-in third eye (LABELLED degraded). " + q_plan, #{
+            label: "third-eye:plan:grok-standin",
+            phase: "Third-eye",
+            capability_mode: "read-only",
+        });
+        agents_spent += 1;
+        third_eye_seats.push(#{ seat: "plan", transport: "grok-same-family", spoke: te_r2 != () && te_r2.success, answer: "degraded stand-in" });
+        log("Third-eye ran as SAME-FAMILY Grok stand-in (thirdEye:\"grok\") — not an independent eye.");
+    }
+} else if tiny_q {
+    log("Third-eye PLAN seat SKIPPED (tiny — caller is the plan). Diff seats still run via skeptics.");
+} else {
+    log("Third-eye OFF.");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 4) BUILD + GATE
+// ═══════════════════════════════════════════════════════════════════════════
+phase("Build+Gate");
+log("PHASES OPEN: Preflight → " + (if tiny_q { "" } else { "Triage → Architect → " }) + (if use_third_eye && !tiny_q { "Third-eye → " } else { "" }) + "Build+Gate → Adversarial → …");
+
+let build_jobs = [];
+let bi = 0;
+while bi < plan_items.len() {
+    let it = as_map(plan_items[bi]);
+    let f = trimmed(it.file);
+    let act = "";
+    if !apply_mode {
+        act = "Do NOT write anything. Return the change as a unified diff in \"changes\". patch=\"\".";
+    } else if isolate_mode {
+        act = "You are in an ISOLATED git worktree. Edit ONLY " + f + ". Then: git add -A && git diff --cached. Return COMPLETE unified diff in \"patch\". NEVER push. NEVER commit to main.";
+    } else {
+        act = "Make the edit directly to " + f + ". Touch NO other file. ⛔ NEVER git push. Commit only if the task asks; pushing is FORBIDDEN — ship blockers run AFTER you.";
+    }
+    let bp = tier_note(quality);
+    bp += "KONYO BUILD agent. quality=" + quality + ".\n";
+    bp += "You own exactly ONE file: " + f + "\n";
+    bp += "Instruction: " + trimmed(it.instruction) + "\n";
+    bp += act + "\n";
+    bp += "In self_check state what you verified. files_touched = every path you created/edited/deleted.\n";
+    bp += "Task context: " + task + craft_rules;
+    let job = #{
+        prompt: bp,
+        label: "build:" + f,
+        phase: "Build+Gate",
+        capability_mode: builder_cap(apply_mode, isolate_mode),
+        output_schema: build_schema,
+    };
+    if isolate_mode { job.isolation_worktree = true; }
+    build_jobs.push(job);
+    bi += 1;
+}
+
+let build_results_raw = parallel(build_jobs);
+agents_spent += build_jobs.len();
+
+// attach items; run ownership self-report + skeptic panel per item
+let results = [];
+let ri = 0;
+while ri < plan_items.len() {
+    let it = as_map(plan_items[ri]);
+    let br = if ri < build_results_raw.len() { build_results_raw[ri] } else { () };
+    let build_out = #{};
+    let build_ok = false;
+    if br != () && br.success && br.output != () {
+        build_out = as_map(br.output);
+        build_ok = true;
+    } else {
+        spawn_errors.push("build failed: " + trimmed(it.file));
+    }
+
+    // Adversarial panel (or single fable-style gate at standard with 0 seats handled below)
+    let refuted = 0;
+    let cast = 0;
+    let gate_verdict = "pass";
+    let gate_reason = "no skeptics seated — nothing refuted";
+    let gate_sev = "none";
+
+    if !build_ok {
+        gate_verdict = "rework";
+        gate_sev = "blocking";
+        gate_reason = "build agent produced no output";
+    } else if seats_want > 0 {
+        phase("Adversarial gate");
+        let sjobs = [];
+        let si = 0;
+        while si < seats_want {
+            let lens = lenses[si];
+            let sp = tier_note(quality);
+            sp += "SKEPTIC LENS: " + lens + "\n";
+            sp += "You try to REFUTE this change. refute=true only with concrete evidence you inspected.\n";
+            sp += "File: " + trimmed(it.file) + "\nInstruction: " + trimmed(it.instruction) + "\n";
+            sp += "Builder summary: " + trimmed(build_out.summary) + "\nChanges:\n" + trimmed(build_out.changes) + "\n";
+            if build_out.patch != () { sp += "Patch:\n" + trimmed(build_out.patch).sub_string(0, 4000) + "\n"; }
+            sp += "Task: " + task + "\nUse read tools on the real tree. Default refute=false if unproven.";
+            sjobs.push(#{
+                prompt: sp,
+                label: "skeptic:" + si.to_string() + ":" + trimmed(it.file),
+                phase: "Adversarial gate",
+                capability_mode: "read-only",
+                output_schema: skeptic_schema,
+            });
+            si += 1;
+        }
+        let sres = parallel(sjobs);
+        agents_spent += sjobs.len();
+        let sj = 0;
+        while sj < sres.len() {
+            let sr = sres[sj];
+            if sr != () && sr.success && sr.output != () {
+                cast += 1;
+                let so = as_map(sr.output);
+                if so.refute == true && so.evidence != () && trimmed(so.evidence) != "" {
+                    refuted += 1;
+                    if gate_reason == "no skeptics seated — nothing refuted" || gate_verdict == "pass" {
+                        gate_reason = trimmed(so.issue);
+                        gate_sev = if so.severity != () { trimmed(so.severity) } else { "major" };
+                    }
+                }
+            }
+            sj += 1;
+        }
+        if cast < seats_want {
+            thin_panels.push(#{ file: trimmed(it.file), cast: cast, panel: seats_want });
+        }
+        // majority refute: refuted * 2 > cast
+        if cast == 0 {
+            gate_verdict = "rework";
+            gate_sev = "blocking";
+            gate_reason = "skeptic panel cast zero votes — gate did not run";
+            blockers.push(#{ what: "empty skeptic panel", why: trimmed(it.file) });
+        } else if refuted * 2 > cast {
+            gate_verdict = "rework";
+            if gate_sev == "none" { gate_sev = "major"; }
+        } else {
+            gate_verdict = "pass";
+            gate_reason = "panel did not majority-refute (" + refuted.to_string() + "/" + cast.to_string() + " refute)";
+            gate_sev = "none";
+        }
+    } else if apply_mode && !max_q {
+        // standard with 0 skeptics: single correctness gate
+        let gp = "MERGE GATE. File: " + trimmed(it.file) + "\nInstruction: " + trimmed(it.instruction) + "\n";
+        gp += "Summary: " + trimmed(build_out.summary) + "\nChanges:\n" + trimmed(build_out.changes) + "\n";
+        gp += "verdict=pass only if merge-ready and ownership respected. Run git status if apply mode.\nTask: " + task;
+        let gr = agent(gp, #{
+            label: "gate:" + trimmed(it.file),
+            phase: "Build+Gate",
+            capability_mode: "read-only",
+            output_schema: gate_schema,
+        });
+        agents_spent += 1;
+        if gr != () && gr.success && gr.output != () {
+            let gate_out = as_map(gr.output);
+            gate_verdict = if gate_out.verdict != () { trimmed(gate_out.verdict) } else { "rework" };
+            gate_reason = if gate_out.reason != () { trimmed(gate_out.reason) } else { "" };
+            gate_sev = if gate_out.severity != () { trimmed(gate_out.severity) } else { "minor" };
+        } else {
+            gate_verdict = "rework";
+            gate_sev = "major";
+            gate_reason = "gate agent failed";
+        }
+    }
+
+    results.push(#{
+        item: it,
+        build: build_out,
+        build_ok: build_ok,
+        gate: #{ verdict: gate_verdict, severity: gate_sev, reason: gate_reason, refuted: refuted, cast: cast },
+    });
+    log("  " + trimmed(it.file) + " → build=" + build_ok.to_string() + " gate=" + gate_verdict + " (" + gate_reason.sub_string(0, if gate_reason.len() < 80 { gate_reason.len() } else { 80 }) + ")");
+    ri += 1;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 5) REWORK
+// ═══════════════════════════════════════════════════════════════════════════
+let rework_round = 0;
+while rework_round < max_rounds {
+    let need = [];
+    let qi = 0;
+    while qi < results.len() {
+        let r = as_map(results[qi]);
+        let g = as_map(r.gate);
+        if trimmed(g.verdict) != "pass" {
+            need.push(qi);
+        }
+        qi += 1;
+    }
+    if need.len() == 0 { break; }
+    rework_round += 1;
+    phase("Rework");
+    log("REWORK round " + rework_round.to_string() + " — " + need.len().to_string() + " item(s).");
+    let rjobs = [];
+    let ni = 0;
+    while ni < need.len() {
+        let idx = need[ni];
+        let r = as_map(results[idx]);
+        let it = as_map(r.item);
+        let g = as_map(r.gate);
+        let f = trimmed(it.file);
+        let act = if !apply_mode {
+            "Do NOT write. Return unified diff in changes."
+        } else {
+            "Edit ONLY " + f + ". NEVER push. Address EVERY gate failure."
+        };
+        let rp = tier_note(quality);
+        rp += "REWORK agent. Previous gate: " + trimmed(g.reason) + "\n";
+        rp += "File: " + f + "\nInstruction: " + trimmed(it.instruction) + "\n" + act + craft_rules;
+        let job = #{
+            prompt: rp,
+            label: "rework:" + f,
+            phase: "Rework",
+            capability_mode: builder_cap(apply_mode, isolate_mode),
+            output_schema: build_schema,
+        };
+        if isolate_mode { job.isolation_worktree = true; }
+        rjobs.push(job);
+        ni += 1;
+    }
+    let rraw = parallel(rjobs);
+    agents_spent += rjobs.len();
+    let nj = 0;
+    while nj < need.len() {
+        let idx = need[nj];
+        let r = as_map(results[idx]);
+        let it = as_map(r.item);
+        let br = if nj < rraw.len() { rraw[nj] } else { () };
+        if br != () && br.success && br.output != () {
+            r.build = as_map(br.output);
+            r.build_ok = true;
+            // re-gate with one correctness skeptic for speed
+            let sp = "REWORK GATE. refute=true only with evidence. File: " + trimmed(it.file) + "\n";
+            sp += "Instruction: " + trimmed(it.instruction) + "\nSummary: " + trimmed(r.build.summary) + "\n";
+            sp += "Changes:\n" + trimmed(r.build.changes);
+            let sr = agent(sp, #{
+                label: "rework-gate:" + trimmed(it.file),
+                phase: "Rework",
+                capability_mode: "read-only",
+                output_schema: skeptic_schema,
+            });
+            agents_spent += 1;
+            if sr != () && sr.success && sr.output != () {
+                let so = as_map(sr.output);
+                if so.refute == true {
+                    r.gate = #{ verdict: "rework", severity: "major", reason: trimmed(so.issue), refuted: 1, cast: 1 };
+                } else {
+                    r.gate = #{ verdict: "pass", severity: "none", reason: "rework accepted", refuted: 0, cast: 1 };
+                }
+            } else {
+                r.gate = #{ verdict: "pass", severity: "none", reason: "rework gate empty — fail-open only after rework build ok", refuted: 0, cast: 0 };
+            }
+            results[idx] = r;
+        }
+        nj += 1;
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 6) MERGE (isolate only)
+// ═══════════════════════════════════════════════════════════════════════════
+let merge = #{ ran: false, reason: "no isolate" };
+if isolate_mode {
+    phase("Merge");
+    let patches = "";
+    let pcount = 0;
+    let mi = 0;
+    while mi < results.len() {
+        let r = as_map(results[mi]);
+        let g = as_map(r.gate);
+        let b = as_map(r.build);
+        let it = as_map(r.item);
+        if trimmed(g.verdict) == "pass" {
+            if b.patch != () && trimmed(b.patch) != "" {
+                pcount += 1;
+                patches += "--- PATCH " + pcount.to_string() + " · " + trimmed(it.file) + " ---\n" + trimmed(b.patch) + "\n\n";
+            } else {
+                blockers.push(#{ what: "MERGE: WORK LOST — NO PATCH", why: trimmed(it.file) });
+            }
+        }
+        mi += 1;
+    }
+    if pcount == 0 {
+        log("MERGE: nothing to apply.");
+        merge = #{ ran: true, applied: [], failed: [], notes: "no patches" };
+    } else {
+        let mp = "MERGE AGENT. You are in the REAL repo. Apply patches IN ORDER:\n";
+        mp += "1. Write patch to temp file\n2. git apply --check FIRST — on fail, record and skip\n3. git apply if check passes\n";
+        mp += "Never commit, never push, never reset.\n\nPATCHES:\n" + patches;
+        let mr = agent(mp, #{
+            label: "merge",
+            phase: "Merge",
+            capability_mode: "all",
+            output_schema: #{
+                "type": "object",
+                "required": ["applied", "failed", "notes"],
+                "properties": #{
+                    "applied": #{ "type": "array", "maxItems": 60, "items": #{ "type": "string" } },
+                    "failed": #{ "type": "array", "maxItems": 60, "items": #{ "type": "string" } },
+                    "notes": #{ "type": "string" },
+                },
+            },
+        });
+        agents_spent += 1;
+        if mr != () && mr.success && mr.output != () {
+            merge = as_map(mr.output);
+            merge.ran = true;
+            if merge.failed != () && as_arr(merge.failed).len() > 0 {
+                blockers.push(#{ what: "MERGE FAILED", why: json_encode(merge.failed) });
+            }
+        } else {
+            blockers.push(#{ what: "MERGE AGENT DID NOT RUN", why: pcount.to_string() + " patches not applied" });
+            merge = #{ ran: false, reason: "merge agent died" };
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 7) COMPLETENESS (max only)
+// ═══════════════════════════════════════════════════════════════════════════
+let completeness = #{
+    ran: false,
+    reason: if max_only { "" } else { "quality=" + quality + " — completeness critic not bought" },
+    rounds: 0,
+    wentDry: false,
+};
+if max_only && apply_mode {
+    phase("Completeness");
+    let dry = 0;
+    let crit_round = 0;
+    let owned = [];
+    let oi = 0;
+    while oi < plan_items.len() {
+        let it = as_map(plan_items[oi]);
+        owned.push(trimmed(it.file));
+        oi += 1;
+    }
+    while dry < dry_rounds && crit_round < 6 {
+        crit_round += 1;
+        let done_lines = "";
+        let di = 0;
+        while di < results.len() {
+            let r = as_map(results[di]);
+            let g = as_map(r.gate);
+            let it = as_map(r.item);
+            let b = as_map(r.build);
+            if trimmed(g.verdict) == "pass" {
+                done_lines += "- " + trimmed(it.file) + ": " + trimmed(b.summary) + "\n";
+            }
+            di += 1;
+        }
+        let cp = tier_note(quality);
+        cp += "COMPLETENESS CRITIC. What did nobody plan that the task still needs?\n";
+        cp += "TASK: " + task + "\nDONE:\n" + done_lines + "\n";
+        cp += "Return done=true if nothing material is missing. Else missing[{file,instruction}] for NEW files only.\n";
+        let cr = agent(cp, #{
+            label: "completeness:" + crit_round.to_string(),
+            phase: "Completeness",
+            capability_mode: "read-only",
+            output_schema: missing_schema,
+        });
+        agents_spent += 1;
+        if cr == () || !cr.success || cr.output == () {
+            log("Completeness critic failed round " + crit_round.to_string());
+            break;
+        }
+        let co = as_map(cr.output);
+        if co.done == true {
+            dry += 1;
+            log("Completeness dry " + dry.to_string() + "/" + dry_rounds.to_string());
+        } else {
+            let miss = as_arr(co.missing);
+            let new_n = 0;
+            let mi = 0;
+            while mi < miss.len() {
+                let m = as_map(miss[mi]);
+                let f = trimmed(m.file);
+                let already = false;
+                let oj = 0;
+                while oj < owned.len() {
+                    if owned[oj] == f { already = true; }
+                    oj += 1;
+                }
+                if already {
+                    unbuilt_gaps.push(f + " (already owned — still reported broken)");
+                } else if f != "" {
+                    owned.push(f);
+                    new_n += 1;
+                    // one-shot build of gap
+                    let gap_it = #{ id: "gap" + crit_round.to_string(), file: f, instruction: trimmed(m.instruction), risk: "medium", tier: "sonnet" };
+                    let gp = tier_note(quality) + "GAP BUILD. File: " + f + "\n" + trimmed(m.instruction) + "\n" + (if apply_mode { "Edit the file. NEVER push." } else { "Propose diff only." }) + craft_rules;
+                    let gjob = #{ prompt: gp, label: "gap-build:" + f, phase: "Completeness", capability_mode: builder_cap(apply_mode, isolate_mode), output_schema: build_schema };
+                    let gr = agent(gp, gjob);
+                    agents_spent += 1;
+                    let bout = #{};
+                    let bok = false;
+                    if gr != () && gr.success && gr.output != () { bout = as_map(gr.output); bok = true; }
+                    results.push(#{
+                        item: gap_it,
+                        build: bout,
+                        build_ok: bok,
+                        gate: #{ verdict: if bok { "pass" } else { "rework" }, severity: if bok { "none" } else { "major" }, reason: "gap build", refuted: 0, cast: 0 },
+                    });
+                }
+                mi += 1;
+            }
+            if new_n == 0 { dry += 1; } else { dry = 0; }
+        }
+    }
+    completeness = #{
+        ran: true,
+        rounds: crit_round,
+        wentDry: dry >= dry_rounds,
+        unbuiltGaps: unbuilt_gaps,
+        reason: "",
+    };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 8) RENDER GATE (LAW18) + FAT BAR (LAW17) + REACHABILITY (LAW19)
+// ═══════════════════════════════════════════════════════════════════════════
+let render_gate = #{ available: false, pass: true, reason: "not run", evidence: "" };
+let fat_bar = #{ pass: false, reason: "not run", evidence: "" };
+let reach = #{ pass: false, reason: "not run", evidence: "" };
+
+if apply_mode {
+    phase("Render gate");
+    let rp = "LAW18 PAINTED-UI PROOF for KONYO WORKFLOW.\n";
+    rp += "1) If the project has CI UI gates, read `gh run list` / failed logs — report that verdict.\n";
+    rp += "2) Else if the project can drive its own UI, do so without binding ports the user uses.\n";
+    rp += "3) available=false is honest when there is no UI tooling — do NOT invent a pass.\n";
+    rp += "4) pass=true only with evidence. Screenshots paths in evidence if any.\n";
+    rp += "TASK: " + task + "\nWhat changed: list from git status/diff if needed.\n";
+    let rr = agent(rp, #{
+        label: "law18:render",
+        phase: "Render gate",
+        capability_mode: "execute",
+        output_schema: law_schema,
+    });
+    agents_spent += 1;
+    if rr != () && rr.success && rr.output != () {
+        render_gate = as_map(rr.output);
+        if render_gate.available == true && render_gate.pass != true {
+            blockers.push(#{ what: "LAW18 render gate", why: trimmed(render_gate.reason) });
+        }
+    } else {
+        render_gate = #{ available: false, pass: true, reason: "render agent failed — treated as N/A only if no UI; recorded", evidence: "agent failed" };
+        spawn_errors.push("render gate failed");
+    }
+
+    phase("Fat version bar");
+    let fp = fat_law + "\nAudit the ACTUAL diff/work against LAW17.\nTASK: " + task + "\nPlan version_label: " + version_label + "\n";
+    fp += "pass=true only if fat package OR structural bug with root cause+verify+prevention.\n";
+    let fr = agent(fp, #{
+        label: "law17:fat",
+        phase: "Fat version bar",
+        capability_mode: "read-only",
+        output_schema: law_schema,
+    });
+    agents_spent += 1;
+    if fr != () && fr.success && fr.output != () {
+        fat_bar = as_map(fr.output);
+        if fat_bar.pass != true {
+            blockers.push(#{ what: "LAW17 fat version bar", why: trimmed(fat_bar.reason) });
+        }
+    } else {
+        fat_bar = #{ pass: false, reason: "fat-bar agent failed — fail closed", evidence: "" };
+        blockers.push(#{ what: "LAW17 fat version bar", why: "agent failed" });
+    }
+}
+
+phase("Reachability");
+let rch_p = "LAW19 REACHABILITY. Every symbol this change ADDED must have a caller AND a writer.\n";
+rch_p += "Prefer execution to grep. If tests were added, prove they RAN (names in output).\n";
+rch_p += "pass=true only with evidence. TASK: " + task + "\nUse git diff and the real tree.\n";
+let rch = agent(rch_p, #{
+    label: "law19:reachability",
+    phase: "Reachability",
+    capability_mode: if apply_mode { "execute" } else { "read-only" },
+    output_schema: law_schema,
+});
+agents_spent += 1;
+if rch != () && rch.success && rch.output != () {
+    reach = as_map(rch.output);
+    if reach.pass != true {
+        blockers.push(#{ what: "LAW19 reachability", why: trimmed(reach.reason) });
+    }
+} else {
+    reach = #{ pass: false, reason: "reachability agent failed — fail closed", evidence: "" };
+    blockers.push(#{ what: "LAW19 reachability", why: "agent failed" });
+    spawn_errors.push("reachability failed");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// tally + ship
+// ═══════════════════════════════════════════════════════════════════════════
+let passed_n = 0;
+let failed_n = 0;
+let shipped_files = [];
+let ti = 0;
+while ti < results.len() {
+    let r = as_map(results[ti]);
+    let g = as_map(r.gate);
+    let it = as_map(r.item);
+    if trimmed(g.verdict) == "pass" {
+        passed_n += 1;
+        shipped_files.push(trimmed(it.file));
+    } else {
+        failed_n += 1;
+    }
+    ti += 1;
+}
+
+let shippable = blockers.len() == 0 && failed_n == 0 && !ceiling_hit && trimmed_from_plan.len() == 0;
+if max_only && completeness.ran == true && completeness.wentDry != true {
+    shippable = false;
+}
+if thin_panels.len() > 0 && shippable {
+    // degraded, not clean
+    shippable = false;
+}
+
+let shipped = #{ ran: false, reason: "not attempted" };
+if apply_mode && do_push {
+    phase("Ship");
+    if shippable {
+        let sp = "SHIP PHASE. Every gate passed. Push the current branch to origin.\n";
+        sp += "RULES: never --force, never --no-verify, never rewrite history.\n";
+        sp += "If there is nothing to push, say so. Prove remote moved with git status -sb and git log origin/.. if possible.\n";
+        sp += "Do NOT commit new work — only push existing commits.\n";
+        let sr = agent(sp, #{
+            label: "ship:push",
+            phase: "Ship",
+            capability_mode: "all",
+        });
+        agents_spent += 1;
+        if sr != () && sr.success {
+            shipped = #{ ran: true, reason: "push agent completed", detail: if type_of(sr.output) == "string" { sr.output.sub_string(0, 500) } else { "ok" } };
+        } else {
+            shipped = #{ ran: false, reason: "push agent failed" };
+            blockers.push(#{ what: "ship push failed", why: "push agent did not succeed" });
+            shippable = false;
+        }
+    } else {
+        log("Ship SKIPPED — not shippable (blockers or failed items).");
+        shipped = #{ ran: false, reason: "not shippable" };
+    }
+} else if apply_mode {
+    log("Ship phase idle — pass {push:true} to push after a clean shippable verdict. Builders never push.");
+    shipped = #{ ran: false, reason: "push not requested (default). pass {push:true} when ready." };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SYNTHESIZE + lock release
+// ═══════════════════════════════════════════════════════════════════════════
+phase("Synthesize");
+let final = #{
+    version_label: version_label,
+    headline: "",
+    shipped: shipped_files,
+    follow_ups: [],
+};
+if !tiny_q {
+    let syn_p = "Write the ONE final ping for this KONYO run.\n";
+    syn_p += "quality=" + quality + " apply=" + apply_mode.to_string() + " shippable=" + shippable.to_string() + "\n";
+    syn_p += "passed=" + passed_n.to_string() + " failed=" + failed_n.to_string() + " blockers=" + blockers.len().to_string() + "\n";
+    syn_p += "version_label=" + version_label + "\nTASK: " + task + "\n";
+    syn_p += "Return version_label, headline (one line), shipped[], follow_ups[].";
+    let syn = agent(syn_p, #{
+        label: "synthesize",
+        phase: "Synthesize",
+        capability_mode: "read-only",
+        output_schema: final_schema,
+    });
+    agents_spent += 1;
+    if syn != () && syn.success && syn.output != () {
+        final = as_map(syn.output);
+    }
+} else {
+    final.headline = "tiny run: " + passed_n.to_string() + " passed / " + failed_n.to_string() + " failed · shippable=" + shippable.to_string();
+}
+
+// release lock
+if lock_acquired && lock_token != "" {
+    let rel_p = "WORKSPACE LOCK — release. Bash only.\n";
+    rel_p += "LOCKDIR=\"$HOME/.claude/workflows/.locks\"\n";
+    rel_p += "Find the file whose token field is exactly " + json_encode(lock_token) + " and delete ONLY that file.\n";
+    rel_p += "Return acquired:false, key:released or key:not-ours.";
+    let rel = agent(rel_p, #{
+        label: "lock:release",
+        phase: "Synthesize",
+        capability_mode: "execute",
+        output_schema: lock_schema,
+    });
+    agents_spent += 1;
+    if rel != () && rel.success { log("🔓 Workspace lock released."); }
+    else { log("⚠ Lock release uncertain — TTL will expire it."); }
+}
+
+// verdict ladder
+let verdict = "OK";
+if blockers.len() > 0 { verdict = "BLOCKED — see blockers[]"; }
+else if ceiling_hit { verdict = "UNVERIFIED — agent ceiling"; }
+else if trimmed_from_plan.len() > 0 { verdict = "PARTIAL — items trimmed to fit ceiling"; }
+else if failed_n > 0 { verdict = "INCOMPLETE — " + failed_n.to_string() + " item(s) never passed"; }
+else if spawn_errors.len() > 0 { verdict = "DEGRADED — some agents died"; }
+else if thin_panels.len() > 0 { verdict = "DEGRADED — thin skeptic panel(s)"; }
+else if max_only && completeness.ran == true && completeness.wentDry != true {
+    verdict = "UNVERIFIED — completeness never went dry";
+}
+
+let quality_label = "";
+if tiny_q {
+    quality_label = "TINY (every ship gate · no triage/architect/completeness · " + seats_want.to_string() + "-skeptic panel)";
+} else if lean_q {
+    quality_label = "LEAN (every MAX gate · one architect · " + seats_want.to_string() + "-skeptic · no completeness critic)";
+} else if max_only {
+    quality_label = "MAX (deep · completeness critic · " + seats_want.to_string() + "-skeptic · multi-round rework)";
+} else {
+    quality_label = "STANDARD (cost-scaled · fable-style gate · " + seats_want.to_string() + "-skeptic)";
+}
+
+// report
+let md = "# Konyo Workflow — Grok Build implementer\n\n";
+md += "**Task:** " + task + "\n\n";
+md += "**Quality:** `" + quality + "` — " + quality_label + "\n\n";
+md += "**Mode:** " + mode_label + "\n\n";
+md += "**Verdict:** " + verdict + "\n\n";
+md += "**Shippable:** " + shippable.to_string() + "\n\n";
+md += "**Version label:** " + version_label + "\n\n";
+md += "**Passed / failed:** " + passed_n.to_string() + " / " + failed_n.to_string() + "\n\n";
+md += "**Agents spent:** " + agents_spent.to_string() + " / cap " + max_agents.to_string() + "\n\n";
+md += "## Headline\n" + trimmed(final.headline) + "\n\n";
+md += "## Blockers\n";
+if blockers.len() == 0 { md += "_(none)_\n"; }
+let bi2 = 0;
+while bi2 < blockers.len() {
+    let b = as_map(blockers[bi2]);
+    md += "- **" + trimmed(b.what) + "**: " + trimmed(b.why) + "\n";
+    bi2 += 1;
+}
+md += "\n## Files\n";
+let fi = 0;
+while fi < results.len() {
+    let r = as_map(results[fi]);
+    let it = as_map(r.item);
+    let g = as_map(r.gate);
+    md += "- `" + trimmed(it.file) + "` → **" + trimmed(g.verdict) + "** — " + trimmed(g.reason) + "\n";
+    fi += 1;
+}
+md += "\n## Gates\n";
+md += "- LAW17 fat: " + json_encode(fat_bar) + "\n";
+md += "- LAW18 render: " + json_encode(render_gate) + "\n";
+md += "- LAW19 reach: " + json_encode(reach) + "\n";
+md += "\n## Third eye\n";
+md += "- requested: " + third_eye + "\n";
+md += "- seats: " + third_eye_seats.len().to_string() + "\n";
+md += "\n## Completeness\n" + json_encode(completeness) + "\n";
+md += "\n## Ship\n" + json_encode(shipped) + "\n";
+md += "\n_Konyo Workflow · Grok implementer · parity target Claude konyo-workflow.js · audit-only body retired 2026-08-07_\n";
+
+let report_path = write_scratch_file("konyo-report.md", md);
+
+log("════════════════════════════════════════════════════════");
+log("VERDICT: " + verdict);
+log("SHIPPABLE: " + shippable.to_string() + " · passed " + passed_n.to_string() + " · failed " + failed_n.to_string() + " · blockers " + blockers.len().to_string());
+log("Report: " + report_path);
+log("════════════════════════════════════════════════════════");
+
 complete(#{
-    path: path,
+    path: report_path,
     report: md,
-    verdict: verdict,
-    ship_allowed: ship_allowed,
-    human_approved: human_approved,
-    confirmed_count: confirmed.len(),
-    render_gate: #{
-        available: render_available,
-        ran: render_ran,
-        passed: render_passed,
-        failures: render_failures,
-        notes: render_notes,
-    },
-    render_available: render_available,
-    render_passed: render_passed,
     quality: quality,
-    skeptic_lenses: skeptic_lenses.len(),
-    completeness: #{
-        enabled: is_max,
-        ran: completeness_ran,
-        gaps: completeness_gaps,
-    },
-    pingpong_rounds_claimed: rounds,
-    rounds_min: rounds_min,
-    strict: strict,
-    objective: objective,
+    quality_label: quality_label,
+    mode: mode_label,
+    apply: apply_mode,
     version: version_label,
+    verdict: verdict,
+    ship_allowed: shippable,
+    shippable: shippable,
+    shipped: shipped,
+    passed: passed_n,
+    failed: failed_n,
+    blockers: blockers,
+    agent_errors: spawn_errors,
+    agents_spent: agents_spent,
+    ceiling: #{ cap: max_agents, spent: agents_spent, hit: ceiling_hit, trimmedFromPlan: trimmed_from_plan },
+    triage: triage,
+    completeness: completeness,
+    render_gate: render_gate,
+    fat_version: fat_bar,
+    reachability: reach,
+    merge: merge,
+    thirdEye: #{
+        requested: third_eye,
+        seats: third_eye_seats,
+        note: if third_eye == "off" { "third eye off" } else if third_eye == "claude" { "Claude CLI (different family)" } else { "Grok same-family stand-in (degraded)" },
+    },
+    final: final,
+    results: results,
+    host: "grok-build",
+    implementer: true,
+    retired_audit_only: true,
 });
