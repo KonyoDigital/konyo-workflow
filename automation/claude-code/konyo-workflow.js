@@ -1,7 +1,7 @@
 export const meta = {
   name: 'konyo-workflow',
   description: 'KONYO WORKFLOW — ONE body, three paths (lean | max | standard). RUNS AT LEAN BY DEFAULT (his instruction, 2026-08-04): EVERY gate max runs — diverse-lens skeptic panel, render gate with vision, LAW17, LAW19, workspace lock, agent ceiling — at ~62% of the tokens, by buying ONE architect instead of a judge panel, one rework round, no completeness critic, and risk:"low" items at the tier their own architect asked for (floored at sonnet; the review is Opus either way, and a failed cheap build escalates on rework). The third eye (Grok — a different model family) is ON at every quality. Pass {quality:"max"} to add the 3-architect judge panel, Opus builders everywhere and the loop-until-dry completeness critic — worth it when being wrong costs more than tokens. Pass {quality:"tiny"} for a SMALL, KNOWN edit set with a ~15-minute wall-clock budget: it REQUIRES an explicit items:[{file,instruction}] work list (max 4 items across 3 files, no diagnosis) and refuses without one, then skips the PLANNING hops only — no triage, no architect, no third-eye plan seat, no completeness critic, no synthesizer — while keeping every gate: the 2-seat adversarial panel, LAW19 reachability, the render gate with vision, LAW17, and the workspace lock. Reachability and the render gate run CONCURRENTLY. v26 — THE RENDER GATE IS NOW A LOOP at every quality: it renders at a narrow AND a wide viewport, and a failure is handed to a fixer and re-rendered (tiny 2 passes / lean 3 / max 4) instead of only being reported. The FINAL pass is what blocks. Pass {quality:"standard"} to opt DOWN to the cost-scaled ladder (Haiku/Sonnet build, Fable gates every merge, ONE architect, no completeness critic). Pass {thirdEye:false} to run without an independent reviewer. LEAN IS NOT MAX-WITH-FEWER-SAFEGUARDS: the flag buys model tier, panel size and extra phases, never a gate.',
-  whenToUse: 'ANY multi-step task you want orchestrated — it is LEAN unless you say otherwise, because lean already runs every gate and max only buys a judge panel, Opus builders and the completeness critic. It TRIAGES itself first, so a serial diagnosis is sent back to be done directly instead of spawning a fleet, and the ceiling + budget floor still bound every run. Reach for {quality:"tiny"} when you already know the exact edits (file + instruction each) and want them done in ~15 minutes with the gates intact — it is a HOP budget, not an agent budget: wall clock is serial-hops × time-per-hop, so tiny cuts the chain from 11 phases to 4 rather than trimming agents. Reach for {quality:"max"} when the cost of being wrong is high — irreversible edits, data migrations, anything shipping unattended. Opt all the way down with {quality:"standard"} for routine, low-cost-of-wrong, easily reversible work (~10-15x cheaper). Pass {task, quality, thirdEye, apply, maxRounds, dryRounds, budgetFloor, force, skeptics, maxAgents, isolate}. `grok:false` still works as the old name for thirdEye:false; `fast` still resolves to `lean`.',
+  whenToUse: 'ANY multi-step task you want orchestrated — it is LEAN unless you say otherwise, because lean already runs every gate and max only buys a judge panel, Opus builders and the completeness critic. It TRIAGES itself first, so a serial diagnosis is sent back to be done directly instead of spawning a fleet, and the ceiling + budget floor still bound every run. Reach for {quality:"tiny"} when you already know the exact edits (file + instruction each) and want them done in ~15 minutes with the gates intact — it is a HOP budget, not an agent budget: wall clock is serial-hops × time-per-hop, so tiny cuts the chain from 11 phases to 4 rather than trimming agents. Reach for {quality:"max"} when the cost of being wrong is high — irreversible edits, data migrations, anything shipping unattended. Opt all the way down with {quality:"standard"} for routine, low-cost-of-wrong, easily reversible work (~10-15x cheaper). Pass {task, quality, thirdEye, apply, maxRounds, dryRounds, budgetFloor, force, skeptics, maxAgents, isolate, items}. items:[{file,instruction}] skips the architect at ANY quality (not only tiny) — an architect that returns items:[] no longer becomes a vacuous green ship. `grok:false` still works as the old name for thirdEye:false; `fast` still resolves to `lean`.',
   phases: [
     { title: 'Preflight',   detail: 'workspace lock — refuse to start if another run is already editing this tree' },
     { title: 'Triage',      detail: 'right-size the run BEFORE spending: shape · parallelism · cost-of-wrong. SKIPPED at quality:"tiny" — the caller supplied the work list', model: 'opus' },
@@ -1295,7 +1295,32 @@ if (triage) {
 // the progress tree forever as a phase that never happened. Since max is now the DEFAULT,
 // that dead row appeared on almost every run. It is one step either way: decide the plan.
 // The quality only changes how many candidates are bought, which the detail string says.
-if (!TINYQ) phase('Architect')   // v22 — no architect at tiny, so no empty box
+/* ── v27 — CALLER ITEMS AT ANY QUALITY (port of the 2026-08-07 Grok shipper fix) ──────────────
+   Measured on Grok lean apply:true: architect returned items:[] because the lead had already sealed
+   the work mid-flight. The empty array is TRUTHY in JS (`![] === false`), so `!plan.items` did NOT
+   bail, the fleet built nothing, failed stayed [], and SHIPPABLE became true with zero work —
+   a vacuous green ship. Tiny already skipped the architect when the human named the files; that
+   law applies at lean/max/standard too. When items:[] is intentional "already done", we refuse with
+   architect_noop — never report success over an empty plan. */
+const CALLER_ITEMS = (A && Array.isArray(A.items)) ? A.items.filter(Boolean) : []
+const HAS_CALLER_ITEMS = CALLER_ITEMS.length > 0
+if (!TINYQ && HAS_CALLER_ITEMS) {
+  const files = [...new Set(CALLER_ITEMS.map(i => i && i.file).filter(Boolean))]
+  const bad = CALLER_ITEMS.some(i => !i || !i.file || !i.instruction)
+    ? 'every item needs BOTH `file` and `instruction`'
+    : files.length !== CALLER_ITEMS.length
+      ? 'two items name the same file — one owner per file'
+      : null
+  if (bad) {
+    log(`⛔ CALLER ITEMS REFUSED: ${bad}.`)
+    log('   {apply:true, items:[{file:"/abs/path", instruction:"…", risk:"low", anchor:"~line N"}]}')
+    return bail({ refused: `caller items unusable: ${bad}`,
+      fix: 'fix items:[{file,instruction}] with unique files, or drop items and let the architect plan' })
+  }
+  log(`CALLER ITEMS → ${CALLER_ITEMS.length} item(s) supplied — architect will be skipped (same law as tiny).`)
+}
+
+if (!(TINYQ || HAS_CALLER_ITEMS)) phase('Architect')   // v27 — also skip when caller named the files
 let plan = null
 /* v22 — TINY HAS NO ARCHITECT, BECAUSE THE CALLER ALREADY IS ONE. The refusal gate above proved
    every item carries a file and an instruction, which is exactly what an architect produces. Buying
@@ -1303,7 +1328,7 @@ let plan = null
    one-owner-per-file law the architect enforces is checked here directly instead of trusted.
    Nothing downstream can tell the difference: this builds the same PLAN_SCHEMA shape the spawn
    would have returned, so build, gate, rework and every report read it unchanged. */
-if (TINYQ) {
+if (TINYQ || HAS_CALLER_ITEMS) {
   const raw = (A && A.items) || []
   const seen = new Set(), dupes = []
   for (const it of raw) { if (seen.has(it.file)) dupes.push(it.file); seen.add(it.file) }
@@ -1315,8 +1340,8 @@ if (TINYQ) {
     return bail({ refused: 'tiny: duplicate file owner', fix: 'merge the items that share a file' })
   }
   plan = {
-    version_label: (A && A.versionLabel) || 'v-tiny-r1',
-    summary: `tiny — ${raw.length} caller-specified edit(s), no architect bought`,
+    version_label: (A && A.versionLabel) || (TINYQ ? 'v-tiny-r1' : 'v-items-r1'),
+    summary: `${TINYQ ? 'tiny' : 'caller-items'} — ${raw.length} caller-specified edit(s), no architect bought`,
     items: raw.map((it, i) => ({
       id: it.id || ('t' + (i + 1)),
       file: it.file,
@@ -1336,7 +1361,7 @@ if (TINYQ) {
     })),
   }
   const _anch = raw.filter(it => it.anchor).length
-  log(`ARCHITECT SKIPPED (quality=tiny) — plan taken verbatim from the caller: ${plan.items.length} item(s), one owner per file verified.`)
+  log(`ARCHITECT SKIPPED (${TINYQ ? 'quality=tiny' : 'caller items[]'}) — plan taken verbatim from the caller: ${plan.items.length} item(s), one owner per file verified.`)
   log(_anch === raw.length
     ? `   every item carries an ANCHOR — builders and gates jump instead of searching (the real cost on big files).`
     : `   ⚠ ${raw.length - _anch}/${raw.length} item(s) have NO \`anchor\` — on a large file that is 8-10 min per hop of SEARCHING, paid again by every skeptic and the render gate. Pass anchor:'~line N, symbolName' next time.`)
@@ -1437,11 +1462,43 @@ plan = await spawn(
 )
 if (plan === null) { log('CEILING: no budget for the plan.'); return bail({ error: 'ceiling' }) }
 }
-if (!plan || !plan.items) { log('Architect produced no plan.'); return bail({ error: 'no plan' }) }
+// v27 — EMPTY ARRAY IS TRUTHY. `![] === false`, so `!plan.items` never caught items:[].
+// An architect that returns [] (often: "already done") used to fall through, build nothing, and
+// leave SHIPPABLE true with zero work. Bail here with an honest error name.
+if (!plan || !Array.isArray(plan.items)) {
+  log('Architect produced no plan.')
+  return bail({ error: 'no plan', fix: 're-run, or pass items:[{file,instruction}] to skip the architect' })
+}
+if (plan.items.length === 0) {
+  const sum = String(plan.summary || plan.why || '').slice(0, 240)
+  log(`⛔ ARCHITECT RETURNED 0 ITEMS` + (sum ? ` — ${sum}` : ''))
+  log('   This is NOT a ceiling trim. Pass items:[{file,instruction}] (works at any quality), or force a real plan.')
+  await releaseLock()
+  return bail({
+    error: sum ? 'architect_noop' : 'architect_empty',
+    refused: 'architect returned items:[]',
+    architect_summary: sum || null,
+    fix: 'Pass items:[{file,instruction}] at any quality to skip the architect, or re-run with a task that still has work.',
+    verdict: sum ? 'ALREADY COMPLETE OR NOOP — architect returned no work items' : 'BLOCKED — architect returned an empty plan',
+  })
+}
 
 // one-owner-per-file guarantee
 const seen = new Set()
-let items = plan.items.filter(it => { const k = it.file; if (seen.has(k)) return false; seen.add(k); return it })
+let items = plan.items.filter(it => {
+  if (!it || !it.file) return false
+  const k = it.file
+  if (seen.has(k)) return false
+  seen.add(k)
+  return true
+})
+if (!items.length) {
+  log('⛔ EMPTY PLAN AFTER FILTER — every item lacked a file path or was a duplicate.')
+  await releaseLock()
+  return bail({ error: 'empty plan after filter',
+    fix: 'every item needs a unique file path',
+    verdict: 'BLOCKED — no workable items after one-owner-per-file filter' })
+}
 // Triage's number is a CEILING, not a suggestion — an architect that returns 23 items for a job
 // triaged at 6 is how a planning doc turns into a hundred agents. Trim, and say so out loud.
 // Saying it out loud in the LOG is not saying it in the SUMMARY: a trimmed plan used to return
@@ -1607,7 +1664,8 @@ const SKEPTICS = activeLenses().length
    indistinguishable from no bound at all — that has been the lesson of this whole arc. */
 const PHASE_PLAN = (() => {
   const open = ['Preflight']
-  if (!TINYQ) open.push('Triage', 'Architect')
+  if (!TINYQ) open.push('Triage')
+  if (!(TINYQ || HAS_CALLER_ITEMS)) open.push('Architect')
   if (USE_GROK && !TINYQ) open.push('Third-eye')
   open.push('Build+Gate')
   if (SKEPTICS > 0) open.push('Adversarial gate')
@@ -2413,8 +2471,11 @@ if (USE_GROK && APPLY) {
    or a thin skeptic panel would have reported shippable:false and pushed anyway. It is the v18.3 bug
    exactly (two formulas for one decision, the optimistic one binding), committed while writing the
    comment that warns against it. node --check passed; the load harness caught it. */
+// v27 — passed.length > 0: a fleet that built nothing used to be SHIPPABLE (failed=[] is vacuously
+// true). Empty success is the same defect class as a gate that never ran reading as a pass.
 const SHIPPABLE = !BLOCKERS.length && !CEILING_HIT && !trimmedFromPlan.length && !failed.length
   && !SPAWN_ERRORS.length && !THIN_PANELS.length && (!MAXQ || LEANQ || (dry >= DRYROUNDS && !unbuiltGaps.length))
+  && passed.length > 0
 let shipped = { pushed: false, why: 'not attempted' }
 if (!APPLY) {
   shipped = { pushed: false, why: 'dry-run — nothing was written, so nothing can ship' }
@@ -2598,6 +2659,7 @@ return emit({
     : THIN_PANELS.length ? 'DEGRADED — ' + THIN_PANELS.length + ' skeptic panel(s) came up short (' +
         THIN_PANELS.slice(0, 3).map(t => `${t.file}: ${t.cast}/${t.panel} vote(s) cast`).join('; ') +
         ') — fewer eyes reviewed this than the seat count claims'
+    : (results.length === 0 || passed.length === 0) ? 'EMPTY — no item passed a gate (vacuous green is forbidden)'
     : 'OK',
   shippable: SHIPPABLE,   // v23 — the SAME const the Ship phase gated on; never a second formula
   shipped,
