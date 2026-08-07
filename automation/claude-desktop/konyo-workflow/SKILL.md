@@ -280,8 +280,8 @@ Report, briefly:
   actually looked, and SOLO is an honest answer.
 - **Scars** — did any existing scar apply, and did you follow its rule? Did this
   run produce a new one? If yes, **print the scar block here**, ready to paste
-  (Step 7). If no, say "no scar" — that is a real answer, and saying it is what
-  stops the step being quietly skipped forever.
+  (Step 7), including its EVIDENCE line. If no, say "no scar" — that is a real
+  answer, and saying it is what stops the step being quietly skipped forever.
 
 Then stop. Do not append a list of things you did not do and call it next steps
 unless they were asked for.
@@ -303,9 +303,20 @@ does not help, because nobody re-reads their notes before starting.
 
 ### Recording one
 
+`SCARS.md` has **two layers, and the difference is authority.**
+
+**FOUNDING RULES are yours.** Written by hand, deliberately, at the top of the file.
+They are not lessons from a bug — they are the terms your work runs on ("never send
+a client a number I haven't traced to source"). **Nothing learned may ever overwrite
+one.**
+
+**LEARNED SCARS are appended below them**, from runs that went wrong. Lower
+authority on purpose: a rule extracted from one bad afternoon should not carry the
+same weight as one you chose while thinking clearly.
+
 When something went genuinely wrong this run — a real error, a wrong assumption, a
-thing that had to be redone — write it down in exactly this shape, and put it in a
-file called `SCARS.md` inside this skill's folder:
+thing that had to be redone — write it down in exactly this shape and add it to the
+LEARNED section:
 
 ```
 WHAT BROKE   the summary quoted a number that was never in the source
@@ -314,10 +325,12 @@ CAUGHT BY    re-reading the source, not re-reading my summary
 RULE         every figure in a summary gets traced back to the sentence it came
              from, before the summary is finished
 GUARD        Step 3's check list — added "every number traced to source"
+EVIDENCE     the figure appeared in my draft and in no paragraph of the source;
+             I searched all 14 pages before concluding that
 ```
 
-**All five lines, every time.** Four of them are a diary. The fifth is what makes it
-a defence, and it is the one people skip.
+**All six lines, every time.** Four of them are a diary. The last two are what make
+it a defence, and they are the two people skip.
 
 - **RULE must be an instruction, not a regret.** "Be more careful with numbers" is
   not a rule — nothing can follow it. "Trace every figure to the sentence it came
@@ -326,6 +339,23 @@ a defence, and it is the one people skip.
   checklist, a question you now always ask. If you genuinely cannot think of one,
   write `GUARD: NONE` — **honestly**. An honest NONE is a bug you know you can still
   hit. A made-up guard is worse than nothing, because it reads as protected.
+- **EVIDENCE names what in *this run* proves the rule.** Not why it sounds
+  sensible — what actually happened. This is the whole difference between a rule
+  and a superstition. Without it, a workflow slowly fills with confident
+  restrictions nobody can trace, refusing things for reasons that were never true.
+
+### Undoing one
+
+**Before pasting a new scar, keep the previous version.** Copy `SCARS.md` to
+`SCARS.prev.md`, or just keep the old text somewhere for a day.
+
+That sounds fussy and it is not. A lesson drawn from one confusing afternoon can be
+**wrong** — wrong cause identified, or the rule drawn too wide — and a wrong rule is
+worse than no rule, because you will actually follow it. Without a previous copy a
+bad scar is permanent; with one, undoing it takes ten seconds.
+
+**Founding rules are untouched by any of this.** They change only when you change
+them, by hand, on purpose.
 
 ### Reading them
 

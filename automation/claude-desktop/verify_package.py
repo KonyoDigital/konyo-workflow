@@ -70,10 +70,22 @@ def check(zf: zipfile.ZipFile) -> list[str]:
         want("scar" in seal.lower(),
              "the SEAL requires answering whether a scar was produced — without "
              "this the learning loop is skipped silently and forever")
+        want("EVIDENCE" in seal,
+             "the SEAL requires the scar's EVIDENCE line — a scar without it is a "
+             "superstition, and superstitions accumulate into a workflow that "
+             "refuses things for reasons that were never true")
         want("PASSED, CEILING or STALLED" in seal,
              "the SEAL requires the stop REASON — 'didn't work' collapses CEILING "
              "(keep going) and STALLED (change approach), which call for opposite "
              "responses")
+    want("FOUNDING RULES" in scars and "LEARNED" in scars,
+         "SCARS.md ships the founding/learned split — a rule from one bad "
+         "afternoon must never sit at the same authority as a rule chosen while "
+         "thinking clearly, and nothing learned may overwrite a founding rule")
+    want("SCARS.prev.md" in md or "SCARS.prev.md" in scars,
+         "…and the undo step ships: without a previous copy a WRONG scar is "
+         "permanent, which is a strange property for a file whose whole job is "
+         "recording that we got something wrong")
     want("STALLED" in md and "Silence is not evidence" in md,
          "the stopping rule ships, including the silent-check trap — a check that "
          "prints nothing on failure looks identical whether you are converging or "
@@ -110,6 +122,11 @@ def self_test() -> int:
          lambda f: {**f, "konyo-workflow/SKILL.md": md.replace("PASSED, CEILING or STALLED", "—")}),
         ("the silent-check trap dropped from the stopping rule",
          lambda f: {**f, "konyo-workflow/SKILL.md": md.replace("Silence is not evidence", "x")}),
+        ("SCARS.md loses the founding/learned split",
+         lambda f: {**f, "konyo-workflow/SCARS.md":
+                    f["konyo-workflow/SCARS.md"].decode().replace("FOUNDING RULES", "Rules").encode()}),
+        ("the seal stops demanding scar evidence",
+         lambda f: {**f, "konyo-workflow/SKILL.md": md.replace("including its EVIDENCE line", "")}),
     ]:
         print(f"\n  RED PROOF — {label}")
         try:
