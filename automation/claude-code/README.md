@@ -4,10 +4,15 @@ Runnable **Claude Code** workflow scripts (JS) that implement the Konyo Workflow
 Drop either file in `~/.claude/workflows/` and run it from Claude Code with:
 
     Workflow: name "konyo-workflow"       args {"task":"<what to do>", "apply":true}
-    Workflow: name "konyo-workflow-max"   args {"task":"<what to do>", "apply":true}
+    Workflow: name "konyo-workflow"       args {"task":"…", "apply":true, "items":[{"file":"/abs/path","instruction":"…"}]}
 
 (`apply:false` = dry-run: agents propose diffs, write nothing. **Never pair it with a
 file-shaped deliverable** — see the guard below.)
+
+**v27:** `items:[{file,instruction}]` skips the architect at **any** quality (not only
+`tiny`). An architect that returns `items:[]` no longer becomes a vacuous green ship
+(`![]` is truthy in JS; `SHIPPABLE` now requires `passed.length > 0`).
+`/konyo-workflow-max` is retired — use `{quality:"max"}` on the one body.
 
 ## The cost-scaled one now sizes itself
 
