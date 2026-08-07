@@ -61,3 +61,15 @@ adversarial read found the same holes. Same setting, opposite verdicts — which
 Both: one owner per file, a quality gate on every change, optional Grok third-eye, version per round, ONE final report.
 
 Args: `{task, apply, maxRounds, budgetFloor, grok}` (max also takes `dryRounds`). Args may be an object or a JSON string.
+
+## v30 meter routing (Grok parity, 2026-08-07)
+
+Item caps by quality: **tiny 4 / max 6 / lean 8 / standard 10** (override with `{maxItems:N}` ≤24).
+
+Volume-arc task text is non-blocking but loud under `quality:max`. FAT_LAW carries VERSION ARC DISCIPLINE, TIP HONESTY, and THRASH RESISTANCE.
+
+```bash
+node automation/claude-code/v30_meter_routing_proof.mjs
+node automation/claude-code/v27_empty_plan_proof.mjs
+```
+
