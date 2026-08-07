@@ -301,8 +301,18 @@ bad afternoon should not weigh the same as one you chose while thinking clearly.
 
 A fresh copy of `SCARS.md` may also carry a **CANDIDATES** block — proposed founding rules
 that nobody has ratified. **It has no authority at all: not a founding rule, not a scar, and
-not an "entry" for the purposes of the seal's scar question.** Ignore it when working and
-mention once that it is waiting to be filled in or deleted.
+not an "entry" for the purposes of the seal's scar question.** Ignore it when working.
+
+**Mention once that it is waiting on RATIFICATION — not on being written.** The drafts
+are already there; what has not happened is the person deciding which they believe,
+rewriting those into FOUNDING RULES in their own words, and deleting the rest. Saying it
+is "waiting to be filled in" describes the wrong gap and invites Claude to fill it,
+which is the one thing that must not happen: a founding rule carrying someone's
+authority has to be one they chose.
+
+**Until they ratify, FOUNDING RULES is legitimately empty** and the run is proceeding on
+this skill's steps alone. Say that once, plainly, rather than letting an unratified
+CANDIDATES block read as though rules are in force.
 
 ### Recording one
 

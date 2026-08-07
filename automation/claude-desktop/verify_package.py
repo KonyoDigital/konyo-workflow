@@ -101,6 +101,16 @@ def check(zf: zipfile.ZipFile) -> list[str]:
          "Step 1's short path requires small AND low-stakes — a one-line production "
          "config change is small and expensive, and an earlier compression dropped the "
          "stakes half, licensing one round on exactly that")
+    # ⚠ IGNORE QUOTED OCCURRENCES. A sentence explaining why a phrasing is wrong
+    # contains that phrasing, so a naive `not in md` fails the fix that removed it —
+    # the same shape as grepping for a bug and matching the comment describing it.
+    # Only an UNQUOTED occurrence is the instruction actually saying it.
+    _unquoted = re.sub(r'"[^"]*"', '""', md)
+    want("waiting on RATIFICATION" in md and "waiting to be filled in" not in _unquoted,
+         "CANDIDATES is described as awaiting RATIFICATION, not as awaiting being "
+         "written — the drafts are already there, and 'waiting to be filled in' names "
+         "the wrong gap and invites Claude to fill it, which is exactly what must not "
+         "happen to a rule that will carry the user's authority")
     want("never that it was saved" in md,
          "the seal says scar durability is UNVERIFIED and never claims it was saved — "
          "reading a file back proves the write, never that the workspace survives")
@@ -164,6 +174,10 @@ def self_test() -> int:
                     md.replace("STALLED", "x").replace("CEILING", "y")}),
         ("the silent-check trap dropped from the stopping rule",
          lambda f: {**f, "konyo-workflow/SKILL.md": md.replace("Silence is not evidence", "x")}),
+        ("CANDIDATES goes back to awaiting being written",
+         lambda f: {**f, "konyo-workflow/SKILL.md":
+                    md.replace("waiting on RATIFICATION", "waiting to be filled in")
+                      .replace('is "waiting to be filled in" describes', "is fine and describes")}),
         ("the scope rule loses its no-narrowing clause",
          lambda f: {**f, "konyo-workflow/SKILL.md": md.replace("cannot be narrowed", "may be adjusted")}),
         ("Step 1's short path drops the stakes half again",
