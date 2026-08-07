@@ -75,61 +75,13 @@ Not required: Obsidian, a new GitHub org, or foreign names. **Same spirit as a p
 
 ---
 
-## No terminal? Use the Claude Desktop skill
+## No terminal? → [ship-skill](https://github.com/KonyoDigital/ship-skill)
 
-### ⬇ Download
+The Desktop skill moved to its own repo and is maintained there. The copy that lived
+here was **deleted rather than left**, because a stale copy is worse than none — someone
+downloads it, it works, and never learns they are a dozen fixes behind.
 
-**[`konyo-workflow.skill`](https://github.com/KonyoDigital/konyo-workflow/raw/main/automation/claude-desktop/konyo-workflow.skill)** — then in Claude Desktop:
-**Settings → Capabilities → enable "Code execution and file creation"**, then
-**Customize → Skills → + → Create skill → Upload a skill**.
-
-Free, Pro, Max, Team and Enterprise. MIT. It is **two markdown files** — no
-scripts, no dependencies, nothing that runs. Inspect it before you install it;
-that is a reasonable thing to want from anything you load into your assistant.
-
-
-`automation/claude-desktop/konyo-workflow.zip` is the whole method as an uploadable
-skill. **Nothing to install, no API keys, no second AI**, and it works on Free.
-
-It runs at one of two settings, and the difference is independence, not effort:
-
-- **SOLO** — one conversation, structured self-review across four separate lenses.
-  The default, and honest about its ceiling: a model reviewing its own work has
-  blind spots in the same places it just built.
-- **MULTI** — the review happens in a **fresh conversation that never saw the
-  building**, so it has to be convinced by the artifact rather than by your
-  reasoning. Use it whenever being wrong is expensive. If you have a second AI, use
-  that instead — different model family, different blind spots.
-
-**And it knows when to stop.** Fix → re-prove is a loop, so it stops for one of
-three stated reasons — **PASSED**, **CEILING** (still failing, but the failure kept
-changing, so give it room) or **STALLED** (the same failure twice running — stop and
-change the approach, don't raise the limit). Collapsing the last two into "didn't
-work" is how an hour goes into the version that cannot work.
-
-**And it learns.** Each run that goes wrong ends with a *scar block*: what broke,
-what it cost, how it was caught, the rule that prevents it, where that rule now
-lives, and **the evidence from that run that proves it** — the line separating a
-rule from a superstition. You paste it into `SCARS.md`, which the skill reads before
-every run. When three scars land in the same territory, that territory has earned
-its own skill — the workflow carves a child skill and moves the rules into it.
-
-`SCARS.md` has **two layers, and the difference is authority.** FOUNDING rules are
-hand-written by you and nothing learned may overwrite them; LEARNED scars append
-below, deliberately lower authority, because a rule extracted from one bad afternoon
-should not outrank one you chose while thinking clearly. And you keep the previous
-copy before pasting — a lesson can be *wrong*, and a wrong rule is worse than no
-rule because you will follow it.
-
-*(That structure is lifted from [Prime Intellect's Continual
-Harness](https://github.com/PrimeIntellect-ai/prime-agent) — immutable base,
-supplemental learned state, snapshots for rollback, evidence-backed updates.)*
-
-That is the compounding part: a generic workflow is worth something; one shaped by
-twenty of your own real mistakes is worth considerably more, and it can only be
-grown. See `automation/claude-desktop/INSTALL.md`.
-
----
+**The fleet moved too → [agent-army](https://github.com/KonyoDigital/agent-army).**
 
 ## Sandbox isolation (opt-in): `{isolate: true}`
 
