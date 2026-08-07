@@ -83,6 +83,16 @@ has "triage-direct bail releases" 'Early lock release'
 
 
 echo ""
+
+echo ""
+echo "v29 SCAR LAW (FOUNDING / LEARNED / EVIDENCE / UNDO)"
+has "FOUNDING vs LEARNED" 'FOUNDING vs LEARNED'
+has "FOUNDING immutable" 'FOUNDING RULES'
+has "LEARNED append only" 'LEARNED SCARS'
+has "EVIDENCE required" 'EVIDENCE:'
+has "undo snapshot" 'SCARS.prev.md'
+has "v29 safeguards flag" 'v29_scar_founding_vs_learned'
+
 if [[ "$fail" -eq 0 ]]; then
   echo "ALL SAFEGUARD CONTRACTS PRESENT."
   exit 0
