@@ -541,10 +541,15 @@ if apply_mode {
     let lock_p = "WORKSPACE LOCK — acquire. Bash only, pure mechanics.\n";
     lock_p += "1. LOCKDIR=\"$HOME/.claude/workflows/.locks\"; mkdir -p \"$LOCKDIR\".\n";
     lock_p += "   (SHARED with Claude Code shippers — Grok and Claude fleets must exclude each other.)\n";
-    lock_p += "2. KEY=`pwd -P`. Slugify: replace / with - , strip leading -. LOCKFILE=\"$LOCKDIR/<slug>.json\".\n";
-    lock_p += "3. PURGE: NOW=$(date -u +%s). For each *.json, if expires_epoch < NOW (INTEGER test) delete it. Malformed = stale.\n";
-    lock_p += "4. If LOCKFILE still exists: return acquired:false with holder_token/holder_since/holder_expires/holder_task. Do NOT overwrite.\n";
-    lock_p += "5. Else WRITE lock with token, started_at, expires_at, expires_epoch=NOW+" + lock_ttl_min.to_string() + "*60, cwd, task snippet.\n";
+    lock_p += "2. TREE=`git rev-parse --show-toplevel 2>/dev/null` || TREE=`pwd -P`.\n";
+    lock_p += "   REFUSE if TREE is $HOME or / or empty — never lock the home directory (that blocks every repo under it).\n";
+    lock_p += "   If refuse: return acquired:false, key:refused-home, cwd:TREE, reason:lock-key-must-be-a-git-repo-not-home.\n";
+    lock_p += "3. KEY=$TREE. Slugify: replace / with - , strip leading -. LOCKFILE=\"$LOCKDIR/<slug>.json\".\n";
+    lock_p += "4. PURGE: NOW=$(date -u +%s). For each *.json, if expires_epoch < NOW (INTEGER test) delete it. Malformed = stale.\n";
+    lock_p += "   Also purge locks whose cwd is exactly $HOME (toxic home-wide locks — they are never valid).\n";
+    lock_p += "5. If LOCKFILE still exists: return acquired:false with holder_token/holder_since/holder_expires/holder_task. Do NOT overwrite.\n";
+    lock_p += "   Parent-path locks (e.g. home) do NOT block this TREE — only the exact slug file does.\n";
+    lock_p += "6. Else WRITE lock with token, started_at, expires_at, expires_epoch=NOW+" + lock_ttl_min.to_string() + "*60, cwd=$TREE, task snippet.\n";
     lock_p += "Return acquired, token, key, cwd, purged_stale. Touch nothing outside LOCKDIR.\n";
     lock_p += "Task snippet: " + json_encode(task.sub_string(0, if task.len() < 120 { task.len() } else { 120 }));
     let lock_r = agent(lock_p, #{
