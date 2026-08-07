@@ -9,9 +9,16 @@ Drop either file in `~/.claude/workflows/` and run it from Claude Code with:
 (`apply:false` = dry-run: agents propose diffs, write nothing. **Never pair it with a
 file-shaped deliverable** — see the guard below.)
 
-**v27:** `items:[{file,instruction}]` skips the architect at **any** quality (not only
+**v27 / v27.1:** `items:[{file,instruction}]` skips the architect at **any** quality (not only
 `tiny`). An architect that returns `items:[]` no longer becomes a vacuous green ship
-(`![]` is truthy in JS; `SHIPPABLE` now requires `passed.length > 0`).
+(`![]` is truthy in JS). `SHIPPABLE` requires `apply:true` **and** `passed.length > 0`.
+`force:true` still cannot ship an empty architect plan.
+
+```bash
+# gate: vacuous green ship cannot return
+node automation/claude-code/v27_empty_plan_proof.mjs
+```
+
 `/konyo-workflow-max` is retired — use `{quality:"max"}` on the one body.
 
 ## The cost-scaled one now sizes itself

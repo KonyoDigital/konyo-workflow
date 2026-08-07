@@ -2,11 +2,32 @@
 // LOAD HARNESS for konyo-workflow.js
 // node --check cannot see TDZ or top-level throws. This executes the whole script body with the
 // engine's injected globals stubbed, so the module is PROVEN to load and run to its return.
-// Usage: node load_harness.mjs '<json args>'
+//
+// Usage:
+//   node load_harness.mjs '<json args>' [path/to/konyo-workflow.js]
+//
+// Optional harness controls (inside args, stripped from the workflow's view of "task" only by us —
+// they live on args.__harness so the script still sees them on A if it ever reads them; the workflow
+// ignores unknown keys):
+//
+//   __harness: {
+//     architectItems: [] | [...],     // force architect/judge plan items (v27 empty-plan proof)
+//     architectSummary: string,       // summary when forcing empty items
+//     triage: { ... },                // override triage fields
+//     exitOnThrow: true,              // default true — process.exit(1) if the script throws
+//   }
+//
+// Exit codes: 0 = completed (even if verdict is blocked), 1 = script threw / harness misconfigured.
 import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
 
-const SCRIPT = process.argv[3] || '/Users/konyo/.claude/workflows/konyo-workflow.js'
+const HERE = dirname(fileURLToPath(import.meta.url))
+const SCRIPT = process.argv[3] || join(HERE, 'konyo-workflow.js')
 const ARGS = JSON.parse(process.argv[2] || '{}')
+const H = (ARGS && typeof ARGS === 'object' && ARGS.__harness && typeof ARGS.__harness === 'object')
+  ? ARGS.__harness
+  : {}
 
 let src = readFileSync(SCRIPT, 'utf8')
 // workflow scripts use a top-level `return`, which is illegal in an ES module — the engine wraps the
@@ -69,6 +90,19 @@ function fake(schema, key = '', label = '') {
   return `[fake:${key || 'str'}]`
 }
 
+function isTriage(rec, v) {
+  return /triage/i.test(rec.label)
+    || (v && typeof v === 'object' && 'cost_of_wrong' in v && 'est_agents' in v)
+}
+
+function isArchitectPlan(rec, opts, v) {
+  // LEAN architect has NO label — phase is the stable identity (ceiling_proof_v4 lesson).
+  if (opts.phase === 'Architect') return true
+  if (/architect|judge/i.test(rec.label)) return true
+  if (v && typeof v === 'object' && Array.isArray(v.items) && 'version_label' in v) return true
+  return false
+}
+
 globalThis.args = ARGS
 globalThis.budget = { total: null, spent: () => 0, remaining: () => Infinity }
 globalThis.phase = (t) => { phases.push(t) }
@@ -88,10 +122,27 @@ globalThis.agent = async (prompt, opts = {}) => {
   }
   calls.push(rec)
   if (opts.schema) {
-    const v = fake(opts.schema, '', rec.label)
-    // triage drives the whole run — force the expensive path so every phase is exercised
-    if (/triage/i.test(rec.label) || (v && typeof v === 'object' && 'cost_of_wrong' in v && 'est_agents' in v)) {
-      Object.assign(v, { shape: 'code', parallelism: 'parallel', cost_of_wrong: 'high', tier: 'max', est_agents: 4, skeptics: 3, why: 'harness' })
+    let v = fake(opts.schema, '', rec.label)
+    // triage drives the whole run — force the expensive path so every phase is exercised,
+    // unless the harness overrides it.
+    if (isTriage(rec, v)) {
+      Object.assign(v, {
+        shape: 'code', parallelism: 'parallel', cost_of_wrong: 'high', tier: 'max',
+        est_agents: 4, skeptics: 3, work_list_known: true, why: 'harness',
+      })
+      if (H.triage && typeof H.triage === 'object') Object.assign(v, H.triage)
+    }
+    // v27 — force architect/judge plan items (including items:[] for the empty-plan proof)
+    if (isArchitectPlan(rec, opts, v) && Object.prototype.hasOwnProperty.call(H, 'architectItems')) {
+      if (!v || typeof v !== 'object') v = {}
+      v.version_label = v.version_label || 'v-harness'
+      v.summary = H.architectSummary != null
+        ? H.architectSummary
+        : (Array.isArray(H.architectItems) && H.architectItems.length === 0
+          ? 'harness: work already complete — no items'
+          : (v.summary || 'harness plan'))
+      v.why = v.why || 'harness'
+      v.items = Array.isArray(H.architectItems) ? H.architectItems : []
     }
     return v
   }
@@ -120,8 +171,9 @@ try {
 // ---------------- report ----------------
 const say = (...a) => console.log(...a)
 say('═'.repeat(78))
-say('ARGS:', JSON.stringify(ARGS))
+say('ARGS:', JSON.stringify(ARGS, (k, v) => k === '__harness' ? v : v, 0).slice(0, 500))
 say('SCRIPT:', SCRIPT)
+if (Object.keys(H).length) say('HARNESS:', JSON.stringify(H).slice(0, 400))
 say('═'.repeat(78))
 if (err) {
   say('❌ THE SCRIPT THREW — it does NOT load/run:')
@@ -142,7 +194,7 @@ for (const [p, cs] of Object.entries(byPhase)) {
 say('')
 const has = (re) => calls.filter(c => re.test(c.label)).length
 say('CENSUS:')
-say('  architects        :', has(/arch/i))
+say('  architects        :', has(/arch/i) + calls.filter(c => c.phase === 'Architect').length)
 say('  skeptics          :', has(/skeptic|refut/i))
 say('  completeness crit :', has(/complete|critic|gap/i))
 say('  third eye / grok  :', has(/grok|third|eye/i))
@@ -153,7 +205,6 @@ const models = {}
 for (const c of calls) models[c.model] = (models[c.model] || 0) + 1
 say('  model tiers       :', JSON.stringify(models))
 say('')
-const allPrompts = calls.map(c => c.prompt).join('\n')
 say('PROMPT-LEVEL SAFEGUARDS (v16 must reach EVERY prompt) — matched on the REAL text, not the label:')
 const withPace = calls.filter(c => /WORK BRISKLY/.test(c.prompt))
 const withProof = calls.filter(c => /VERIFY THE THING, NOT A PROXY/.test(c.prompt))
@@ -169,3 +220,22 @@ if (result && typeof result === 'object') {
   say('RETURN PAYLOAD (trimmed):')
   say(JSON.stringify(result, (k, v) => typeof v === 'string' && v.length > 300 ? v.slice(0, 300) + '…' : v, 2).slice(0, 3000))
 }
+
+// Machine-readable line for proof scripts (last line is easy to parse)
+if (result && typeof result === 'object') {
+  say('')
+  say('HARNESS_JSON:' + JSON.stringify({
+    ok: !err,
+    error: result.error || null,
+    refused: result.refused || null,
+    shippable: result.shippable,
+    verdict: result.verdict || null,
+    quality: result.quality || null,
+    agents: calls.length,
+    phases,
+  }))
+}
+
+const exitOnThrow = H.exitOnThrow !== false
+if (err && exitOnThrow) process.exit(1)
+process.exit(0)
