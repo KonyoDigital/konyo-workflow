@@ -1317,7 +1317,8 @@ while ti < results.len() {
     ti += 1;
 }
 
-let shippable = blockers.len() == 0 && failed_n == 0 && !ceiling_hit && trimmed_from_plan.len() == 0;
+// Parity with Claude v27.1: dry-run is never shippable; zero passed work is never shippable.
+let shippable = apply_mode && blockers.len() == 0 && failed_n == 0 && passed_n > 0 && !ceiling_hit && trimmed_from_plan.len() == 0;
 if max_only && completeness.ran == true && completeness.wentDry != true {
     shippable = false;
 }
