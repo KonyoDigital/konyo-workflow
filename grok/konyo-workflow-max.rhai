@@ -107,6 +107,6 @@ complete(#{
     // — a silent downgrade on exactly the high-stakes work this entry point existed for. This
     // sandbox cannot read the filesystem, so the check cannot be automated here; it is stated as a
     // precondition instead of assumed away.
-    verify_first: "Confirm the target honours the flag BEFORE trusting a max run: `grep -c quality ~/.grok/workflows/konyo-workflow.rhai` must be > 0, and the returned payload must carry quality=max. If it does not, the merge has NOT landed on the Grok side — restore the old (stale but working) MAX implementation with: cp ~/konyo-workflow/grok/konyo-workflow-max.rhai.bak-merge ~/konyo-workflow/grok/konyo-workflow-max.rhai && cp ~/konyo-workflow/grok/konyo-workflow-max.rhai ~/.grok/workflows/",
+    verify_first: "Confirm the target honours the flag BEFORE trusting a max run: `grep -c quality ~/.grok/workflows/konyo-workflow.rhai` must be > 0, and the returned payload must carry quality=max. If it does not, the merge has NOT landed on the Grok side — re-install from this repo's konyo-workflow.rhai and pass {"quality":"max"} — do not revive a stale duplicate max script",
     rerun_with: rerun_with,
 });
