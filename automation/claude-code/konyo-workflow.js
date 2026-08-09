@@ -1119,9 +1119,29 @@ function wantsAFile(task) {
 
 // 0) PREFLIGHT — take the workspace lock BEFORE spending anything. Same lock dir as max, so the two
 // workflows genuinely exclude each other. Sonnet: this is `date`, `mkdir` and a JSON file.
+log('SCARS: the Preflight agent reads SCARS.md beside this engine before any build')
+
 phase('Preflight')
 let lock = null
 if (APPLY) {
+  /* ⚠ COMPUTED HERE, IN CODE — NOT DELEGATED TO AN AGENT.
+     The key must identify the TREE THIS RUN EDITS. The sandbox has no filesystem, so a
+     git root cannot be resolved — and does not need to be: the deepest common directory
+     of the declared item paths is deterministic, derivable from strings alone, and
+     always inside the tree being edited.
+     The previous version asked the lock agent to work this out from a paragraph. One run
+     did it correctly and produced "Users-konyo-kai-achilles"; the very next run, same
+     engine and same instruction, keyed on the shell cwd and locked an entire home
+     directory for eight hours over an edit to one repo. A safeguard that depends on an
+     agent following prose is a suggestion. */
+  const _lp = ((A && Array.isArray(A.items)) ? A.items : []).map(x => x && x.file).filter(Boolean)
+  const _base = _lp.length
+    ? _lp.reduce((a, b) => { const X = a.split('/'), Y = b.split('/'), o = []
+        for (let k = 0; k < Math.min(X.length, Y.length) && X[k] === Y[k]; k++) o.push(X[k])
+        return o.join('/') }).replace(/\/[^/]*$/, '')
+    : ((A && A.lockKey) || '')
+  const LOCK_SLUG = (_base.replace(/^\/+/, '').replace(/\//g, '-')) || 'no-items'
+  log(`🔒 lock key (computed in code, not delegated): ${LOCK_SLUG}`)
   const taskSnip = TASK.slice(0, 120).replace(/\s+/g, ' ')
   lock = await spawn(
     `WORKSPACE LOCK — acquire. Pure mechanics, no judgement. Use Bash only.\n\n` +
@@ -1129,7 +1149,7 @@ if (APPLY) {
     `2. TREE = \`git rev-parse --show-toplevel 2>/dev/null\` || \`pwd -P\`. REFUSE if TREE is "$HOME" ` +
     `or "/" or empty — never lock the home directory (a Users-konyo.json lock blocks every repo under ` +
     `home). If refuse: return acquired:false, key:"refused-home", cwd:TREE.\n` +
-    `3. KEY = TREE. slugify: replace every "/" with "-" and strip a leading "-". ` +
+      `3. KEY: use EXACTLY this string, computed for you in code — do not derive your own, do not use pwd, do not "improve" it: ${LOCK_SLUG}. If it is empty or resolves to your home directory, REFUSE per step 2 rather than substituting one. ⚠ THE DERIVE-IT-YOURSELF WORDING WAS OBEYED ONCE AND IGNORED THE NEXT RUN: one run walked up to the git root correctly, the next keyed on the shell cwd and locked a whole home directory for eight hours over an edit to one repo. Step 2 is the backstop; this literal is the fix. ` +
     `LOCKFILE="$LOCKDIR/<slug>.json". Only this exact file covers this repo — a parent-path lock ` +
     `(e.g. $HOME) does NOT block a subdirectory repo.\n` +
     `4. PURGE FIRST. NOW=$(date -u +%s) — INTEGER EPOCH SECONDS. For every *.json in "$LOCKDIR", read ` +
@@ -2336,7 +2356,53 @@ if (APPLY) {
 }
 
 // v22 — both gates are now in flight; collect LAW19 here.
-const reach = await reachP
+let reach = await reachP
+
+/* ⚠ v28 — THE CONCURRENCY PREMISE WAS FALSE, AND IT SHIPPED A BLOCKER ABOUT A FILE THAT
+   NO LONGER EXISTED. The v22 comment above says reachability and the render gate "share
+   NOTHING: LAW19 reads the diff, the render gate drives the UI." They share the WORKING
+   TREE. The render gate is a LOOP with a FIXER that writes to the same files LAW19 is
+   reading, so LAW19 graded page.py at +21 lines while the fixer rewrote it to +57.
+
+   Observed on a real repo: LAW19 reported a dead seam with an executed headless-Chrome
+   probe as proof, and the third eye caught that the finding described a build that had
+   been replaced mid-run — "carrying LAW19 FAILED forward onto this tree grades a corpse,
+   not the shipped code." The blocker was real about a file, and the file was gone.
+
+   So: if the render loop APPLIED A FIX, LAW19's verdict is about the pre-fix tree and is
+   discarded. It re-runs against what actually shipped. That costs one agent, and only on
+   the runs where a fix landed — which are exactly the runs where the first answer cannot
+   be trusted. Concurrency is still worth it; pretending the two never collide is not. */
+if (renderLoop.fixes.length && reach) {
+  log(`↻ REACHABILITY RE-RUN — the render loop applied ${renderLoop.fixes.length} fix(es) ` +
+      `after LAW19 read the tree, so its verdict describes a file that no longer exists.`)
+  const reachAgain = await spawn(
+    `REACHABILITY GATE — RE-RUN. An earlier reachability pass ran CONCURRENTLY with the ` +
+    `render gate, and the render gate's fixer then REWROTE the files. That earlier verdict ` +
+    `is about a superseded tree and has been discarded — do not read it, do not defend it, ` +
+    `and do not assume its findings still hold.\n\n` +
+    `Task: ${TASK}\n\n` +
+    `Re-answer the ONLY question that matters: is everything added actually REACHED at ` +
+    `runtime, ON THE TREE AS IT STANDS NOW? Re-read the files from disk. If the earlier ` +
+    `finding has been fixed, say so plainly rather than restating it.\n\n` +
+    `Return {"checked":<int>,"dead":[<string>...]} — dead is EMPTY when every new seam is ` +
+    `reached. An empty list is the correct answer when the code is correct; inventing a ` +
+    `finding to look useful is the failure this re-run exists to undo.`,
+    { model: 'opus', effort: 'high', label: 'reachability:rerun', phase: 'Reachability',
+      schema: { type: 'object', additionalProperties: false,
+        required: ['checked', 'dead'],
+        properties: { checked: { type: 'integer' },
+                      dead: { type: 'array', items: { type: 'string' } } } } })
+  if (reachAgain) {
+    log(`↻ LAW19 re-run: ${(reachAgain.dead || []).length} dead seam(s) on the SHIPPED tree ` +
+        `(was ${(reach.dead || []).length} on the pre-fix tree)`)
+    reach = reachAgain
+  } else {
+    log(`⚠ LAW19 re-run produced nothing — keeping the stale verdict and saying so, because ` +
+        `a gate that silently drops its own finding is worse than one that reports a stale one.`)
+  }
+}
+
 // v13 wired blocker() only into the DID-NOT-RUN branches; a gate that RAN AND FAILED printed
 // "SHIP BLOCKER" and then blocked nothing, so verdict computed 'OK' over a refused ship.
 if (reach && (reach.dead || []).length) {
@@ -2571,9 +2637,29 @@ let shipped = { pushed: false, why: 'not attempted' }
 if (!APPLY) {
   shipped = { pushed: false, why: 'dry-run — nothing was written, so nothing can ship' }
 } else if (!SHIPPABLE) {
-  shipped = { pushed: false, why: `NOT SHIPPABLE — ${BLOCKERS.length} blocker(s)` +
-    `${CEILING_HIT ? ', agent ceiling hit' : ''}${trimmedFromPlan.length ? ', work trimmed from the plan' : ''}` +
-    `${failed.length ? `, ${failed.length} item(s) failed their gate` : ''}. The verdict said no, so the push did not happen.` }
+  /* ⚠ ENUMERATE EVERY CONDITION IN THE PREDICATE, NOT FOUR OF THE EIGHT.
+     This listed blockers, ceiling, trimmed and failed — and SHIPPABLE also depends on
+     SPAWN_ERRORS, THIN_PANELS, the completeness clause and passed>0. A run with verdict
+     "OK", zero blockers and 3/3 items passed reported `NOT SHIPPABLE — 0 blocker(s). The
+     verdict said no` and named nothing, which is precisely the silent refusal the comment
+     above this block forbids. A reason list built from a different set of facts than the
+     decision is the two-formulas bug in prose form. */
+  const _reasons = [
+    BLOCKERS.length          && `${BLOCKERS.length} blocker(s)`,
+    CEILING_HIT              && 'agent ceiling hit',
+    trimmedFromPlan.length   && `${trimmedFromPlan.length} item(s) trimmed from the plan`,
+    failed.length            && `${failed.length} item(s) failed their gate`,
+    SPAWN_ERRORS.length      && `${SPAWN_ERRORS.length} agent(s) died`,
+    THIN_PANELS.length       && `${THIN_PANELS.length} thin skeptic panel(s) — fewer eyes than the seat count claims`,
+    !passed.length           && 'no item passed a gate (vacuous green is forbidden)',
+    (MAXQ && !LEANQ && !(dry >= DRYROUNDS && !unbuiltGaps.length))
+                             && 'the completeness loop did not go dry',
+    !APPLY                   && 'dry-run: nothing was written',
+  ].filter(Boolean)
+  shipped = { pushed: false, why: `NOT SHIPPABLE — ${_reasons.join('; ') ||
+    'the predicate is false but no enumerated condition explains it — THIS IS AN ENGINE ' +
+    'BUG: the reason list and the decision disagree, and the decision is binding'}. ` +
+    `The verdict said no, so the push did not happen.` }
   log(`⛔ NOT PUSHED — ${shipped.why}`)
 } else {
   phase('Ship')
