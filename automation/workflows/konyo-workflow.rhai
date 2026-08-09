@@ -1,7 +1,7 @@
 let meta = #{
     name: "konyo-workflow",
-    description: "KONYO WORKFLOW for Grok Build — FULL IMPLEMENTER. ONE body, four qualities (lean|max|standard|tiny). LEAN default: every ship gate (adversarial panel, LAW17/18/19, workspace lock, agent ceiling). max buys multi-architect, completeness, deeper rework. Pass {apply:true} to edit; apply:false dry-run. Third eye = Claude CLI (different family). Args: task, quality, apply, force, items, skeptics, isolate, thirdEye, maxAgents, ignoreLock, push, renderLoop. items[] skips architect. v26 render LOOP; v27/v27.1 SHIPPABLE; v28 PACE+PROXY+PHASE_PLAN+stop reasons; v28.1 early lock; v29 scar FOUNDING vs LEARNED; v30 meter routing (max is not volume); v31 LAW19 parallel first-render hop + images_na fail-closed + rich LAW19 schema.",
-    when_to_use: "ANY multi-step ship on Grok Build. Bare call = lean + dry-run. {apply:true} to write. quality max ONLY for SMALL high-stakes lists (items preferred) — never volume arcs. quality tiny with apply and items for known small edits. quality standard for the cheap ladder. Multi-stamp: N lean/tiny slices. Parity: Claude concurrent LAW19+render + Grok v30 meter + v31 hop.",
+    description: "KONYO WORKFLOW for Grok Build — FULL IMPLEMENTER. ONE body, four qualities (lean|max|standard|tiny). LEAN default: every ship gate (adversarial panel, LAW17/18/19, workspace lock, agent ceiling). max buys multi-architect, completeness, deeper rework. Pass {apply:true} to edit; apply:false dry-run. Third eye = Claude CLI (different family). Args: task, quality, apply, force, items, skeptics, isolate, thirdEye, maxAgents, ignoreLock, push, renderLoop. items[] skips architect. v26 render LOOP; v27/v27.1 SHIPPABLE; v28 PACE+PROXY+PHASE_PLAN+stop reasons; v28.1 early lock; v29 scar FOUNDING vs LEARNED; v30 meter routing (max is not volume); v31 LAW19 parallel first-render hop + images_na fail-closed + rich LAW19 schema; v32 record scars at failure + run-not-inspect.",
+    when_to_use: "ANY multi-step ship on Grok Build. Bare call = lean + dry-run. {apply:true} to write. quality max ONLY for SMALL high-stakes lists (items preferred) — never volume arcs. quality tiny with apply and items for known small edits. quality standard for the cheap ladder. Multi-stamp: N lean/tiny slices. Parity: Claude concurrent LAW19+render + Grok v30 meter + v31 hop + v32 scar-at-failure.",
     phases: [
         #{ title: "Preflight", detail: "workspace lock when apply:true — shared lock dir with Claude so fleets exclude each other" },
         #{ title: "Triage", detail: "right-size before spending; SKIPPED at tiny" },
@@ -386,16 +386,23 @@ craft_rules += "\nWORK BRISKLY — this run is budgeted: EVERY tool call re-read
 // the same mistake: measuring a stand-in for the fact.
 craft_rules += "\nVERIFY THE THING, NOT A PROXY. Named traps: an IMAGE is only correct if you OPENED it and said what it depicts (naturalWidth/path/hash/size are NOT content); REMOTE git needs fetch or ls-remote (rev-parse origin is a CACHED ref); a test proves nothing until seen FAIL on a deliberate break; NULL/absent is never a pass; 'the file changed' is not 'the running system changed' when anything caches. If you could not verify the thing itself, say not established.\n";
 
+// v32 — RUN, DON'T INSPECT (2026-08-08). The session pattern: nearly everything
+// worth keeping came from executing something, not reading it. Inspection is a
+// proxy; green reports from unexecuted paths are fiction.
+craft_rules += "\nRUN THE THING — READING IS NOT PROOF (v32). Nearly every real lesson came from executing, not inspecting. Named traps from one session: a workflow that had never once been run died in 17ms with every gate green; a reachability gate graded a file the render fixer had already rewritten; a pre-push hook went green on eleven fictional version stamps. Grepping source, reading a gate report, or trusting a green status from a path that never executed is not evidence. RUN it (or the deliberate-break / mutation / live path that would catch the lie). If you only inspected, say not established.\n";
+
 // v29 — SCAR LAW (desktop skill + Prime Continual Harness, 2026-08-07).
 // Founding rules are human-authored and never overwritten by a learned lesson.
 // Learned scars need EVIDENCE from THIS run, not a sensible-sounding regret.
 // Wrong lessons must be undoable — snapshot before append.
-craft_rules += "\nSCAR LAW (FOUNDING vs LEARNED):\n";
+// v32 — RECORD AT THE FAILURE (2026-08-08). Seal-only scars die on long sessions.
+craft_rules += "\nSCAR LAW (FOUNDING vs LEARNED + RECORD AT FAILURE):\n";
 craft_rules += "· FOUNDING RULES (hand-written at top of SCARS.md / project scar file) are immutable by this run. Never overwrite, move, or 'improve' them from a bug.\n";
 craft_rules += "· LEARNED SCARS are APPENDED only, below the learned marker. Lower authority on purpose.\n";
 craft_rules += "· Every learned scar needs EVIDENCE: what in THIS run proved the rule (not why it sounds sensible). Without it a workflow fills with untraceable refusals.\n";
 craft_rules += "· Before pasting a new scar: snapshot (SCARS.prev.md or tools/scar.py --rollback path). A wrong lesson is worse than no lesson because you will follow it.\n";
 craft_rules += "· Prefer project tools (e.g. tools/scar.py) over hand-editing machine-parsed blocks when they exist.\n";
+craft_rules += "· RECORD AT THE FAILURE, not only at the seal (v32). A long autonomous session never reaches Step 6; scars earned mid-run are lost if you wait. When a failure costs something, write the six-line scar THEN (print + offer SCARS.md + say durability unverified). One scar per DISTINCT failure — not one per session. Four real failures in one session is four scars. Most runs produce none; 'I noticed a thing' is not a scar. Same failure twice = keep the most expensive framing only.\n";
 
 let fat_law = "FAT VERSION LAW (LAW17): ONE version packages real work — (A) >=3 user-visible outcomes in one theme, OR (B) one structural bug with root cause + verify + prevention. Toast/label/CSS one-liner alone does NOT clear. Fold outcomes into items; do not inflate fleet.\n";
 // v30 — VERSION ARC DISCIPLINE (measured 2026-08-07 on kai-achilles + workflow-7).
@@ -441,7 +448,7 @@ log("KONYO WORKFLOW · Grok Build IMPLEMENTER · quality=" + quality + (if quali
 log("mode=" + mode_label + " · thirdEye=" + third_eye + " · isolate=" + isolate_mode.to_string() + " · push=" + do_push.to_string());
 log("maxRounds=" + max_rounds.to_string() + " · maxAgents=" + max_agents.to_string() + " · maxItems=" + max_items_cap.to_string() + " · skepticFloor=" + skeptic_floor.to_string());
 log("RENDERLOOP=" + render_loop_n.to_string() + " (v26 loop · v28 stop: PASSED|CEILING|STALLED) · SHIPPABLE=apply+passed>0+no spawn_errors (v27.1)");
-log("PACE+PROXY · FAT BAR · LAW18‖LAW19 concurrent · shared lock · v30 meter · v31 concurrent hop");
+log("PACE+PROXY · FAT BAR · LAW18‖LAW19 concurrent · shared lock · v30 meter · v31 concurrent hop · v32 scar@failure + run-not-inspect");
 log("════════════════════════════════════════════════════════");
 log("TASK: " + task);
 
@@ -2056,6 +2063,7 @@ if !tiny_q {
     syn_p += "passed=" + passed_n.to_string() + " failed=" + failed_n.to_string() + " blockers=" + blockers.len().to_string() + "\n";
     syn_p += "version_label=" + version_label + "\nTASK: " + task + "\n";
     syn_p += "If this run earned a LEARNED scar, say so and require EVIDENCE from the run; never claim founding rules changed.\n";
+    syn_p += "SCARS (v32): scars should already have been written AT each costly failure mid-run (one per distinct failure), not invented only here. At seal ask 'did I record the ones I hit?' — print any remaining scar blocks ready to paste; if none, say no scar. Never claim a scar was saved.\n";
     syn_p += "If render_loop stop_reason is STALLED vs CEILING, name which in the headline (opposite responses).\n";
     syn_p += "Return version_label, headline (one line), shipped[], follow_ups[].";
     let syn = agent(syn_p, #{
@@ -2149,7 +2157,7 @@ md += "- requested: " + third_eye + "\n";
 md += "- seats: " + third_eye_seats.len().to_string() + "\n";
 md += "\n## Completeness\n" + json_encode(completeness) + "\n";
 md += "\n## Ship\n" + json_encode(shipped) + "\n";
-md += "\n_Konyo Workflow · Grok implementer · parity Claude v27.1 concurrent LAW19‖render · v26–v31 · v30 meter · audit-only body retired 2026-08-07_\n";
+md += "\n_Konyo Workflow · Grok implementer · parity Claude v27.1 concurrent LAW19‖render · v26–v32 · v30 meter · v32 scar@failure + run-not-inspect · audit-only body retired 2026-08-07_\n";
 
 let report_path = write_scratch_file("konyo-report.md", md);
 
@@ -2198,6 +2206,9 @@ complete(#{
         v29_scar_founding_vs_learned: true,
         v29_scar_evidence_required: true,
         v29_scar_undo_snapshot: true,
+        v32_scar_record_at_failure: true,
+        v32_scar_one_per_distinct_failure: true,
+        v32_run_not_inspect: true,
         v30_meter_routing: true,
         v30_item_cap_by_quality: true,
         v30_max_not_for_volume_arcs: true,
