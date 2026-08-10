@@ -4,8 +4,8 @@
 
 | Slash | File | Role |
 |-------|------|------|
-| **`/konyo-workflow`** | `../automation/workflows/konyo-workflow.rhai` | **Full implementer** · lean default · `{apply:true}` writes · third-eye = Claude CLI |
-| **`/konyo-workflow-max`** | `konyo-workflow-max.rhai` | **DEPRECATED notice only** — MAX is `{quality:"max"}` on `/konyo-workflow` |
+| **`/Konyo-Grok`** | `../automation/workflows/konyo-workflow.rhai` | **Full implementer** · lean default · `{apply:true}` writes · third-eye = Claude CLI |
+| **`/konyo-workflow-max`** | `konyo-workflow-max.rhai` | **DEPRECATED notice only** — MAX is `{quality:"max"}` on `/Konyo-Grok` |
 
 > **2026-08-07:** The Grok shipper was **audit-only** (read-only laws panel, no builders).
 > That body is retired to `konyo-workflow.rhai.bak-audit-only-2026-08-07`.
@@ -14,7 +14,9 @@
 
 ## When to use (and when NOT to)
 
-**Use `/konyo-workflow` only when** you want a multi-round sealed ship, a night/fleet run, or you explicitly say so.
+**Primary slash: `/Konyo-Grok`** (short). `/Konyo-Grok` redirects to it.
+
+**Use `/Konyo-Grok` only when** you want a multi-round sealed ship, a night/fleet run, or you explicitly say so.
 
 **Do NOT use it as the default for** one-file fixes, Q&A, audits, “check the console”, or routine edits — those stay in the main chat with the few specialist skills that match the surface.
 
@@ -22,31 +24,34 @@
 
 ## How to invoke (Grok Build)
 
+> **Short name:** `/Konyo-Grok` · old `/konyo-workflow` returns a redirect stub.
+
+
 ```text
 # Lean default, dry-run (propose only — safe) — only when you want the fleet
-/konyo-workflow {"task":"…"}
+/Konyo-Grok {"task":"…"}
 
 # Actually edit files (default quality = lean)
-/konyo-workflow {"task":"…","apply":true}
+/Konyo-Grok {"task":"…","apply":true}
 
 # Max ONLY when being wrong is expensive AND the list is SMALL
-/konyo-workflow {"task":"…","apply":true,"quality":"max","items":[
+/Konyo-Grok {"task":"…","apply":true,"quality":"max","items":[
   {"file":"/abs/path","instruction":"…","risk":"high","anchor":"~line N"}
 ]}
 
 # Tiny: known edit set, ~15-minute hop budget, every ship gate kept (max 4 items)
-/konyo-workflow {"task":"…","apply":true,"quality":"tiny","items":[
+/Konyo-Grok {"task":"…","apply":true,"quality":"tiny","items":[
   {"file":"/abs/path","instruction":"…","risk":"low","anchor":"~line N, symbol"}
 ]}
 
 # Multi-version product arcs: N lean/tiny slices — NOT one max fleet of 30 stamps
-/konyo-workflow {"task":"Arc slice 1 of 4: …","apply":true,"quality":"lean"}
+/Konyo-Grok {"task":"Arc slice 1 of 4: …","apply":true,"quality":"lean"}
 
 # Standard cheap ladder
-/konyo-workflow {"task":"…","apply":true,"quality":"standard"}
+/Konyo-Grok {"task":"…","apply":true,"quality":"standard"}
 
 # Push only after shippable (builders never push)
-/konyo-workflow {"task":"…","apply":true,"push":true}
+/Konyo-Grok {"task":"…","apply":true,"push":true}
 ```
 
 ### Args (same names as Claude where possible)
