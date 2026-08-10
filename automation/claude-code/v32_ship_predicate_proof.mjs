@@ -100,5 +100,27 @@ ok('the engine actually emits the tree-derived branch',
    /__FROM_TREE__/.test(SRC) && /drop the leading "\/" and replace every remaining "\/" with "-"/.test(SRC))
 ok('and it still refuses $HOME (the backstop survives)', /never lock the home directory/.test(SRC))
 
+
+// ── v32 §(a) LAW19 re-run · §(b) the render fixer's commit ────────────────────────────────────────
+console.log('\nv32 §(a) — the LAW19 re-run must not erase its own tests-not-proven blocker')
+const rerun = SRC.slice(SRC.indexOf('reachability:rerun') - 2000, SRC.indexOf('reachability:rerun') + 2500)
+ok('the re-run schema now REQUIRES tests_added + tests_proven_run',
+   /required: \['checked', 'dead', 'tests_added', 'tests_proven_run'\]/.test(rerun))
+ok('the re-run PROMPT asks for both fields', /tests_proven_run.*SHIP BLOCKER|ANSWER THE TWO TEST FIELDS/s.test(rerun))
+ok('the verdict is MERGED, not replaced', /reach = \{ \.\.\.reach, \.\.\.reachAgain \}/.test(SRC))
+ok('the whole-object replace is GONE  <- THE BUG', !/\n\s*reach = reachAgain\s*\n/.test(SRC))
+ok('the tests-not-proven blocker still exists downstream',
+   /reach\.tests_added && !reach\.tests_proven_run/.test(SRC))
+
+console.log('\nv32 §(b) — the render fixer must leave a CLEAN tree for the ship gate')
+const fixer = SRC.slice(SRC.indexOf('FIX THE CODE, NEVER THE ASSERTION') - 500, SRC.indexOf('FIX THE CODE, NEVER THE ASSERTION') + 3500)
+ok('the fixer is told to COMMIT what it changed', /COMMIT what you changed/.test(fixer))
+ok('it is told the ship gate refuses a dirty tree', /ship gate REFUSES a dirty tree/.test(fixer))
+// ⚠ these live inside TEMPLATE LITERALS, so the SOURCE carries \\` not ` — match the escaped form
+ok('it is still forbidden to push or bump', /NEVER \\`git push\\`, and do not bump a version/.test(fixer))
+ok('it is told not to git add -A over others work', /never \\`git add -A\\`/.test(fixer))
+ok('the ship agent still refuses a dirty tree (the guard must SURVIVE)',
+   /\\`git status --porcelain\\` is EMPTY/.test(SRC) && /Do NOT commit it yourself/.test(SRC))
+
 console.log(`\n${fail ? '❌' : '✅'} ${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)

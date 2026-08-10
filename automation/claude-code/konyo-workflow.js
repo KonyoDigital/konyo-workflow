@@ -2366,6 +2366,23 @@ if (APPLY) {
     `that visibly broke. Measure with the project's own tooling; do not guess from the screenshot.\n` +
     `· STAY IN SCOPE. Fix these failures and nothing else — no drive-by refactor, no reformatting.\n` +
     `· ⛔ NEVER \`git push\`, and do not bump a version — the ship gate downstream owns both.\n` +
+    /* v32 §(b) — COMMIT WHAT YOU FIX, OR THE SHIP GATE CANNOT RUN. This rule used to say only
+       "never push, do not bump" and said NOTHING about committing. But the ship agent ABORTS when
+       `git status --porcelain` is non-empty and is explicitly forbidden from committing on the
+       fixer's behalf ("Do NOT commit it yourself — report it and stop"). So every run whose render
+       loop edited a file reached the ship gate with a dirty tree and refused: the render loop's
+       SUCCESS path was the one path that could never ship.
+       ⚠ It did not fail every time, and that is the worse half — agents sometimes committed of
+       their own accord (v1691 landed four commits and ended with a clean tree), so the contract
+       held BY LUCK. A safeguard that depends on an agent choosing well is a suggestion, which is
+       the same lesson the lock key already taught this file.
+       Committing here is also the honest ordering: the NEXT render pass then validates the
+       COMMITTED state, so what the final pass grades is exactly what would ship. */
+    `· ✅ COMMIT what you changed, in this repo, with a one-line message naming the failure you ` +
+    `fixed. Do NOT leave it in the working tree: the ship gate REFUSES a dirty tree and is ` +
+    `forbidden from committing for you, so an uncommitted fix silently blocks the whole run. ` +
+    `Commit only the files you actually edited — never \`git add -A\` over someone else's work. ` +
+    `If you changed nothing, commit nothing.\n` +
     `· If you cannot fix one, that is a fine answer: list it in unfixable[] with the reason. An ` +
     `honest miss costs a blocker; a fake fix costs the next render pass AND the trust in it.\n` +
     `Report exactly what you changed — the next render pass is told your answer and re-checks it.`,
@@ -2515,18 +2532,38 @@ if (renderLoop.fixes.length && reach) {
     `Re-answer the ONLY question that matters: is everything added actually REACHED at ` +
     `runtime, ON THE TREE AS IT STANDS NOW? Re-read the files from disk. If the earlier ` +
     `finding has been fixed, say so plainly rather than restating it.\n\n` +
-    `Return {"checked":<int>,"dead":[<string>...]} — dead is EMPTY when every new seam is ` +
-    `reached. An empty list is the correct answer when the code is correct; inventing a ` +
-    `finding to look useful is the failure this re-run exists to undo.`,
+    `Return {"checked":<int>,"dead":[<string>...],"tests_added":<bool>,"tests_proven_run":<bool>} ` +
+    `— dead is EMPTY when every new seam is reached. An empty list is the correct answer when the ` +
+    `code is correct; inventing a finding to look useful is the failure this re-run exists to undo.\n` +
+    `⚠ ANSWER THE TWO TEST FIELDS TOO, on the tree AS IT STANDS NOW: tests_added is whether this ` +
+    `run added any test, and tests_proven_run is whether those tests were PROVEN to execute. The ` +
+    `render fixer may have touched the tests as well as the source, so these are re-asked rather ` +
+    `than carried over. If tests were added and you cannot prove they ran, say tests_proven_run:false ` +
+    `— that is a SHIP BLOCKER and it is supposed to be.`,
     { model: 'opus', effort: 'high', label: 'reachability:rerun', phase: 'Reachability',
+      /* v32 §(a) — THE RE-RUN USED TO ERASE ITS OWN BLOCKER. This schema was
+         `additionalProperties:false` with ONLY {checked, dead}, and the assignment below was a
+         whole-object REPLACE. So `reach.tests_added` and `reach.tests_proven_run` became
+         `undefined` the moment a re-run happened, and the "tests were added and NOT proven to run"
+         blocker further down became structurally unreachable. The trigger is merely
+         `renderLoop.fixes.length` — ONE render fix landing was enough to silently delete a gate.
+         A narrowed schema that quietly drops a field is the same defect as a null reading as a
+         pass, which v13 already had to fix once. */
       schema: { type: 'object', additionalProperties: false,
-        required: ['checked', 'dead'],
+        required: ['checked', 'dead', 'tests_added', 'tests_proven_run'],
         properties: { checked: { type: 'integer' },
-                      dead: { type: 'array', items: { type: 'string' } } } } })
+                      dead: { type: 'array', items: { type: 'string' } },
+                      tests_added: { type: 'boolean' },
+                      tests_proven_run: { type: 'boolean',
+                        description: 'false if tests were added and not proven to run' } } } })
   if (reachAgain) {
     log(`↻ LAW19 re-run: ${(reachAgain.dead || []).length} dead seam(s) on the SHIPPED tree ` +
         `(was ${(reach.dead || []).length} on the pre-fix tree)`)
-    reach = reachAgain
+    /* MERGE, NEVER REPLACE — the second half of the same fix. Even with the schema widened above,
+       a replace makes every field the re-run does not carry vanish. Spreading the old verdict
+       first means a future field added to the FIRST pass and forgotten here degrades to "stale
+       value kept" instead of "gate silently deleted". Stale is visible; undefined is not. */
+    reach = { ...reach, ...reachAgain }
   } else {
     log(`⚠ LAW19 re-run produced nothing — keeping the stale verdict and saying so, because ` +
         `a gate that silently drops its own finding is worse than one that reports a stale one.`)
