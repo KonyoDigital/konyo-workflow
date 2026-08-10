@@ -1240,13 +1240,35 @@ if (APPLY) {
      engine and same instruction, keyed on the shell cwd and locked an entire home
      directory for eight hours over an edit to one repo. A safeguard that depends on an
      agent following prose is a suggestion. */
+  /* ══ v32 §1.2 — THE KEY WAS A CONSTANT ON EVERY DEFAULT RUN ═════════════════════════════════════
+     Two defects lived in these four lines, and the first one bit us on 2026-08-10.
+
+     (a) THE KEY CAME ONLY FROM `A.items`. Every lean/max run uses an ARCHITECT and passes no items,
+         so `_base` fell through to '' and the slug became the literal 'no-items'. Consequences, both
+         real: two runs on UNRELATED repos collided on one global lock file; and — far worse — a
+         default run on /repo did NOT block an items run on /repo, because they took different keys.
+         That is precisely the lost-update the lock exists to prevent. Observed: a run editing
+         ~/d2r_bible_tests held `no-items.json` whose recorded cwd was a completely different
+         directory, and the engine's own tree_check reported `mismatch: true` while doing it.
+
+     (b) THE COMMON-PREFIX REDUCE THEN STRIPPED ONE SEGMENT TOO MANY. It folded whole PATHS and only
+         afterwards removed a trailing segment, so ONE item `tv/x.py` gave 'tv' while TWO items
+         `tv/a.py` + `tv/b.py` gave '' — the same directory, two different locks, neither blocking
+         the other. Taking the dirname FIRST and folding directories makes both cases 'tv'.
+
+     THE EMPTY CASE now keys on the TREE the lock agent already resolves (git toplevel, with a
+     refuse-$HOME backstop). That is NOT the "derive it yourself" delegation the comment below warns
+     about — the agent is told to apply one exact mechanical transform to a value it has already
+     computed deterministically, with no directory left to its judgement. */
   const _lp = ((A && Array.isArray(A.items)) ? A.items : []).map(x => x && x.file).filter(Boolean)
-  const _base = _lp.length
-    ? _lp.reduce((a, b) => { const X = a.split('/'), Y = b.split('/'), o = []
+  const _dirs = _lp.map(f => String(f).replace(/\/[^/]*$/, ''))     // dirname FIRST — see (b)
+  const _base = _dirs.length
+    ? _dirs.reduce((a, b) => { const X = a.split('/'), Y = b.split('/'), o = []
         for (let k = 0; k < Math.min(X.length, Y.length) && X[k] === Y[k]; k++) o.push(X[k])
-        return o.join('/') }).replace(/\/[^/]*$/, '')
+        return o.join('/') })
     : ((A && A.lockKey) || '')
-  const LOCK_SLUG = (_base.replace(/^\/+/, '').replace(/\//g, '-')) || 'no-items'
+  const _slug = _base.replace(/^\/+/, '').replace(/\//g, '-')
+  const LOCK_SLUG = _slug || '__FROM_TREE__'
   log(`🔒 lock key (computed in code, not delegated): ${LOCK_SLUG}`)
   const taskSnip = TASK.slice(0, 120).replace(/\s+/g, ' ')
   lock = await spawn(
@@ -1255,7 +1277,9 @@ if (APPLY) {
     `2. TREE = \`git rev-parse --show-toplevel 2>/dev/null\` || \`pwd -P\`. REFUSE if TREE is "$HOME" ` +
     `or "/" or empty — never lock the home directory (a Users-konyo.json lock blocks every repo under ` +
     `home). If refuse: return acquired:false, key:"refused-home", cwd:TREE.\n` +
-      `3. KEY: use EXACTLY this string, computed for you in code — do not derive your own, do not use pwd, do not "improve" it: ${LOCK_SLUG}. If it is empty or resolves to your home directory, REFUSE per step 2 rather than substituting one. ⚠ THE DERIVE-IT-YOURSELF WORDING WAS OBEYED ONCE AND IGNORED THE NEXT RUN: one run walked up to the git root correctly, the next keyed on the shell cwd and locked a whole home directory for eight hours over an edit to one repo. Step 2 is the backstop; this literal is the fix. ` +
+      `3. KEY: ${LOCK_SLUG === '__FROM_TREE__'
+        ? `this run passed no item paths, so derive the key from TREE (step 2) by ONE mechanical transform and nothing else: drop the leading "/" and replace every remaining "/" with "-". So /Users/konyo/d2r_bible_tests becomes Users-konyo-d2r_bible_tests. Do NOT shorten it, do NOT use basename, do NOT use pwd instead of TREE, do NOT "improve" it — the whole point is that two runs on the same tree compute the SAME string. TREE already refused $HOME in step 2, so this cannot produce a home-wide lock.`
+        : `use EXACTLY this string, computed for you in code — do not derive your own, do not use pwd, do not "improve" it: ${LOCK_SLUG}`}. If it is empty or resolves to your home directory, REFUSE per step 2 rather than substituting one. ⚠ THE DERIVE-IT-YOURSELF WORDING WAS OBEYED ONCE AND IGNORED THE NEXT RUN: one run walked up to the git root correctly, the next keyed on the shell cwd and locked a whole home directory for eight hours over an edit to one repo. Step 2 is the backstop; this literal is the fix. ` +
     `LOCKFILE="$LOCKDIR/<slug>.json". Only this exact file covers this repo — a parent-path lock ` +
     `(e.g. $HOME) does NOT block a subdirectory repo.\n` +
     `4. PURGE FIRST. NOW=$(date -u +%s) — INTEGER EPOCH SECONDS. For every *.json in "$LOCKDIR", read ` +
