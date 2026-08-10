@@ -402,6 +402,13 @@ craft_rules += "· Before pasting a new scar: snapshot (SCARS.prev.md or tools/s
 craft_rules += "· Prefer project tools (e.g. tools/scar.py) over hand-editing machine-parsed blocks when they exist.\n";
 craft_rules += "· RECORD AT THE FAILURE, not only at the seal (v32). A long autonomous session never reaches Step 6; scars earned mid-run are lost if you wait. When a failure costs something, write the six-line scar THEN (print + offer SCARS.md + say durability unverified). One scar per DISTINCT failure — not one per session. Four real failures in one session is four scars. Most runs produce none; 'I noticed a thing' is not a scar. Same failure twice = keep the most expensive framing only.\n";
 
+// SURGICAL SKILL ROUTING (2026-08-11 — not every skill every run)
+// The workflow is a harness; skills are scalpels. Loading everything is thrash.
+craft_rules += "\nSKILL ROUTING — SURGICAL, NOT DEFAULT-ALL:\n";
+craft_rules += "· Load ONLY skills that match THIS task's surface. Examples: kai-console-design / unknown-stays-unknown when painting console figures; process-port-discipline before any kill/start; chrome-cdp-mac only for browser/CDP work; copy-drift before editing anything under skills/ or workflows/; carving-skill ONLY when three+ learned scars share a named territory OR the run's carve_candidates is non-empty — never as a default open every ship.\n";
+craft_rules += "· Do NOT open ship-skill + carving-skill + taste + redesign + every host skill 'just in case'. That crowds the brief and re-pays for lessons that are not relevant.\n";
+craft_rules += "· Macro workflow (this script) always owns gates (adversarial, LAW17/18/19, lock, ceiling). Specialist skills answer specialist questions. If the task is a one-file honesty fix, the workflow gates + one domain skill beat a full skill stack.\n";
+
 // ══ v33 — CAPTURE PER ROUND, CARVE PER ARC (Claude JS v31, 2026-08-11) ════════
 // Sibling items fail the same way; re-deriving one lesson twice is the defect.
 // CAPTURE is automatic per rework round. CARVE candidates are PROPOSED at run
@@ -2169,6 +2176,9 @@ if apply_mode && do_push {
 // ═══════════════════════════════════════════════════════════════════════════
 // SYNTHESIZE + lock release
 // ═══════════════════════════════════════════════════════════════════════════
+// v33 — compute carve candidates BEFORE synthesize so the seal prompt can be
+// surgical (open carving-skill only when non-empty).
+let carve_out = carve_candidates();
 phase("Synthesize");
 let final = #{
     version_label: version_label,
@@ -2183,8 +2193,17 @@ if !tiny_q {
     syn_p += "version_label=" + version_label + "\nTASK: " + task + "\n";
     syn_p += "If this run earned a LEARNED scar, say so and require EVIDENCE from the run; never claim founding rules changed.\n";
     syn_p += "SCARS (v32): scars should already have been written AT each costly failure mid-run (one per distinct failure), not invented only here. At seal ask 'did I record the ones I hit?' — print any remaining scar blocks ready to paste; if none, say no scar. Never claim a scar was saved.\n";
+    syn_p += "CARVING (surgical): invoke carving-skill ONLY if carve_candidates is non-empty (floor 3 scars in one territory) OR SCARS.md already has 3+ learned entries in one named territory. If neither, say 'no carve this run' — do not run carving-skill by default.\n";
+    syn_p += "SKILL ROUTING: list which specialist skills this run actually used and why; do not claim a full skill stack was loaded.\n";
     syn_p += "If render_loop stop_reason is STALLED vs CEILING, name which in the headline (opposite responses).\n";
     syn_p += "Return version_label, headline (one line), shipped[], follow_ups[].";
+    syn_p += "\ncarve_candidates_count=" + carve_out.len().to_string() + "\n";
+    if carve_out.len() > 0 {
+        syn_p += "carve_candidates_json=" + json_encode(carve_out) + "\n";
+        syn_p += "ACTION: recommend carving-skill for each territory above (propose only — do not auto-write skills mid-fleet unless the human asked).\n";
+    } else {
+        syn_p += "carve_candidates empty — do NOT open carving-skill this seal.\n";
+    }
     let syn = agent(syn_p, #{
         label: "synthesize",
         phase: "Synthesize",
@@ -2276,8 +2295,7 @@ md += "- requested: " + third_eye + "\n";
 md += "- seats: " + third_eye_seats.len().to_string() + "\n";
 md += "\n## Completeness\n" + json_encode(completeness) + "\n";
 md += "\n## Ship\n" + json_encode(shipped) + "\n";
-// v33 — run-capture ledger + carve candidates (PROPOSE only)
-let carve_out = carve_candidates();
+// v33 — run-capture ledger + carve candidates (already computed pre-synthesize)
 md += "\n## Run scars (v33 capture-per-round)\n";
 md += "- count: " + run_scars.len().to_string() + "\n";
 md += "- ledger: " + json_encode(run_scars) + "\n";
