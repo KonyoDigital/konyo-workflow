@@ -2,7 +2,11 @@
 import { readFileSync } from 'node:fs'
 const SRC = readFileSync('/Users/konyo/.claude/workflows/konyo-workflow.js','utf8')
 const start = SRC.indexOf('const SCARS = []')
-const end   = SRC.indexOf('function bail(o) {')
+// ⚠ ANCHOR ON A STABLE MARKER. This slice used to end at 'function bail(o) {' — then v32
+// made bail ASYNC and the marker vanished, so indexOf returned -1, the slice ran to the end
+// of the file and the proof died on a syntax error. A guard anchored to a line someone else
+// is free to edit is a guard that breaks silently the day they edit it.
+const end   = SRC.search(/\n(?:async )?function bail\(o\) \{/)
 if (start < 0 || end < 0 || end < start) { console.log('SLICE FAILED'); process.exit(1) }
 const body = SRC.slice(start, end)
 const mk = (minOverride) => {
