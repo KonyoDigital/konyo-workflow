@@ -1,7 +1,7 @@
 let meta = #{
     name: "konyo-workflow",
-    description: "KONYO WORKFLOW for Grok Build — FULL IMPLEMENTER. ONE body, four qualities (lean|max|standard|tiny). LEAN default: every ship gate (adversarial panel, LAW17/18/19, workspace lock, agent ceiling). max buys multi-architect, completeness, deeper rework. Pass {apply:true} to edit; apply:false dry-run. Third eye = Claude CLI (different family). Args: task, quality, apply, force, items, skeptics, isolate, thirdEye, maxAgents, ignoreLock, push, renderLoop. items[] skips architect. v26 render LOOP; v27/v27.1 SHIPPABLE; v28 PACE+PROXY+PHASE_PLAN+stop reasons; v28.1 early lock; v29 scar FOUNDING vs LEARNED; v30 meter routing (max is not volume); v31 LAW19 parallel first-render hop + images_na fail-closed + rich LAW19 schema; v32 record scars at failure + run-not-inspect.",
-    when_to_use: "ANY multi-step ship on Grok Build. Bare call = lean + dry-run. {apply:true} to write. quality max ONLY for SMALL high-stakes lists (items preferred) — never volume arcs. quality tiny with apply and items for known small edits. quality standard for the cheap ladder. Multi-stamp: N lean/tiny slices. Parity: Claude concurrent LAW19+render + Grok v30 meter + v31 hop + v32 scar-at-failure.",
+    description: "KONYO WORKFLOW for Grok Build — FULL IMPLEMENTER. ONE body, four qualities (lean|max|standard|tiny). LEAN default: every ship gate (adversarial panel, LAW17/18/19, workspace lock, agent ceiling). max buys multi-architect, completeness, deeper rework. Pass {apply:true} to edit; apply:false dry-run. Third eye = Claude CLI (different family). Args: task, quality, apply, force, items, skeptics, isolate, thirdEye, maxAgents, ignoreLock, push, renderLoop. items[] skips architect. v26 render LOOP; v27/v27.1 SHIPPABLE; v28 PACE+PROXY+PHASE_PLAN+stop reasons; v28.1 early lock; v29 scar FOUNDING vs LEARNED; v30 meter routing (max is not volume); v31 LAW19 parallel first-render hop + images_na fail-closed + rich LAW19 schema; v32 record scars at failure + run-not-inspect; v33 CAPTURE PER ROUND / CARVE PER ARC (Claude JS v31 parity 2026-08-11) — sibling failures brief rework; arc-end carve candidates PROPOSE only, never suppress a gate.",
+    when_to_use: "ANY multi-step ship on Grok Build. Bare call = lean + dry-run. {apply:true} to write. quality max ONLY for SMALL high-stakes lists (items preferred) — never volume arcs. quality tiny with apply and items for known small edits. quality standard for the cheap ladder. Multi-stamp: N lean/tiny slices. Parity: Claude concurrent LAW19+render + Grok v30–v33 (meter, hop, scar@failure, capture-per-round).",
     phases: [
         #{ title: "Preflight", detail: "workspace lock when apply:true — shared lock dir with Claude so fleets exclude each other" },
         #{ title: "Triage", detail: "right-size before spending; SKIPPED at tiny" },
@@ -22,14 +22,12 @@ let meta = #{
 
 // ═══════════════════════════════════════════════════════════════════════════
 // KONYO WORKFLOW — Grok Build implementer
-// Parity with ~/.claude/workflows/konyo-workflow.js v27.1 (lean default, apply,
+// Parity with ~/.claude/workflows/konyo-workflow.js (lean default, apply,
 // army, skeptic gate, LAW17/18/19, items@any quality, no vacuous green ship) +
-// v26 render loop + v28/v28.1/v29 + v30 meter routing + v31 concurrent LAW19‖render.
-// Claude JS ported Grok's v27 empty-plan fix 2026-08-07; Grok v30 returns fleet
-// caps + thrash/tip honesty; v31 ports Claude v22 concurrent reach+render first
-// hop (Rhai parallel = barrier of option maps — first render ‖ LAW19; fix loop
-// remains serial; fat bar stays downstream because it may read render failures).
-// Previous Grok rhai was AUDIT-ONLY (bak-audit-only-2026-08-07).
+// v26 render loop + v28/v28.1/v29 + v30 meter routing + v31 concurrent LAW19‖render
+// + v32 scar@failure / run-not-inspect + v33 CAPTURE PER ROUND / CARVE PER ARC
+// (Claude JS v31, 2026-08-11 — sibling gate failures brief the next rework round;
+// arc-end carve candidates PROPOSE only; scars never suppress a gate).
 //
 // Host differences (named, not papered over):
 //   · Claude thirdEye default = Grok CLI.  Grok thirdEye default = Claude CLI.
@@ -404,6 +402,112 @@ craft_rules += "· Before pasting a new scar: snapshot (SCARS.prev.md or tools/s
 craft_rules += "· Prefer project tools (e.g. tools/scar.py) over hand-editing machine-parsed blocks when they exist.\n";
 craft_rules += "· RECORD AT THE FAILURE, not only at the seal (v32). A long autonomous session never reaches Step 6; scars earned mid-run are lost if you wait. When a failure costs something, write the six-line scar THEN (print + offer SCARS.md + say durability unverified). One scar per DISTINCT failure — not one per session. Four real failures in one session is four scars. Most runs produce none; 'I noticed a thing' is not a scar. Same failure twice = keep the most expensive framing only.\n";
 
+// ══ v33 — CAPTURE PER ROUND, CARVE PER ARC (Claude JS v31, 2026-08-11) ════════
+// Sibling items fail the same way; re-deriving one lesson twice is the defect.
+// CAPTURE is automatic per rework round. CARVE candidates are PROPOSED at run
+// end only (floor 3 — two is coincidence). A scar NARROW attention; it NEVER
+// suppresses a gate or skips a check.
+// Rhai note: no fancy string clustering — territory is the first 80 chars of
+// the reason (same failure text clusters; distinct failures stay distinct).
+let run_scars = [];  // #{round, file, stage, severity, reason}
+
+fn record_run_scar(round, file, stage, severity, reason) {
+    let rsn = trimmed(reason);
+    if rsn == "" { return false; }
+    let why = if rsn.len() > 600 { rsn.sub_string(0, 600) } else { rsn };
+    run_scars.push(#{
+        round: round,
+        file: trimmed(file),
+        stage: if trimmed(stage) == "" { "gate" } else { trimmed(stage) },
+        severity: trimmed(severity),
+        reason: why,
+    });
+    true
+}
+
+fn scar_territory(reason) {
+    let rsn = trimmed(reason);
+    if rsn == "" { return ""; }
+    if rsn.len() > 80 { rsn.sub_string(0, 80) } else { rsn }
+}
+
+// Newest-first brief of OTHER files' failures — cap 6.
+fn scar_brief_for(file) {
+    let f = trimmed(file);
+    let out = "";
+    let count = 0;
+    let i = run_scars.len();
+    while i > 0 && count < 6 {
+        i -= 1;
+        let s = as_map(run_scars[i]);
+        if trimmed(s.file) == f { /* skip own */ } else {
+            if count == 0 {
+                out = "\n\nWHAT HAS ALREADY FAILED IN THIS RUN, ON OTHER FILES — do not spend a round re-deriving any of it, and check whether the same mistake is in YOUR file:\n";
+            }
+            out += "  · [round " + s.round.to_string() + " · " + trimmed(s.file) + "] " + trimmed(s.reason) + "\n";
+            count += 1;
+        }
+    }
+    if count == 0 { return ""; }
+    out += "These are EVIDENCE, not verdicts about your work: they narrow where to look. They never excuse you from any gate, and none of them means a check can be skipped.\n";
+    out
+}
+
+// Floor 3 identical territories. Proposes only — never applies, never skips gates.
+fn carve_candidates() {
+    let out = [];
+    let seen_keys = [];
+    let si = 0;
+    while si < run_scars.len() {
+        let s = as_map(run_scars[si]);
+        let key = scar_territory(s.reason);
+        if key == "" {
+            si += 1;
+        } else {
+            let already = false;
+            let ki = 0;
+            while ki < seen_keys.len() {
+                if seen_keys[ki] == key { already = true; }
+                ki += 1;
+            }
+            if already {
+                si += 1;
+            } else {
+                seen_keys.push(key);
+                let n = 0;
+                let files = [];
+                let evidence = [];
+                let sj = 0;
+                while sj < run_scars.len() {
+                    let t = as_map(run_scars[sj]);
+                    if scar_territory(t.reason) == key {
+                        n += 1;
+                        let ff = trimmed(t.file);
+                        if ff != "" {
+                            let has = false;
+                            let fi = 0;
+                            while fi < files.len() {
+                                if files[fi] == ff { has = true; }
+                                fi += 1;
+                            }
+                            if !has { files.push(ff); }
+                        }
+                        if evidence.len() < 5 {
+                            evidence.push(trimmed(t.reason));
+                        }
+                    }
+                    sj += 1;
+                }
+                if n >= 3 {
+                    out.push(#{ territory: key, n: n, files: files, evidence: evidence });
+                }
+                si += 1;
+            }
+        }
+    }
+    out
+}
+
 let fat_law = "FAT VERSION LAW (LAW17): ONE version packages real work — (A) >=3 user-visible outcomes in one theme, OR (B) one structural bug with root cause + verify + prevention. Toast/label/CSS one-liner alone does NOT clear. Fold outcomes into items; do not inflate fleet.\n";
 // v30 — VERSION ARC DISCIPLINE (measured 2026-08-07 on kai-achilles + workflow-7).
 // A task that says "ship 30 versions" under quality:max burns multi-M tokens, hits
@@ -448,7 +552,7 @@ log("KONYO WORKFLOW · Grok Build IMPLEMENTER · quality=" + quality + (if quali
 log("mode=" + mode_label + " · thirdEye=" + third_eye + " · isolate=" + isolate_mode.to_string() + " · push=" + do_push.to_string());
 log("maxRounds=" + max_rounds.to_string() + " · maxAgents=" + max_agents.to_string() + " · maxItems=" + max_items_cap.to_string() + " · skepticFloor=" + skeptic_floor.to_string());
 log("RENDERLOOP=" + render_loop_n.to_string() + " (v26 loop · v28 stop: PASSED|CEILING|STALLED) · SHIPPABLE=apply+passed>0+no spawn_errors (v27.1)");
-log("PACE+PROXY · FAT BAR · LAW18‖LAW19 concurrent · shared lock · v30 meter · v31 concurrent hop · v32 scar@failure + run-not-inspect");
+log("PACE+PROXY · FAT BAR · LAW18‖LAW19 concurrent · shared lock · v30 meter · v31 concurrent hop · v32 scar@failure + run-not-inspect · v33 capture-per-round / carve-per-arc");
 log("════════════════════════════════════════════════════════");
 log("TASK: " + task);
 
@@ -1272,7 +1376,14 @@ while ri < plan_items.len() {
         gate: #{ verdict: gate_verdict, severity: gate_sev, reason: gate_reason, refuted: refuted, cast: cast },
     });
     log("  " + trimmed(it.file) + " → build=" + build_ok.to_string() + " gate=" + gate_verdict + " (" + gate_reason.sub_string(0, if gate_reason.len() < 80 { gate_reason.len() } else { 80 }) + ")");
+    // v33 CAPTURE — round-1 refusals land in the run ledger before rework.
+    if gate_verdict != "pass" {
+        record_run_scar(1, trimmed(it.file), "gate", gate_sev, gate_reason);
+    }
     ri += 1;
+}
+if run_scars.len() > 0 {
+    log("v33 CAPTURE: " + run_scars.len().to_string() + " gate refusal(s) recorded after build round 1.");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1308,7 +1419,9 @@ while rework_round < max_rounds {
             "Edit ONLY " + f + ". NEVER push. Address EVERY gate failure."
         };
         let rp = tier_note(quality);
+        // v33 — own failure + sibling failures from this run (scar brief).
         rp += "REWORK agent. Previous gate: " + trimmed(g.reason) + "\n";
+        rp += scar_brief_for(f);
         rp += "File: " + f + "\nInstruction: " + trimmed(it.instruction) + "\n" + act + craft_rules;
         let job = #{
             prompt: rp,
@@ -1354,6 +1467,12 @@ while rework_round < max_rounds {
                 r.gate = #{ verdict: "pass", severity: "none", reason: "rework gate empty — fail-open only after rework build ok", refuted: 0, cast: 0 };
             }
             results[idx] = r;
+            // v33 CAPTURE this rework round's still-failing gates
+            let gg = as_map(r.gate);
+            if trimmed(gg.verdict) != "pass" {
+                record_run_scar(rework_round + 1, trimmed(it.file), "rework-gate",
+                    trimmed(gg.severity), trimmed(gg.reason));
+            }
         }
         nj += 1;
     }
@@ -2157,13 +2276,26 @@ md += "- requested: " + third_eye + "\n";
 md += "- seats: " + third_eye_seats.len().to_string() + "\n";
 md += "\n## Completeness\n" + json_encode(completeness) + "\n";
 md += "\n## Ship\n" + json_encode(shipped) + "\n";
-md += "\n_Konyo Workflow · Grok implementer · parity Claude v27.1 concurrent LAW19‖render · v26–v32 · v30 meter · v32 scar@failure + run-not-inspect · audit-only body retired 2026-08-07_\n";
+// v33 — run-capture ledger + carve candidates (PROPOSE only)
+let carve_out = carve_candidates();
+md += "\n## Run scars (v33 capture-per-round)\n";
+md += "- count: " + run_scars.len().to_string() + "\n";
+md += "- ledger: " + json_encode(run_scars) + "\n";
+md += "\n## Carve candidates (v33 — PROPOSE only, floor 3; never applied mid-run)\n";
+if carve_out.len() == 0 {
+    md += "_(none — need ≥3 scars in one territory)_\n";
+} else {
+    md += json_encode(carve_out) + "\n";
+    md += "\n_These are proposals for a later carving-skill pass. They never skip a gate._\n";
+}
+md += "\n_Konyo Workflow · Grok implementer · parity Claude JS v31 capture/carve + concurrent LAW19‖render · v26–v33 · v30 meter · v32 scar@failure + run-not-inspect · audit-only body retired 2026-08-07_\n";
 
 let report_path = write_scratch_file("konyo-report.md", md);
 
 log("════════════════════════════════════════════════════════");
 log("VERDICT: " + verdict);
 log("SHIPPABLE: " + shippable.to_string() + " · passed " + passed_n.to_string() + " · failed " + failed_n.to_string() + " · blockers " + blockers.len().to_string());
+log("v33 CAPTURE: " + run_scars.len().to_string() + " scar(s) · carve candidates: " + carve_out.len().to_string());
 log("Report: " + report_path);
 log("════════════════════════════════════════════════════════");
 
@@ -2181,6 +2313,8 @@ complete(#{
     shipped: shipped,
     passed: passed_n,
     failed: failed_n,
+    scars: run_scars,
+    carve_candidates: carve_out,
     blockers: blockers,
     agent_errors: spawn_errors,
     agents_spent: agents_spent,
