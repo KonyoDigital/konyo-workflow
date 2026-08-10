@@ -267,12 +267,85 @@ function blocker(what, why) {
 // able to read its `return` value directly, so every exit also publishes the payload here. One line,
 // costs nothing, and it means the two entry points can never drift into two implementations again.
 const emit = (o) => { globalThis.__KONYO_RESULT = o; return o }
+
+/* ══ v31 — CAPTURE PER ROUND, CARVE PER ARC ══════════════════════════════════════════════════════
+   Konyo: "capture per round, carve per arc ... this could really start locking down everything".
+
+   WHAT WAS ALREADY HERE, AND WHAT WAS NOT. A failed gate's reasons ARE handed back to the same
+   item's next attempt (see the rework builder below) — so an item learns from its own failure. But
+   that string is joined, used once and dropped, which leaves three holes:
+     1. ITEM A's failure never reaches ITEM B. In practice sibling items fail the SAME way, because
+        they share a brief and a codebase. Measured 2026-08-10: the chronicle-template run scored
+        its detector FP=30/31 and the round-2 rebuild had to REDISCOVER, from scratch, that the
+        CONTROL SET was mislabelled and the detector had been right. Two rounds paid for one lesson.
+     2. Nothing survives the ROUND in a structured form — only a sentence, only for one file.
+     3. Nothing survives the RUN at all, so an arc's lessons cannot be carved afterwards.
+
+   THE SPLIT, AND WHY IT IS A SPLIT. CAPTURE is cheap, per-round and automatic. CARVING is not:
+   carving PRUNES shared files that agents load, so doing it mid-run rewrites the rules underneath
+   running agents, and carving from one round is carving from a sample of one — which is how you get
+   a rule that is over-fitted to a single bad afternoon. The carving skill's own floor is THREE scars
+   in one territory, precisely because two is a coincidence. So this layer PROPOSES and never writes.
+
+   ⚠ THE SAFETY LAW, and it is the one that matters: A SCAR NARROWS ATTENTION, IT NEVER SUPPRESSES A
+   GATE. Nothing here may skip a check, lower a bar, or mark a thing already-judged. It only tells
+   the next agent what has already been tried and failed, so it does not spend a round re-deriving
+   it. A scar that could silence a gate would be a cache of a verdict, and this repo has already
+   been bitten by a cached verdict (a resumed run replaying a stale refusal in 3ms). ══════════════ */
+const SCARS = []
+function recordScar(o) {
+  // Evidence travels WITH the rule or the rule is an opinion. A scar with no reason is not recorded.
+  if (!o || !o.reason) return
+  SCARS.push({ round: o.round || 1, file: o.file || '', stage: o.stage || 'gate',
+               severity: o.severity || '', reason: String(o.reason).slice(0, 600) })
+}
+/* The territory key. Deliberately CRUDE — lowercased significant words, stopwords dropped. A
+   cleverer clusterer would silently merge distinct failures, and a false cluster is worse than no
+   cluster because it manufactures the third scar that authorises a carve. */
+function scarTerritory(reason) {
+  const stop = new Set(['the','a','an','and','or','but','is','was','it','its','this','that','of','to',
+                        'in','on','for','with','not','no','be','been','has','have','had','at','as',
+                        'by','from','so','if','then','than','which','what','when','they','their'])
+  return String(reason || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/)
+    .filter(w => w.length > 3 && !stop.has(w)).slice(0, 6).sort().join('-')
+}
+/* CARVE CANDIDATES — proposed at ARC END, never applied. Three is the floor, from the carving
+   skill: two scars that look related are usually one scar written twice. */
+function carveCandidates(minN = 3) {
+  const by = new Map()
+  for (const s of SCARS) {
+    const k = scarTerritory(s.reason)
+    if (!k) continue
+    if (!by.has(k)) by.set(k, [])
+    by.get(k).push(s)
+  }
+  return [...by.entries()].filter(([, v]) => v.length >= minN)
+    .map(([k, v]) => ({ territory: k, n: v.length,
+                        files: [...new Set(v.map(s => s.file).filter(Boolean))],
+                        evidence: v.map(s => s.reason).slice(0, 5) }))
+    .sort((a, b) => b.n - a.n)
+}
+/* What the NEXT round is told. Capped hard: a prompt that grows with every failure eventually
+   crowds out the instruction it is attached to, and an agent that reads ten stale scars pays
+   attention to none of them. Newest first, because the most recent round is the most relevant. */
+function scarBriefFor(file, cap = 6) {
+  const others = SCARS.filter(s => s.file !== file).slice(-cap).reverse()
+  if (!others.length) return ''
+  return '\n\nWHAT HAS ALREADY FAILED IN THIS RUN, ON OTHER FILES — do not spend a round ' +
+    're-deriving any of it, and check whether the same mistake is in YOUR file:\n' +
+    others.map(s => `  · [round ${s.round} · ${s.file}] ${s.reason}`).join('\n') +
+    '\nThese are EVIDENCE, not verdicts about your work: they narrow where to look. They never ' +
+    'excuse you from any gate, and none of them means a check can be skipped.'
+}
+
 function bail(o) {
   return emit(Object.assign({
     quality: QUALITY,
     blockers: BLOCKERS,
     agent_errors: SPAWN_ERRORS,
     ceiling: { cap: MAX_AGENTS, spent: SPENT, hit: CEILING_HIT },
+    scars: SCARS,
+    carve_candidates: carveCandidates(),
     verdict: 'ABORTED — the run exited before completing; see error/refused',
     shippable: false,
   }, o))
@@ -1027,6 +1100,15 @@ async function buildAndGate(itemsIn, label) {
   )
   res = res.filter(Boolean)
   let r = 1
+  // v31 — CAPTURE. Round 1's refusals are recorded before anything is re-attempted, so the round
+  // that follows can be told what the round before it learned. Recording is free; it changes no
+  // verdict and skips no gate.
+  for (const x of res) {
+    if (x.gate && x.gate.verdict === 'rework') {
+      recordScar({ round: 1, file: (x.item || {}).file, stage: 'gate', severity: x.gate.severity,
+                   reason: (x.gate.reasons || [x.gate.reason]).filter(Boolean).join(' | ') })
+    }
+  }
   while (r < MAXROUNDS && budgetOK()) {
     const failing = res.filter(x => x.gate && x.gate.verdict === 'rework')
     if (!failing.length) break
@@ -1041,13 +1123,24 @@ async function buildAndGate(itemsIn, label) {
     const redone = await pipeline(
       failing,
       x => { const esc = { ...x.item, tier: bump(x.item.tier) }
-             return buildAgent(esc, (x.gate.reasons || [x.gate.reason]).filter(Boolean).join(' | ')).then(b => ({ ...b, item: esc })) },
+             /* v31 — the item's OWN failure (unchanged) PLUS what its siblings hit this run. The
+                second half is the new part: items that share a brief fail the same way, and paying
+                twice for one lesson is the whole reason this ledger exists. */
+             const own = (x.gate.reasons || [x.gate.reason]).filter(Boolean).join(' | ')
+             return buildAgent(esc, own + scarBriefFor(x.item.file)).then(b => ({ ...b, item: esc })) },
       built => gateFor(built),
       gated => skepticStage(gated)
     )
     const byFile = new Map(res.map(x => [x.item.file, x]))
     for (const x of redone.filter(Boolean)) byFile.set(x.item.file, x)
     res = [...byFile.values()]
+    // v31 — capture THIS round's refusals for the round after it (and for the arc-end carve pass).
+    for (const x of redone.filter(Boolean)) {
+      if (x.gate && x.gate.verdict === 'rework') {
+        recordScar({ round: r, file: (x.item || {}).file, stage: 'gate', severity: x.gate.severity,
+                     reason: (x.gate.reasons || [x.gate.reason]).filter(Boolean).join(' | ') })
+      }
+    }
   }
   if (r > round) round = r
   if (res.some(x => x.gate && x.gate.verdict === 'rework')) {
@@ -2727,9 +2820,26 @@ if (lock && lock.acquired) {
 // THE RETURN IS A UNION OF BOTH ORIGINALS, NOT A CHOICE BETWEEN THEM. Every field either script
 // used to return is carried here at BOTH qualities. A field a standard run does not earn is
 // returned with an explicit `ran:false` + reason — NEVER a bare null a reader can mistake for a pass.
+/* ══ v31 — CARVE PER ARC. The proposal, at the only honest moment for it: after every round has
+   finished, when the run knows what it actually kept failing at. It PROPOSES and never writes —
+   carving prunes shared skill files that agents load, and a carve authored from one run is fitted
+   to one run. Three scars in one territory is the floor (two is a coincidence); the decision and
+   the authoring stay Konyo's, with the `carving-skill`. Silence here is the honest common case. ══ */
+const CARVE = carveCandidates()
+if (SCARS.length) {
+  log(`SCARS captured this run: ${SCARS.length} (fed forward to later rounds; none of them skipped a gate).`)
+  if (CARVE.length) {
+    log(`🪓 CARVE CANDIDATE${CARVE.length > 1 ? 'S' : ''} — ${CARVE.length} territory/ies hit 3+ times. ` +
+        `Run /carving-skill on: ` + CARVE.map(c => `${c.territory} (x${c.n}${c.files.length ? ', ' + c.files.join(' ') : ''})`).join(' · '))
+  } else {
+    log('No carve candidate — no single territory failed 3+ times. That is a normal, healthy result.')
+  }
+}
 return emit({
   version: plan.version_label,
   mode,
+  scars: SCARS,
+  carve_candidates: CARVE,
   /* v18 — ONE SHAPE ON BOTH EXIT PATHS. Caught by the completeness critic of the very run that
      built this merge: bail() returned `quality: QUALITY` (the machine token 'max'|'standard') while
      the SUCCESS path returned `quality:` as a PROSE SENTENCE, with the machine value buried in
