@@ -74,5 +74,5 @@ fi
 echo "✅ Konyo Workflow installed to $DEST"
 echo "   Give your AI: $DEST/SKILL.md"
 echo "   Say: Use the Konyo Workflow."
-echo "   Grok implementer: /konyo-workflow {\"task\":\"…\",\"apply\":true}  (lean default; quality:max|standard|tiny)"
+echo "   Grok implementer: /Konyo-Grok (alias /konyo-workflow redirects) {\"task\":\"…\",\"apply\":true}  (lean default; quality:max|standard|tiny)"
 echo "   Grok third-eye = Claude CLI.  /konyo-workflow-max is a deprecation notice only."
