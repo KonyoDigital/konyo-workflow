@@ -1,7 +1,14 @@
 export const meta = {
-  name: 'konyo-workflow',
-  description: 'KONYO WORKFLOW — ONE body, three paths (lean | max | standard). RUNS AT LEAN BY DEFAULT (his instruction, 2026-08-04): EVERY gate max runs — diverse-lens skeptic panel, render gate with vision, LAW17, LAW19, workspace lock, agent ceiling — at ~62% of the tokens, by buying ONE architect instead of a judge panel, one rework round, no completeness critic, and risk:"low" items at the tier their own architect asked for (floored at sonnet; the review is Opus either way, and a failed cheap build escalates on rework). The third eye (Grok — a different model family) is ON at every quality. Pass {quality:"max"} to add the 3-architect judge panel, Opus builders everywhere and the loop-until-dry completeness critic — worth it when being wrong costs more than tokens. Pass {quality:"tiny"} for a SMALL, KNOWN edit set with a ~15-minute wall-clock budget: it REQUIRES an explicit items:[{file,instruction}] work list (max 4 items across 3 files, no diagnosis) and refuses without one, then skips the PLANNING hops only — no triage, no architect, no third-eye plan seat, no completeness critic, no synthesizer — while keeping every gate: the 2-seat adversarial panel, LAW19 reachability, the render gate with vision, LAW17, and the workspace lock. Reachability and the render gate run CONCURRENTLY. v26 — THE RENDER GATE IS NOW A LOOP at every quality: it renders at a narrow AND a wide viewport, and a failure is handed to a fixer and re-rendered (tiny 2 passes / lean 3 / max 4) instead of only being reported. The FINAL pass is what blocks. Pass {quality:"standard"} to opt DOWN to the cost-scaled ladder (Haiku/Sonnet build, Fable gates every merge, ONE architect, no completeness critic). Pass {thirdEye:false} to run without an independent reviewer. LEAN IS NOT MAX-WITH-FEWER-SAFEGUARDS: the flag buys model tier, panel size and extra phases, never a gate. v30 METER ROUTING (Grok parity): item caps by quality, volume-arc heuristic, tip honesty + thrash resistance; max is not volume.',
-  whenToUse: 'ANY multi-step task you want orchestrated — it is LEAN unless you say otherwise, because lean already runs every gate and max only buys a judge panel, Opus builders and the completeness critic. It TRIAGES itself first, so a serial diagnosis is sent back to be done directly instead of spawning a fleet, and the ceiling + budget floor still bound every run. Reach for {quality:"tiny"} when you already know the exact edits (file + instruction each) and want them done in ~15 minutes with the gates intact — it is a HOP budget, not an agent budget: wall clock is serial-hops × time-per-hop, so tiny cuts the chain from 11 phases to 4 rather than trimming agents. Reach for {quality:"max"} when the cost of being wrong is high — irreversible edits, data migrations, anything shipping unattended. Opt all the way down with {quality:"standard"} for routine, low-cost-of-wrong, easily reversible work (~10-15x cheaper). Pass {task, quality, thirdEye, apply, maxRounds, dryRounds, budgetFloor, force, skeptics, maxAgents, isolate, items, maxItems}. items:[{file,instruction}] skips the architect at ANY quality (not only tiny) — an architect that returns items:[] no longer becomes a vacuous green ship. v30 meter routing: quality item caps (tiny4/max6/lean8/standard10), volume-arc heuristic, thrash/tip craft — max is NOT for 30-version volume arcs (use N lean/tiny slices). `grok:false` still works as the old name for thirdEye:false; `fast` still resolves to `lean`.',
+  /* v32 §2 — RENAMED TO END A REGISTRY COLLISION. This file declared name:'konyo-workflow',
+     byte-identical to the live engine at ~/.claude/workflows/konyo-workflow.js. The Workflow
+     registry resolves {name:'konyo-workflow'} by scanning this directory, so TWO files claimed
+     one name and which one answered was not something a caller could see or choose. That is the
+     same drift the 2026-08-04 merge comment says the quality flag was created to end.
+     Renaming is non-destructive: this file is the PUBLIC agent-army engine and stays usable by
+     scriptPath or by its own name; nothing in ~/.claude/commands/ ever invoked it by name. */
+  name: 'agent-army',
+  description: 'KONYO WORKFLOW — ONE body, three paths (lean | max | standard). RUNS AT LEAN BY DEFAULT (his instruction, 2026-08-04): EVERY gate max runs — diverse-lens skeptic panel, render gate with vision, LAW17, LAW19, workspace lock, agent ceiling — at ~62% of the tokens, by buying ONE architect instead of a judge panel, one rework round, no completeness critic, and risk:"low" items at the tier their own architect asked for (floored at sonnet; the review is Opus either way, and a failed cheap build escalates on rework). The third eye (Grok — a different model family) is ON at every quality. Pass {quality:"max"} to add the 3-architect judge panel, Opus builders everywhere and the loop-until-dry completeness critic — worth it when being wrong costs more than tokens. Pass {quality:"tiny"} for a SMALL, KNOWN edit set with a ~15-minute wall-clock budget: it REQUIRES an explicit items:[{file,instruction}] work list (max 4 items across 3 files, no diagnosis) and refuses without one, then skips the PLANNING hops only — no triage, no architect, no third-eye plan seat, no completeness critic, no synthesizer — while keeping every gate: the 2-seat adversarial panel, LAW19 reachability, the render gate with vision, LAW17, and the workspace lock. Reachability and the render gate run CONCURRENTLY. v26 — THE RENDER GATE IS NOW A LOOP at every quality: it renders at a narrow AND a wide viewport, and a failure is handed to a fixer and re-rendered (tiny 2 passes / lean 3 / max 4) instead of only being reported. The FINAL pass is what blocks. Pass {quality:"standard"} to opt DOWN to the cost-scaled ladder (Haiku/Sonnet build, Fable gates every merge, ONE architect, no completeness critic). Pass {thirdEye:false} to run without an independent reviewer. LEAN IS NOT MAX-WITH-FEWER-SAFEGUARDS: the flag buys model tier, panel size and extra phases, never a gate.',
+  whenToUse: 'ANY multi-step task you want orchestrated — it is LEAN unless you say otherwise, because lean already runs every gate and max only buys a judge panel, Opus builders and the completeness critic. It TRIAGES itself first, so a serial diagnosis is sent back to be done directly instead of spawning a fleet, and the ceiling + budget floor still bound every run. Reach for {quality:"tiny"} when you already know the exact edits (file + instruction each) and want them done in ~15 minutes with the gates intact — it is a HOP budget, not an agent budget: wall clock is serial-hops × time-per-hop, so tiny cuts the chain from 11 phases to 4 rather than trimming agents. Reach for {quality:"max"} when the cost of being wrong is high — irreversible edits, data migrations, anything shipping unattended. Opt all the way down with {quality:"standard"} for routine, low-cost-of-wrong, easily reversible work (~10-15x cheaper). Pass {task, quality, thirdEye, apply, maxRounds, dryRounds, budgetFloor, force, skeptics, maxAgents, isolate, items}. items:[{file,instruction}] skips the architect at ANY quality (not only tiny) — an architect that returns items:[] no longer becomes a vacuous green ship. `grok:false` still works as the old name for thirdEye:false; `fast` still resolves to `lean`.',
   phases: [
     { title: 'Preflight',   detail: 'workspace lock — refuse to start if another run is already editing this tree' },
     { title: 'Triage',      detail: 'right-size the run BEFORE spending: shape · parallelism · cost-of-wrong. SKIPPED at quality:"tiny" — the caller supplied the work list', model: 'opus' },
@@ -168,28 +175,6 @@ const USE_GROK  = THIRD_EYE !== 'off'   // legacy name kept so no existing call 
 const FORCE     = !!(A && A.force)                 // run the fleet even if triage says do it directly
 const SKEPTICS_OVERRIDE = (A && typeof A.skeptics === 'number') ? A.skeptics : null
 const MAX_AGENTS = (A && A.maxAgents) || 24
-/* ══ v30 · METER ROUTING (port of Grok shipper, 2026-08-07) ═════════════════════════════════════
-   Measured: quality:max + a "ship 30 versions / whole-console arc" brief → 2h+, agent ceiling,
-   render CEILING, PARTIAL ship, and concurrent fleets thrashing VERSION. Max is the expensive path
-   for a SMALL high-stakes list — not a volume throttle. Item caps by quality keep the fleet honest:
-   tiny 4 (already refused above), max 6, lean 8, standard 10. Caller may raise with {maxItems:N}
-   up to 24. Volume-arc heuristic is non-blocking but LOUD. Thrash/tip craft rides on FAT_LAW. */
-let MAX_ITEMS_CAP = 8
-if (TINYQ) MAX_ITEMS_CAP = 4
-else if (LEANQ) MAX_ITEMS_CAP = 8
-else if (QUALITY === 'standard') MAX_ITEMS_CAP = 10
-else if (MAXONLY) MAX_ITEMS_CAP = 6
-if (A && typeof A.maxItems === 'number') MAX_ITEMS_CAP = A.maxItems
-if (A && typeof A.max_items === 'number') MAX_ITEMS_CAP = A.max_items
-MAX_ITEMS_CAP = Math.max(1, Math.min(24, MAX_ITEMS_CAP | 0))
-const _taskLc = String(TASK || '').toLowerCase()
-const LOOKS_LIKE_VOLUME_ARC = (
-  /\b30 version/.test(_taskLc) || /\b30 real/.test(_taskLc) || /\b100 version/.test(_taskLc) ||
-  _taskLc.includes('whole-console versions') || _taskLc.includes('whole console versions') ||
-  _taskLc.includes('arc d of') || _taskLc.includes('ship them all') || _taskLc.includes('finish them all') ||
-  /\b(ship|do|finish)\s+(the\s+)?(whole|entire)\s+(arc|console|product)\b/.test(_taskLc) ||
-  /\b\d{2,}\s+(versions?|stamps?)\b/.test(_taskLc)
-)
 /* v18.3 — THE FIXED COSTS OF FINISHING, IN ONE PLACE. Every run pays for its closing gates and its
    report whatever the plan looks like, so both the plan trim and the feasibility line must subtract
    the SAME numbers. They used to keep separate copies (2 vs 5+2), which is how a plan got waved
@@ -267,98 +252,12 @@ function blocker(what, why) {
 // able to read its `return` value directly, so every exit also publishes the payload here. One line,
 // costs nothing, and it means the two entry points can never drift into two implementations again.
 const emit = (o) => { globalThis.__KONYO_RESULT = o; return o }
-
-/* ══ v31 — CAPTURE PER ROUND, CARVE PER ARC ══════════════════════════════════════════════════════
-   Konyo: "capture per round, carve per arc ... this could really start locking down everything".
-
-   WHAT WAS ALREADY HERE, AND WHAT WAS NOT. A failed gate's reasons ARE handed back to the same
-   item's next attempt (see the rework builder below) — so an item learns from its own failure. But
-   that string is joined, used once and dropped, which leaves three holes:
-     1. ITEM A's failure never reaches ITEM B. In practice sibling items fail the SAME way, because
-        they share a brief and a codebase. Measured 2026-08-10: the chronicle-template run scored
-        its detector FP=30/31 and the round-2 rebuild had to REDISCOVER, from scratch, that the
-        CONTROL SET was mislabelled and the detector had been right. Two rounds paid for one lesson.
-     2. Nothing survives the ROUND in a structured form — only a sentence, only for one file.
-     3. Nothing survives the RUN at all, so an arc's lessons cannot be carved afterwards.
-
-   THE SPLIT, AND WHY IT IS A SPLIT. CAPTURE is cheap, per-round and automatic. CARVING is not:
-   carving PRUNES shared files that agents load, so doing it mid-run rewrites the rules underneath
-   running agents, and carving from one round is carving from a sample of one — which is how you get
-   a rule that is over-fitted to a single bad afternoon. The carving skill's own floor is THREE scars
-   in one territory, precisely because two is a coincidence. So this layer PROPOSES and never writes.
-
-   ⚠ THE SAFETY LAW, and it is the one that matters: A SCAR NARROWS ATTENTION, IT NEVER SUPPRESSES A
-   GATE. Nothing here may skip a check, lower a bar, or mark a thing already-judged. It only tells
-   the next agent what has already been tried and failed, so it does not spend a round re-deriving
-   it. A scar that could silence a gate would be a cache of a verdict, and this repo has already
-   been bitten by a cached verdict (a resumed run replaying a stale refusal in 3ms). ══════════════ */
-const SCARS = []
-function recordScar(o) {
-  // Evidence travels WITH the rule or the rule is an opinion. A scar with no reason is not recorded.
-  if (!o || !o.reason) return
-  SCARS.push({ round: o.round || 1, file: o.file || '', stage: o.stage || 'gate',
-               severity: o.severity || '', reason: String(o.reason).slice(0, 600) })
-}
-/* The territory key. Deliberately CRUDE — lowercased significant words, stopwords dropped. A
-   cleverer clusterer would silently merge distinct failures, and a false cluster is worse than no
-   cluster because it manufactures the third scar that authorises a carve. */
-function scarTerritory(reason) {
-  const stop = new Set(['the','a','an','and','or','but','is','was','it','its','this','that','of','to',
-                        'in','on','for','with','not','no','be','been','has','have','had','at','as',
-                        'by','from','so','if','then','than','which','what','when','they','their'])
-  return String(reason || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/)
-    .filter(w => w.length > 3 && !stop.has(w)).slice(0, 6).sort().join('-')
-}
-/* CARVE CANDIDATES — proposed at ARC END, never applied. Three is the floor, from the carving
-   skill: two scars that look related are usually one scar written twice. */
-function carveCandidates(minN = 3) {
-  const by = new Map()
-  for (const s of SCARS) {
-    const k = scarTerritory(s.reason)
-    if (!k) continue
-    if (!by.has(k)) by.set(k, [])
-    by.get(k).push(s)
-  }
-  return [...by.entries()].filter(([, v]) => v.length >= minN)
-    .map(([k, v]) => ({ territory: k, n: v.length,
-                        files: [...new Set(v.map(s => s.file).filter(Boolean))],
-                        evidence: v.map(s => s.reason).slice(0, 5) }))
-    .sort((a, b) => b.n - a.n)
-}
-/* What the NEXT round is told. Capped hard: a prompt that grows with every failure eventually
-   crowds out the instruction it is attached to, and an agent that reads ten stale scars pays
-   attention to none of them. Newest first, because the most recent round is the most relevant. */
-function scarBriefFor(file, cap = 6) {
-  const others = SCARS.filter(s => s.file !== file).slice(-cap).reverse()
-  if (!others.length) return ''
-  return '\n\nWHAT HAS ALREADY FAILED IN THIS RUN, ON OTHER FILES — do not spend a round ' +
-    're-deriving any of it, and check whether the same mistake is in YOUR file:\n' +
-    others.map(s => `  · [round ${s.round} · ${s.file}] ${s.reason}`).join('\n') +
-    '\nThese are EVIDENCE, not verdicts about your work: they narrow where to look. They never ' +
-    'excuse you from any gate, and none of them means a check can be skipped.'
-}
-
-/* v32 §1.3 — A BAIL USED TO LEAK THE TREE FOR THE FULL TTL. There are 13 `return bail(...)` exits
-   and only 4 `await releaseLock()` sites, so most refusals walked away still holding the workspace
-   lock — for 180 minutes. Several of those exits are ORDINARY outcomes, not disasters: "CEILING: no
-   budget for the plan", "triage says direct", a tiny brief missing an instruction. A typo that did
-   ZERO work could lock the tree for three hours, and the next run would refuse against a holder
-   that had already gone home. (Measured first-hand 2026-08-10: a run refused on a lock whose holder
-   was finished, and clearing it by hand then let two runs share one tree.)
-   Fixing it at the 13 call sites would be 13 chances to forget the 14th; it belongs HERE, once.
-   ⚠ THE try/catch IS LOAD-BEARING, NOT CLUTTER: `lock` is declared `let` at ~line 1218, and bail()
-   can fire BEFORE that line executes (e.g. the `!TASK` exit). Touching `lock` in its temporal dead
-   zone throws a ReferenceError — and on those early exits there is provably no lock to release, so
-   swallowing exactly that is correct rather than lazy. */
-async function bail(o) {
-  try { await releaseLock() } catch (e) { /* no lock existed yet — see the TDZ note above */ }
+function bail(o) {
   return emit(Object.assign({
     quality: QUALITY,
     blockers: BLOCKERS,
     agent_errors: SPAWN_ERRORS,
     ceiling: { cap: MAX_AGENTS, spent: SPENT, hit: CEILING_HIT },
-    scars: SCARS,
-    carve_candidates: carveCandidates(),
     verdict: 'ABORTED — the run exited before completing; see error/refused',
     shippable: false,
   }, o))
@@ -382,7 +281,7 @@ const PACE = '\n\nWORK BRISKLY — this run is budgeted, and the budget works in
   + 'every call after it. A 2,000-line file read once is not read once. So: prefer targeted grep/sed '
   + 'over reading whole files, and prefer running a small script that PRINTS A VERDICT over reading '
   + 'the material and judging it yourself. IN A FILE OVER ~5,000 LINES, do not hunt with grep/sed '
-  + 'for WHERE something is defined — run `node /Users/konyo/konyo-workflow/automation/claude-code/'
+  + 'for WHERE something is defined — run `node <this-repo>/scripts/'
   + 'anchor_index.mjs <file> --find <name>`, which indexes DEFINITIONS (css id/class, html id, '
   + 'function, const, window.x) and answers in one call what a grep hunt costs five. A measured '
   + 'run spent 18 of its 51 tool calls re-deriving a map that never changes. '
@@ -439,19 +338,30 @@ const PROOF = '\n\nVERIFY THE THING, NOT A PROXY FOR IT. Before you assert somet
    cost ten days of CPU: that timeout kills BASH, not bash's GRANDCHILDREN, so a hung `grok` is
    reparented to init and runs at 100% forever. Two were found alive at 3 days and 10 days,
    burning a core and a half continuously, long after the runs that spawned them had finished.
-   USE THE PERL WRAPPER THIS REPO ALREADY SHIPS (see d2r_bible_tests/hooks/pre-push:71) — it forks,
+   USE THE PERL WRAPPER THIS REPO ALREADY SHIPS (any pre-push hook that forks and detaches will do) — it forks,
    alarms, and SIGTERMs the child, so nothing can outlive the call:
      perl -e 'my $t=shift; my $p=fork; die unless defined $p; if(!$p){exec @ARGV; exit 127}
        $SIG{ALRM}=sub{kill "TERM",$p; waitpid($p,0); exit 142}; alarm $t; waitpid($p,0);
        my $st=$?; alarm 0; exit(($st & 127) ? 128+($st & 127) : ($st >> 8));' 180 \
-       /Users/konyo/.grok/bin/grok --cwd ... --prompt-file ...
+       $GROK_CLI --cwd ... --prompt-file ...
    Exit 142 means the seat TIMED OUT, which is a real verdict — report it as unreachable, never as
    agreement. And run `reap` (~/.local/bin/reap) if a run ends oddly; it lists agent processes that
    outlived their parent and `reap -f` kills them.
    THE RULE THAT MAKES IT WORTH HAVING: a Claude agent may NEVER fill a Grok seat. If the transport
    is down the seat is reported EMPTY — panel 3 becomes 2, named in the payload — because a panel
    that looks diverse while being an echo is worse than a panel that is honestly short. */
-const GROK_CLI = '/Users/konyo/.grok/bin/grok'
+// Resolve the third-eye CLI instead of hard-coding one machine's home directory.
+// AGENT_ARMY_GROK_CLI wins; otherwise the usual install path; otherwise whatever is
+// on PATH. If none of them exist the run proceeds Claude-only — the third eye is a
+// STRONGER review, never a required dependency (see thirdEye:false).
+// ⚠ NO process, NO require — a Workflow script runs in a sandbox with no Node globals
+// and no filesystem. The previous version used process.env and require('fs') to make the
+// path portable; that was the right INTENT and it made the engine unloadable — it died at
+// `process is not defined` before spawning a single agent.
+//
+// GROK_CLI is only ever interpolated into a shell command an agent runs, so the
+// resolution belongs in the SHELL, where the environment actually exists.
+const GROK_CLI = '"${AGENT_ARMY_GROK_CLI:-$(command -v grok || echo "$HOME/.grok/bin/grok")}"'
 const THIRD_EYE_SEATS = []            // every consult attempted, reached or not — the ledger IS the report
 const THIRD_EYE_SCHEMA = {
   type: 'object', additionalProperties: false,
@@ -726,19 +636,7 @@ const FAT_LAW =
   `fluff does not clear the bar; expand the plan until it does, or state plainly that the work is ` +
   `below a version stamp. Never micro-stamp one version per one-liner. This is NOT a licence to ` +
   `inflate the fleet: the triage agent cap stands — fold MORE OUTCOMES into the SAME items, do not ` +
-  `spawn more items.\n` +
-  /* v30 — VERSION ARC / TIP / THRASH (Grok meter routing, measured 2026-08-07). */
-  `VERSION ARC DISCIPLINE (v30): Do NOT plan one integer per micro-edit, and do NOT plan 10–30 ` +
-  `empty/hollow stamps. Prefer fewer FAT packages. If the human asked for a multi-version arc, ` +
-  `slice it: each RUN ships a small fat package; the NEXT run continues. quality:max is for a SMALL ` +
-  `high-stakes list (items[] preferred, <=6 files), never for 'do the whole arc of 30'. Use lean/tiny ` +
-  `for volume.\n` +
-  `TIP HONESTY (v30): VERSION stamp, CHANGELOG tip, and HANDOFF tip trail must name the SAME integer. ` +
-  `Never rewind VERSION. Never invent empty fleet stamp gaps. Prefer the project's version-bump tool ` +
-  `(and --allow-skip only when deliberate). The project's suite runner is the gate when the tree has it.\n` +
-  `THRASH RESISTANCE (v30): Never add import-time rewrites of production modules, exec splits of source, ` +
-  `or helper scripts that write_text server/source as a "ship". Native commits only. Shared lock with ` +
-  `Grok fleets must be respected — two fleets on one tree is double spend + silent overwrite.`
+  `spawn more items.`
 const BUILD_SCHEMA = {
   type: 'object', additionalProperties: false,
   required: ['file', 'summary', 'changes', 'self_check', 'files_touched'],
@@ -1113,18 +1011,35 @@ async function buildAndGate(itemsIn, label) {
   )
   res = res.filter(Boolean)
   let r = 1
-  // v31 — CAPTURE. Round 1's refusals are recorded before anything is re-attempted, so the round
-  // that follows can be told what the round before it learned. Recording is free; it changes no
-  // verdict and skips no gate.
-  for (const x of res) {
-    if (x.gate && x.gate.verdict === 'rework') {
-      recordScar({ round: 1, file: (x.item || {}).file, stage: 'gate', severity: x.gate.severity,
-                   reason: (x.gate.reasons || [x.gate.reason]).filter(Boolean).join(' | ') })
-    }
-  }
+  // ⚠ STALL DETECTION. Without it the only stop reasons are `round-cap` and
+  // `budget-floor`, and neither distinguishes a fleet that was CONVERGING and ran out
+  // of room from one that STOPPED LEARNING at round two. Those call for opposite
+  // responses — raise the ceiling vs change the approach — so a stuck fleet burns its
+  // whole budget producing variations of one failure and reports the same word as a
+  // run that nearly made it.
+  let lastSig = null, sameCount = 0
   while (r < MAXROUNDS && budgetOK()) {
     const failing = res.filter(x => x.gate && x.gate.verdict === 'rework')
     if (!failing.length) break
+
+    const sig = failing
+      .map(x => `${x.item.file}::${(x.gate.reasons || [x.gate.reason]).filter(Boolean).join('|')}`)
+      .sort().join('\n')
+    // ⚠ "has reasons", NOT "non-empty string". The signature always carries the
+    // FILENAME, so a `sig.trim()` guard is truthy even when every gate failed
+    // silently — and would call a reasonless fleet stalled. Caught by
+    // scripts/stall_proof.mjs, not by reading it. Silence is not information.
+    const hasReasons = failing.some(x => (x.gate.reasons || [x.gate.reason]).filter(Boolean).length)
+    if (hasReasons && sig === lastSig) {
+      if (++sameCount >= 1) {
+        reworkStop = 'stalled'
+        log(`⚠ REWORK STALLED after ${r}/${MAXROUNDS} round(s) — the SAME ${failing.length} ` +
+            `item(s) failed for the SAME reasons twice running. More rounds will not help: ` +
+            `change the approach, do not raise the ceiling.`)
+        break
+      }
+    } else { sameCount = 0 }
+    lastSig = sig
     r++
     // v18.2 — PLAIN, NOT TEMPLATED. `phase(`Rework r${r}`)` opened a group named 'Rework r1'
     // while this round's builders carry `phase:'Rework'` (line ~489) — so the box the phase
@@ -1136,27 +1051,16 @@ async function buildAndGate(itemsIn, label) {
     const redone = await pipeline(
       failing,
       x => { const esc = { ...x.item, tier: bump(x.item.tier) }
-             /* v31 — the item's OWN failure (unchanged) PLUS what its siblings hit this run. The
-                second half is the new part: items that share a brief fail the same way, and paying
-                twice for one lesson is the whole reason this ledger exists. */
-             const own = (x.gate.reasons || [x.gate.reason]).filter(Boolean).join(' | ')
-             return buildAgent(esc, own + scarBriefFor(x.item.file)).then(b => ({ ...b, item: esc })) },
+             return buildAgent(esc, (x.gate.reasons || [x.gate.reason]).filter(Boolean).join(' | ')).then(b => ({ ...b, item: esc })) },
       built => gateFor(built),
       gated => skepticStage(gated)
     )
     const byFile = new Map(res.map(x => [x.item.file, x]))
     for (const x of redone.filter(Boolean)) byFile.set(x.item.file, x)
     res = [...byFile.values()]
-    // v31 — capture THIS round's refusals for the round after it (and for the arc-end carve pass).
-    for (const x of redone.filter(Boolean)) {
-      if (x.gate && x.gate.verdict === 'rework') {
-        recordScar({ round: r, file: (x.item || {}).file, stage: 'gate', severity: x.gate.severity,
-                     reason: (x.gate.reasons || [x.gate.reason]).filter(Boolean).join(' | ') })
-      }
-    }
   }
   if (r > round) round = r
-  if (res.some(x => x.gate && x.gate.verdict === 'rework')) {
+  if (res.some(x => x.gate && x.gate.verdict === 'rework') && reworkStop !== 'stalled') {
     reworkStop = !budgetOK() ? 'budget-floor' : 'round-cap'
     log(`⚠ REWORK STOPPED (${reworkStop}) with item(s) still failing after ${r}/${MAXROUNDS} round(s).`)
   }
@@ -1187,20 +1091,6 @@ if (QUALITY_TYPO) log(`⚠ quality:"${QUALITY_ASKED}" is not a quality this work
 if (QUALITY_DEFAULTED) log('   (lean is the default — EVERY gate max runs, at ~62% of the tokens: one architect ' +
     'instead of a judge panel, one rework round, no completeness critic, low-risk items built at their ' +
     'architect\'s tier. Pass {quality:"max"} for the judge panel + completeness critic; {quality:"standard"} for the cost-scaled ladder)')
-log(`v30 METER: maxItems=${MAX_ITEMS_CAP} (quality=${QUALITY}) · volumeArcHeuristic=${LOOKS_LIKE_VOLUME_ARC}`)
-if (LOOKS_LIKE_VOLUME_ARC) {
-  log('⚠ v30 METER ROUTING: this task reads like a MULTI-VERSION VOLUME arc.')
-  if (MAXONLY) {
-    log('   quality=max is the expensive path. Prefer lean/tiny slices with items[], not one max fleet.')
-    log(`   This run will hard-cap items at ${MAX_ITEMS_CAP} and report PARTIAL if more were planned.`)
-    log('   Measured: max + 30-version brief → 2h+, agent ceiling, render CEILING, thrash on VERSION.')
-  } else {
-    log(`   quality=${QUALITY} is appropriate for volume — keep each package FAT (LAW17), not 30 hollow stamps.`)
-  }
-}
-if (MAXONLY && FORCE) {
-  log('⚠ v30: quality=max + force:true — triage cannot send this back to the main loop. Keep the item list SMALL.')
-}
 
 // 0) TRIAGE — decide the size of the run before buying any of it.
 //
@@ -1225,6 +1115,9 @@ function wantsAFile(task) {
 
 // 0) PREFLIGHT — take the workspace lock BEFORE spending anything. Same lock dir as max, so the two
 // workflows genuinely exclude each other. Sonnet: this is `date`, `mkdir` and a JSON file.
+// ⚠ THE SCARS ARE READ BY AN AGENT, not by this script. A Workflow script has no
+// filesystem — the first version called require('fs').readFileSync here and made the
+// engine unloadable. The read is real; it just has to happen where reading is possible.
 log('SCARS: the Preflight agent reads SCARS.md beside this engine before any build')
 
 phase('Preflight')
@@ -1252,31 +1145,28 @@ if (APPLY) {
   lock = await spawn(
     `WORKSPACE LOCK — acquire. Pure mechanics, no judgement. Use Bash only.\n\n` +
     `1. LOCKDIR="$HOME/.claude/workflows/.locks"; mkdir -p "$LOCKDIR".\n` +
-    `2. TREE = \`git rev-parse --show-toplevel 2>/dev/null\` || \`pwd -P\`. REFUSE if TREE is "$HOME" ` +
-    `or "/" or empty — never lock the home directory (a Users-konyo.json lock blocks every repo under ` +
-    `home). If refuse: return acquired:false, key:"refused-home", cwd:TREE.\n` +
-      `3. KEY: use EXACTLY this string, computed for you in code — do not derive your own, do not use pwd, do not "improve" it: ${LOCK_SLUG}. If it is empty or resolves to your home directory, REFUSE per step 2 rather than substituting one. ⚠ THE DERIVE-IT-YOURSELF WORDING WAS OBEYED ONCE AND IGNORED THE NEXT RUN: one run walked up to the git root correctly, the next keyed on the shell cwd and locked a whole home directory for eight hours over an edit to one repo. Step 2 is the backstop; this literal is the fix. ` +
-    `LOCKFILE="$LOCKDIR/<slug>.json". Only this exact file covers this repo — a parent-path lock ` +
-    `(e.g. $HOME) does NOT block a subdirectory repo.\n` +
-    `4. PURGE FIRST. NOW=$(date -u +%s) — INTEGER EPOCH SECONDS. For every *.json in "$LOCKDIR", read ` +
+    `2. KEY: use EXACTLY this string, already computed for you — do not derive your own, do not use pwd, do not "improve" it: ${LOCK_SLUG}. ⚠ THE PREVIOUS WORDING ASKED YOU TO DERIVE IT AND AN AGENT IGNORED THAT: one run walked up to the git root correctly, the next keyed on the shell cwd and locked a whole home directory for eight hours over an edit to one repo. Use the string above verbatim. ` +
+      `LOCKFILE="$LOCKDIR/<slug>.json".\n` +
+    `3. PURGE FIRST. NOW=$(date -u +%s) — INTEGER EPOCH SECONDS. For every *.json in "$LOCKDIR", read ` +
     `its "expires_epoch" and delete the file if it is numerically less than $NOW, using ` +
     `[ "$EXP" -lt "$NOW" ] — an INTEGER test. Do NOT compare ISO strings with [ a \\< b ]: that is ` +
     `invalid under zsh, the test silently fails, and a dead lock then survives forever and locks the ` +
-    `human out of their own repo. Also DELETE any lock whose cwd is exactly "$HOME" (toxic home-wide). ` +
-    `Count deletions -> purged_stale. Malformed/unparseable counts as stale — delete it too.\n` +
-    `5. If "$LOCKFILE" still exists after the purge, another LIVE run owns this EXACT tree. Do NOT touch ` +
-    `or overwrite it. Return acquired:false with its token/started_at/expires_at/task as holder_token / ` +
+    `human out of their own repo. Count deletions -> purged_stale. Malformed/unparseable counts as ` +
+    `stale — delete it too; unreadable must never mean "held".\n` +
+    `4. If "$LOCKFILE" still exists after the purge, another LIVE run owns this tree. Do NOT touch or ` +
+    `overwrite it. Return acquired:false with its token/started_at/expires_at/task as holder_token / ` +
     `holder_since / holder_expires / holder_task.\n` +
-    `6. Otherwise WRITE "$LOCKFILE" with exactly these keys, then return acquired:true:\n` +
+    `5. Otherwise WRITE "$LOCKFILE" with exactly these keys, then return acquired:true:\n` +
     `   token         = a unique id you generate (e.g. "$(date -u +%Y%m%dT%H%M%SZ)-$RANDOM")\n` +
     `   started_at    = now, ISO-8601 UTC (human-readable only)\n` +
     `   expires_at    = now + ${LOCK_TTL_MIN} minutes, ISO-8601 UTC (human-readable only)\n` +
-    `   expires_epoch = $(( $(date -u +%s) + ${LOCK_TTL_MIN} * 60 ))  <- INTEGER, the field step 4\n` +
+    `   expires_epoch = $(( $(date -u +%s) + ${LOCK_TTL_MIN} * 60 ))  <- INTEGER, the field step 3\n` +
     `                   compares. MUST be present and numeric or the lock is unpurgeable.\n` +
-    `   cwd           = TREE from step 2 (git toplevel, never $HOME)\n` +
+    `   cwd           = the pwd from step 2\n` +
     `   task          = ${JSON.stringify(taskSnip)}\n` +
-    `Return the token you wrote, AND TREE verbatim in \`cwd\` — on BOTH outcomes, acquired or not. ` +
-    `That path is the only way a human can see WHICH tree this run locked. Do not create, edit or ` +
+    `Return the token you wrote, AND the absolute path from step 2 verbatim in \`cwd\` — on BOTH ` +
+    `outcomes, acquired or not. That path is the only way a human can see WHICH tree this run locked; ` +
+    `it is derived from your shell's working directory, which nobody declared. Do not create, edit or ` +
     `delete anything outside "$LOCKDIR".`,
     { model: 'sonnet', effort: 'low', phase: 'Preflight', label: 'lock:acquire', schema: LOCK_SCHEMA },
     true                              // reserved: the lock is taken before anything else spends
@@ -1542,15 +1432,6 @@ if (TINYQ || HAS_CALLER_ITEMS) {
   log(_anch === raw.length
     ? `   every item carries an ANCHOR — builders and gates jump instead of searching (the real cost on big files).`
     : `   ⚠ ${raw.length - _anch}/${raw.length} item(s) have NO \`anchor\` — on a large file that is 8-10 min per hop of SEARCHING, paid again by every skeptic and the render gate. Pass anchor:'~line N, symbolName' next time.`)
-  // v30 — quality item cap also applies to caller items (tiny already refused >4 upstream)
-  if (plan.items.length > MAX_ITEMS_CAP) {
-    log(`v30 ITEM CAP on caller items[]: ${plan.items.length} → ${MAX_ITEMS_CAP}`)
-    for (const dropped of plan.items.slice(MAX_ITEMS_CAP)) {
-      // trimmedFromPlan does not exist yet — stash on global for later merge into the real array
-      ;(globalThis.__v30CallerTrimmed = globalThis.__v30CallerTrimmed || []).push(dropped.file)
-    }
-    plan.items = plan.items.slice(0, MAX_ITEMS_CAP)
-  }
 }
 /* ── v20.1 — RIGHT-SIZE THE PANEL, AND REPORT THE SIZE ───────────────────────────────────────────
    MEASURED, v1635: the 20+ agent ceiling went entirely to the architect panel, the builders and the
@@ -1636,9 +1517,6 @@ plan = await spawn(
       `${globalThis.__triage.est_agents} agents. Produce AT MOST ${Math.max(1, Math.min(24, globalThis.__triage.est_agents))} items. ` +
       `Fewer, larger items beat many thin ones — every extra item costs a build AND its gate.\n`
     : '') +
-  `\nITEM CAP THIS RUN (v30 meter routing, quality=${QUALITY}): produce AT MOST ${MAX_ITEMS_CAP} items. ` +
-  `quality:max is for SMALL high-stakes lists, not volume arcs — lean/tiny slices ship multi-version work. ` +
-  `Fewer, FATTER packages beat 30 hollow stamps.\n` +
   `\nFAT VERSION LAW (LAW17): ONE version integer must package real work — (A) >=3 user-visible ` +
   `outcomes in one theme, OR (B) one structural bug with root cause + verification + prevention. ` +
   `A plan whose entire content is one toast / one label / one i18n key / one CSS one-liner / docs ` +
@@ -1765,18 +1643,6 @@ if (MAXQ) {
     items = items.slice(0, roomForItems)
   }
 }
-// v30 — quality item cap (meter routing). Applied AFTER ceiling math so both bounds hold.
-// Rest → follow-up / PARTIAL via the same trimmedFromPlan ledger.
-if (Array.isArray(globalThis.__v30CallerTrimmed) && globalThis.__v30CallerTrimmed.length) {
-  for (const f of globalThis.__v30CallerTrimmed) trimmedFromPlan.push(f)
-  globalThis.__v30CallerTrimmed = []
-}
-if (items.length > MAX_ITEMS_CAP) {
-  log(`v30 ITEM CAP (quality=${QUALITY}): plan had ${items.length} items; keeping ${MAX_ITEMS_CAP} ` +
-      `(rest → follow-up / PARTIAL). Max is not a volume throttle.`)
-  for (const dropped of items.slice(MAX_ITEMS_CAP)) trimmedFromPlan.push(dropped.file)
-  items = items.slice(0, MAX_ITEMS_CAP)
-}
 /* v21.1 — COUNT THE TIERS THAT WILL ACTUALLY BE BOUGHT, NOT THE ONES THAT WERE ASKED FOR.
    v20 fixed the GATING of the parenthetical (it no longer claims quality=max on a lean run) and
    left the halves of the line contradicting each other anyway: the counts came straight off
@@ -1793,11 +1659,6 @@ log(`Plan "${plan.version_label}": ${items.length} items — ` +
     ((MAXONLY) ? ' (effective tiers — quality=max builds everything at Opus)'
       : LEANQ ? " (effective tiers — quality=lean honours the architect's tier on risk:low items, floored at sonnet; opus otherwise)"
       : ' (effective tiers — cost-scaled ladder, escalates on rework)'))
-log(`v30 itemCap=${MAX_ITEMS_CAP} (quality routing) · volumeArc=${LOOKS_LIKE_VOLUME_ARC}` +
-    (trimmedFromPlan.length ? ` · trimmedFromPlan=${trimmedFromPlan.length}` : ''))
-if (LOOKS_LIKE_VOLUME_ARC && MAXONLY) {
-  log('⚠ v30: volume-arc task under MAX — expect PARTIAL; schedule remaining stamps as lean follow-ups.')
-}
 
 /* ── v11 — FEASIBILITY, ANNOUNCED BEFORE THE MONEY IS SPENT (max only) ───────────────────────────
    The ceiling is honest but it is a TRIPWIRE: it tells you the run was truncated only once it has
@@ -2508,7 +2369,6 @@ if (renderLoop.fixes.length && reach) {
         `a gate that silently drops its own finding is worse than one that reports a stale one.`)
   }
 }
-
 // v13 wired blocker() only into the DID-NOT-RUN branches; a gate that RAN AND FAILED printed
 // "SHIP BLOCKER" and then blocked nothing, so verdict computed 'OK' over a refused ship.
 if (reach && (reach.dead || []).length) {
@@ -2589,6 +2449,43 @@ const failed = results.filter(r => !r.gate || r.gate.verdict !== 'pass')
    It is assembled from the SAME fields the payload uses, so the headline cannot disagree with
    `blockers`/`shippable` the way a prose summary can — which is the exact failure v20 found when a
    synthesizer was handed "wentDry=false, stoppedBecause=(went dry)" for a loop that never ran. */
+/* ⚠ THE SCAR BLOCK — the only part of a run that makes the NEXT run better. Without
+   it a fleet ships well and learns nothing: run it a hundred times and it is exactly as
+   good on run 100 as on run 1.
+
+   GUARD and EVIDENCE are the two fields that matter. A scar without a guard is a bug we
+   merely regret; one without evidence is a superstition, and superstitions accumulate
+   into a fleet that refuses things for reasons nobody chose.
+
+   ⚠ AND IT REFUSES TO INVENT ONE. A clean run produces NO scar, and a run that went
+   wrong produces exactly ONE — the most expensive thing, not everything noticed.
+   Emitting a scar because the field exists is precisely how SCARS.md becomes the unread
+   file it warns about: measured, one careful pass over a 25-line document produced
+   three, all with genuine evidence. */
+const _scarBlock = () => {
+  const worst = BLOCKERS[0]
+  const stalled = reworkStop === 'stalled'
+  if (!worst && !stalled) return null            // a clean run has no lesson to record
+  const what = worst ? worst.what : `the fleet stalled after ${round} round(s)`
+  return [
+    '```scar',
+    `WHAT BROKE   ${String(what).slice(0, 200)}`,
+    `COST         ${stalled
+        ? 'rework rounds spent re-producing one unchanging failure'
+        : 'the run could not ship: ' + BLOCKERS.length + ' blocker(s)'}`,
+    `CAUGHT BY    ${stalled ? 'stall detection — same items, same reasons, twice running'
+                            : 'the gate / skeptic panel, before merge'}`,
+    'RULE         <an instruction you can tell whether you followed — not a regret>',
+    'GUARD        <the phase or check that now holds it, or NONE honestly>',
+    `EVIDENCE     ${round} round(s), stopped_because=${reworkStop}, ` +
+      `${BLOCKERS.length} blocker(s), ${SPAWN_ERRORS.length} agent(s) died`,
+    '```',
+    'RULE and GUARD are deliberately left for the human: a rule the fleet writes about',
+    'itself, with nobody checking, is how a workflow starts refusing things for reasons',
+    'that were never true.',
+  ].join('\n')
+}
+
 const _tinyFinal = () => ({
   version_label: (plan && plan.version_label) || 'v-tiny-r1',
   headline: BLOCKERS.length
@@ -2601,6 +2498,7 @@ const _tinyFinal = () => ({
     ...failed.map(r => `FAILED GATE: ${r.item.file} — ${(r.gate && r.gate.reason) || 'no reason given'}`.slice(0, 300)),
     ...BLOCKERS.map(b => `${b.what}: ${b.why}`.slice(0, 300)),
   ],
+  scar: _scarBlock(),   // null on a clean run — a fleet that scars every run teaches nothing
 })
 const final = TINYQ ? _tinyFinal() : await spawn(
   `You are the SYNTHESIZER for the KONYO WORKFLOW, mode=${mode}. Task: ${TASK}\n` +
@@ -2627,7 +2525,12 @@ const final = TINYQ ? _tinyFinal() : await spawn(
   `AGENTS THAT DIED (${SPAWN_ERRORS.length}): ` + (SPAWN_ERRORS.length ? SPAWN_ERRORS.slice(0, 5).join(' | ') : 'none') + `\n` +
   `AGENT CEILING: ${SPENT}/${MAX_AGENTS} spent, hit=${CEILING_HIT}\n` +
   `TRIMMED FROM THE PLAN (${trimmedFromPlan.length}): ` + (trimmedFromPlan.length ? trimmedFromPlan.slice(0, 8).join(', ') : 'none') + `\n` +
-  `REWORK: ${round}/${MAXROUNDS} round(s), stopped_because=${reworkStop}\n` +
+  `REWORK: ${round}/${MAXROUNDS} round(s), stopped_because=${reworkStop}` +
+  (reworkStop === 'stalled'
+    ? `  ⚠ STALLED — the same items failed for the same reasons twice running. `
+      + `More rounds will not help; change the approach rather than raising the ceiling.`
+    : '') + `\n` +
+  (_scarBlock() ? `\nSCAR — paste into SCARS.md after filling RULE and GUARD:\n${_scarBlock()}\n` : '') +
   `SKEPTICS: ${SKEPTICS} per item (source: ${SKEPTICS_SOURCE})\n` +
   `QUALITY: ${QUALITY}\n` +
   /* v20 — THE WORST OF THE MAXQ/LEANQ CONFUSIONS, BECAUSE THIS STRING IS THE SYNTHESIZER'S INPUT.
@@ -2737,15 +2640,7 @@ if (USE_GROK && APPLY) {
 // run that wrote nothing. Push is already gated on APPLY; the flag must agree.
 const SHIPPABLE = APPLY
   && !BLOCKERS.length && !CEILING_HIT && !trimmedFromPlan.length && !failed.length
-  /* v32 §1.1 — TINY COULD NEVER SHIP, AND THE REASON WAS ONE FLAG. This read
-     `(!MAXQ || LEANQ || (dry >= DRYROUNDS && ...))`. But MAXQ is `max || lean || TINYQ` (line 117)
-     and LEANQ is `lean` ONLY — so on a TINY run both escapes are false and the clause collapses to
-     `dry >= DRYROUNDS`. `dry` is only ever incremented by the completeness loop, which is gated on
-     MAXONLY (`MAXQ && !LEANQ && !TINYQ`) and therefore NEVER RUNS AT TINY. dry stayed 0, DRYROUNDS
-     defaults to 1, so 0 >= 1 was false on every tiny run: a PERFECT tiny run printed
-     "NOT SHIPPABLE — the completeness loop did not go dry" about a loop tiny deliberately does not
-     buy. The condition must be asked of the SAME flag that gates the loop it is asking about. */
-  && !SPAWN_ERRORS.length && !THIN_PANELS.length && (!MAXONLY || (dry >= DRYROUNDS && !unbuiltGaps.length))
+  && !SPAWN_ERRORS.length && !THIN_PANELS.length && (!MAXQ || LEANQ || (dry >= DRYROUNDS && !unbuiltGaps.length))
   && passed.length > 0
 let shipped = { pushed: false, why: 'not attempted' }
 if (!APPLY) {
@@ -2766,11 +2661,7 @@ if (!APPLY) {
     SPAWN_ERRORS.length      && `${SPAWN_ERRORS.length} agent(s) died`,
     THIN_PANELS.length       && `${THIN_PANELS.length} thin skeptic panel(s) — fewer eyes than the seat count claims`,
     !passed.length           && 'no item passed a gate (vacuous green is forbidden)',
-    /* v32 §1.1 — MUST MIRROR THE PREDICATE ABOVE, and it did not: this said `MAXQ && !LEANQ`,
-       which is TRUE on a tiny run, so tiny was blocked AND told why by a second copy of the same
-       wrong test. Two copies of one condition is how the predicate and its explanation drift —
-       exactly what the "reason list and decision disagree" fallback below exists to catch. */
-    (MAXONLY && !(dry >= DRYROUNDS && !unbuiltGaps.length))
+    (MAXQ && !LEANQ && !(dry >= DRYROUNDS && !unbuiltGaps.length))
                              && 'the completeness loop did not go dry',
     !APPLY                   && 'dry-run: nothing was written',
   ].filter(Boolean)
@@ -2845,26 +2736,9 @@ if (lock && lock.acquired) {
 // THE RETURN IS A UNION OF BOTH ORIGINALS, NOT A CHOICE BETWEEN THEM. Every field either script
 // used to return is carried here at BOTH qualities. A field a standard run does not earn is
 // returned with an explicit `ran:false` + reason — NEVER a bare null a reader can mistake for a pass.
-/* ══ v31 — CARVE PER ARC. The proposal, at the only honest moment for it: after every round has
-   finished, when the run knows what it actually kept failing at. It PROPOSES and never writes —
-   carving prunes shared skill files that agents load, and a carve authored from one run is fitted
-   to one run. Three scars in one territory is the floor (two is a coincidence); the decision and
-   the authoring stay Konyo's, with the `carving-skill`. Silence here is the honest common case. ══ */
-const CARVE = carveCandidates()
-if (SCARS.length) {
-  log(`SCARS captured this run: ${SCARS.length} (fed forward to later rounds; none of them skipped a gate).`)
-  if (CARVE.length) {
-    log(`🪓 CARVE CANDIDATE${CARVE.length > 1 ? 'S' : ''} — ${CARVE.length} territory/ies hit 3+ times. ` +
-        `Run /carving-skill on: ` + CARVE.map(c => `${c.territory} (x${c.n}${c.files.length ? ', ' + c.files.join(' ') : ''})`).join(' · '))
-  } else {
-    log('No carve candidate — no single territory failed 3+ times. That is a normal, healthy result.')
-  }
-}
 return emit({
   version: plan.version_label,
   mode,
-  scars: SCARS,
-  carve_candidates: CARVE,
   /* v18 — ONE SHAPE ON BOTH EXIT PATHS. Caught by the completeness critic of the very run that
      built this merge: bail() returned `quality: QUALITY` (the machine token 'max'|'standard') while
      the SUCCESS path returned `quality:` as a PROSE SENTENCE, with the machine value buried in
@@ -2977,15 +2851,6 @@ return emit({
   shipped,
   passed: passed.length,
   failed: failed.length,
-  // v30 — meter routing (Grok parity 2026-08-07)
-  max_items_cap: MAX_ITEMS_CAP,
-  volume_arc_heuristic: LOOKS_LIKE_VOLUME_ARC,
-  safeguards: {
-    v30_meter_routing: true,
-    v30_item_cap_by_quality: true,
-    v30_max_not_for_volume_arcs: true,
-    v30_tip_honesty_and_thrash: true,
-  },
   render_gate: renderGate,
   /* v26 — the loop, reported rather than inferred. `converged:true` means a render came back clean;
      anything else names WHY it stopped, so "2 passes" never has to be read as "it worked". */
