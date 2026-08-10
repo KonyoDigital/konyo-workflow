@@ -122,5 +122,39 @@ ok('it is told not to git add -A over others work', /never \\`git add -A\\`/.tes
 ok('the ship agent still refuses a dirty tree (the guard must SURVIVE)',
    /\\`git status --porcelain\\` is EMPTY/.test(SRC) && /Do NOT commit it yourself/.test(SRC))
 
+
+// ── v32 §(c) REPORT HONESTY ──────────────────────────────────────────────────────────────────────
+console.log('\nv32 §(c1) — Ship must not be listed as NOT OPENED on a run that pushes')
+const planOf = (APPLY) => {                       // the REAL expression, transcribed
+  const open = ['Preflight','Build+Gate','Reachability']
+  if (APPLY) open.push('Render gate', 'Fat version bar')
+  if (APPLY) open.push('Ship (only if every gate passes)')
+  const ALL = ['Preflight','Build+Gate','Render gate','Fat version bar','Reachability','Ship']
+  const openBase = open.map(t => t.replace(/\s*\(.*\)\s*$/, ''))
+  return { open, skip: ALL.filter(t => openBase.indexOf(t) < 0) }
+}
+const OLDplanOf = (APPLY) => {
+  const open = ['Preflight','Build+Gate','Reachability']
+  if (APPLY) open.push('Render gate', 'Fat version bar')
+  if (APPLY) open.push('Ship (only if every gate passes)')
+  const ALL = ['Preflight','Build+Gate','Render gate','Fat version bar','Reachability','Ship']
+  return { open, skip: ALL.filter(t => open.indexOf(t) < 0) }
+}
+ok('OLD: an APPLY run listed Ship as SKIPPED  <- THE BUG', OLDplanOf(true).skip.includes('Ship'))
+ok('NEW: an APPLY run does NOT list Ship as skipped', !planOf(true).skip.includes('Ship'))
+ok('NEW: a DRY run still lists Ship as skipped (the honesty survives)', planOf(false).skip.includes('Ship'))
+ok('the engine strips the decoration before matching', /openBase\.indexOf\(t\) < 0/.test(SRC))
+
+console.log('\nv32 §(c4) — passed:true carrying failures is a contradiction, not a pass')
+ok('convergence now also requires an EMPTY failures[]', /!_rWrong\.length && !_rf\.length/.test(SRC))
+ok('the blocker fires on passed:true WITH failures', /!renderGate\.passed \|\| _finalFails\.length/.test(SRC))
+ok('and it is named as a contradiction, not a plain failure',
+   /RENDER GATE SAID PASS WHILE LISTING FAILURES/.test(SRC))
+
+console.log('\nv32 §(c3) — available:false must not silently disable three gates')
+ok('an unexplained available:false now raises a blocker', /RENDER GATE DISABLED WITHOUT A REASON/.test(SRC))
+ok('a STATED reason still passes (an honest no-UI project is not punished)',
+   /Reason given:/.test(SRC) && /images_na_reason \|\| renderGate\.notes/.test(SRC))
+
 console.log(`\n${fail ? '❌' : '✅'} ${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)
