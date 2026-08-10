@@ -1917,7 +1917,15 @@ const PHASE_PLAN = (() => {
   if (APPLY) open.push('Ship (only if every gate passes)')
   const ALL = ['Preflight','Triage','Architect','Third-eye','Build+Gate','Adversarial gate','Rework',
                'Merge','Completeness','Render gate','Fat version bar','Reachability','Synthesize','Ship']
-  return { open, skip: ALL.filter(t => open.indexOf(t) < 0) }
+  /* v32 §(c1) — 'Ship' WAS REPORTED AS "NOT OPENED" ON EVERY RUN THAT THEN PUSHED. The line above
+     pushes the DECORATED label 'Ship (only if every gate passes)', while this filter matched the
+     plain token 'Ship' — which never appears in `open`. So the honest decoration added for v23
+     silently moved Ship into the SKIPPED list, and the run announced it would not do the one thing
+     it was about to do. Match on the BASE title (decoration stripped) and keep the decoration for
+     display. Exactly the defect class this whole session kept finding: a correct value filed under
+     a name that stopped matching. [[label-outlived-referent]] */
+  const openBase = open.map(t => t.replace(/\s*\(.*\)\s*$/, ''))
+  return { open, skip: ALL.filter(t => openBase.indexOf(t) < 0) }
 })()
 log(`PHASES THIS RUN WILL OPEN (${PHASE_PLAN.open.length}/13): ${PHASE_PLAN.open.join(' → ')}`)
 log(`   NOT OPENED (${PHASE_PLAN.skip.length}) — the display still lists them; they are SKIPPED, not pending: ${PHASE_PLAN.skip.join(', ')}`)
@@ -2307,7 +2315,15 @@ if (APPLY) {
   const _rf = Array.isArray(renderGate && renderGate.failures) ? renderGate.failures : []
   const _ri = Array.isArray(renderGate && renderGate.images) ? renderGate.images : []
   const _rWrong = _ri.filter(i => i && i.matches === false)
-  const _rClean = !!(renderGate && renderGate.available && renderGate.passed && !_rWrong.length)
+  /* v32 §(c4) — A "PASS" CARRYING FAILURES USED TO END THE LOOP AS A SUCCESS. This tested
+     `passed && !_rWrong.length` — it had already learned that a wrong IMAGE must not converge the
+     loop, but it never checked `failures[]`. So a gate reporting `passed:true` alongside a
+     non-empty failures[] converged, blocked nothing, and shipped. `passed:true` with failures is
+     not a pass, it is a CONTRADICTION — and the standing rule here is that the contradiction IS
+     the finding: refuse and report both halves, never let one silently win.
+     [[feedback-contradiction-is-the-finding]] */
+  const _rClean = !!(renderGate && renderGate.available && renderGate.passed
+                     && !_rWrong.length && !_rf.length)
 
   if (!renderGate) { renderLoop.stopped = 'the gate did not return'; break }
   if (!renderGate.available) { renderLoop.stopped = 'no UI verification in this project'; break }
@@ -2421,15 +2437,39 @@ if (APPLY) {
   if (renderLoop.passes > 1) {
     log(`🔁 Render loop: ${renderLoop.passes} pass(es), ${renderLoop.fixes.filter(f => f.changed).length} correction(s) — ${renderLoop.stopped}`)
   }
-  if (renderGate && renderGate.available && !renderGate.passed) {
+  /* v32 §(c4), SECOND HALF — this branch was gated on `!renderGate.passed`, so a gate reporting
+     `passed:true` WITH a non-empty failures[] raised NOTHING. Fixing the loop's convergence test
+     alone would have left the run exhausting its passes and then shipping in silence, because the
+     thing that raises the blocker is here. A pass carrying failures is a contradiction, and the
+     contradiction is what gets reported — both halves, named. */
+  const _finalFails = (renderGate && Array.isArray(renderGate.failures)) ? renderGate.failures : []
+  if (renderGate && renderGate.available && (!renderGate.passed || _finalFails.length)) {
     // `.failures` is guarded: a truncated agent return used to throw a TypeError at top level here,
     // AFTER the entire run had finished, destroying the report it was about to write.
-    log(`⛔ RENDER GATE FAILED — ${(renderGate.failures || []).length} failure(s). SHIP BLOCKER.`)
-    ;(renderGate.failures || []).slice(0, 6).forEach(f => log(`   · ${f}`))
-    blocker('RENDER GATE FAILED',
-      `${(renderGate.failures || []).length} failure(s): ${(renderGate.failures || []).slice(0, 3).join('; ')}`)
+    const _contradiction = renderGate.passed && _finalFails.length
+    log(`⛔ RENDER GATE FAILED — ${_finalFails.length} failure(s). SHIP BLOCKER.`)
+    if (_contradiction) log(`   ⚠ the gate reported passed:true WHILE listing ${_finalFails.length} failure(s) — ` +
+      `that is not a pass, it is a contradiction, and it is reported rather than resolved in the gate's favour.`)
+    _finalFails.slice(0, 6).forEach(f => log(`   · ${f}`))
+    blocker(_contradiction ? 'RENDER GATE SAID PASS WHILE LISTING FAILURES' : 'RENDER GATE FAILED',
+      `${_finalFails.length} failure(s): ${_finalFails.slice(0, 3).join('; ')}`)
   } else if (renderGate && !renderGate.available) {
-    log('⚠ RENDER GATE: no UI verification in this project — nothing was seen painted.')
+    /* v32 §(c3) — `available:false` SILENTLY DISABLED THREE GATES. This branch only logged, and
+       every downstream check (the image gate, the "nobody looked" blocker, the Grok vision seat)
+       is itself gated on `renderGate.available` — so one false flag turned off all of them and the
+       run reported no blocker at all. That is the same shape as v15's own lesson, one level up:
+       an honest "this project has no UI surface" costs one sentence and passes; SILENCE costs a
+       blocker. A reason is accepted from `images_na_reason` or `notes`. */
+    const _naWhy = String((renderGate.images_na_reason || renderGate.notes || '')).trim()
+    if (_naWhy) {
+      log(`⚠ RENDER GATE: no UI verification in this project — nothing was seen painted. Reason given: ${_naWhy.slice(0, 200)}`)
+    } else {
+      log('⛔ RENDER GATE: reported available:false and gave NO reason — the render gate, the image ' +
+          'gate and the vision seat were ALL skipped on one unexplained flag. SHIP BLOCKER.')
+      blocker('RENDER GATE DISABLED WITHOUT A REASON',
+        'available:false with no images_na_reason and no notes — one unexplained flag silently ' +
+        'turned off the render gate, the image gate and the second-family vision seat')
+    }
   } else if (!renderGate) {
     blocker('RENDER GATE DID NOT RUN', 'nothing in this run was seen painted')
   }
