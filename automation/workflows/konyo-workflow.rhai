@@ -1,7 +1,7 @@
 let meta = #{
     name: "konyo-workflow",
     description: "KONYO WORKFLOW for Grok Build — FULL IMPLEMENTER. ONE body, four qualities (lean|max|standard|tiny). LEAN default: every ship gate (adversarial panel, LAW17/18/19, workspace lock, agent ceiling). max buys multi-architect, completeness, deeper rework. Pass {apply:true} to edit; apply:false dry-run. Third eye = Claude CLI (different family). Args: task, quality, apply, force, items, skeptics, isolate, thirdEye, maxAgents, ignoreLock, push, renderLoop. items[] skips architect. v26 render LOOP; v27/v27.1 SHIPPABLE; v28 PACE+PROXY+PHASE_PLAN+stop reasons; v28.1 early lock; v29 scar FOUNDING vs LEARNED; v30 meter routing (max is not volume); v31 LAW19 parallel first-render hop + images_na fail-closed + rich LAW19 schema; v32 record scars at failure + run-not-inspect; v33 CAPTURE PER ROUND / CARVE PER ARC (Claude JS v31 parity 2026-08-11) — sibling failures brief rework; arc-end carve candidates PROPOSE only, never suppress a gate.",
-    when_to_use: "ANY multi-step ship on Grok Build. Bare call = lean + dry-run. {apply:true} to write. quality max ONLY for SMALL high-stakes lists (items preferred) — never volume arcs. quality tiny with apply and items for known small edits. quality standard for the cheap ladder. Multi-stamp: N lean/tiny slices. Parity: Claude concurrent LAW19+render + Grok v30–v33 (meter, hop, scar@failure, capture-per-round).",
+    when_to_use: "SURGICAL — NOT THE DEFAULT FOR EVERY CHAT. Use only when the human asked for a multi-round ship, a sealed version, a night/fleet run, or an explicit /konyo-workflow (or equivalent). Do NOT open this fleet for one-file fixes, Q&A, audits, or routine edits — those use direct tools + the few specialist skills that match the surface. Bare call = lean + dry-run. {apply:true} to write. quality max ONLY for SMALL high-stakes lists (items preferred). quality tiny needs items[]. Multi-stamp: N lean/tiny slices. Carving is separate: open carving-skill only when 3+ scars share a territory (or carve_candidates non-empty), never as a default stack with this workflow.",
     phases: [
         #{ title: "Preflight", detail: "workspace lock when apply:true — shared lock dir with Claude so fleets exclude each other" },
         #{ title: "Triage", detail: "right-size before spending; SKIPPED at tiny" },
@@ -402,12 +402,16 @@ craft_rules += "· Before pasting a new scar: snapshot (SCARS.prev.md or tools/s
 craft_rules += "· Prefer project tools (e.g. tools/scar.py) over hand-editing machine-parsed blocks when they exist.\n";
 craft_rules += "· RECORD AT THE FAILURE, not only at the seal (v32). A long autonomous session never reaches Step 6; scars earned mid-run are lost if you wait. When a failure costs something, write the six-line scar THEN (print + offer SCARS.md + say durability unverified). One scar per DISTINCT failure — not one per session. Four real failures in one session is four scars. Most runs produce none; 'I noticed a thing' is not a scar. Same failure twice = keep the most expensive framing only.\n";
 
-// SURGICAL SKILL ROUTING (2026-08-11 — not every skill every run)
-// The workflow is a harness; skills are scalpels. Loading everything is thrash.
-craft_rules += "\nSKILL ROUTING — SURGICAL, NOT DEFAULT-ALL:\n";
-craft_rules += "· Load ONLY skills that match THIS task's surface. Examples: kai-console-design / unknown-stays-unknown when painting console figures; process-port-discipline before any kill/start; chrome-cdp-mac only for browser/CDP work; copy-drift before editing anything under skills/ or workflows/; carving-skill ONLY when three+ learned scars share a named territory OR the run's carve_candidates is non-empty — never as a default open every ship.\n";
-craft_rules += "· Do NOT open ship-skill + carving-skill + taste + redesign + every host skill 'just in case'. That crowds the brief and re-pays for lessons that are not relevant.\n";
-craft_rules += "· Macro workflow (this script) always owns gates (adversarial, LAW17/18/19, lock, ceiling). Specialist skills answer specialist questions. If the task is a one-file honesty fix, the workflow gates + one domain skill beat a full skill stack.\n";
+// SURGICAL ROUTING (2026-08-11)
+// 1) THIS FLEET is not the default for every human message — only when shipped as /konyo-workflow
+//    or the human asked for a sealed multi-round ship.
+// 2) CARVING is the default *graduation rule* (3 scars → skill), not a default *open every run*.
+// 3) Specialist skills are scalpels — match surface, never stack the whole belt.
+craft_rules += "\nROUTING — WORKFLOW IS NOT ALWAYS-ON; CARVING IS NOT ALWAYS-OPEN:\n";
+craft_rules += "· You are INSIDE this fleet only because a ship run was started. Outside this fleet, agents must NOT default to spawning /konyo-workflow for routine work.\n";
+craft_rules += "· Load ONLY skills that match THIS task's surface (console paint → kai-console-design + unknown-stays-unknown; ports → process-port-discipline; CDP → chrome-cdp-mac; skills/ copy edits → copy-drift).\n";
+craft_rules += "· carving-skill: DEFAULT RULE is 'when 3+ learned scars share a territory, graduate them' — that is automatic judgment, not automatic open. Open carving-skill only when carve_candidates is non-empty OR SCARS already has that cluster. Empty candidates → do not open it.\n";
+craft_rules += "· Do NOT stack ship-skill + carving + taste + redesign + every host skill. One domain skill + the gates beats a full stack.\n";
 
 // ══ v33 — CAPTURE PER ROUND, CARVE PER ARC (Claude JS v31, 2026-08-11) ════════
 // Sibling items fail the same way; re-deriving one lesson twice is the defect.
