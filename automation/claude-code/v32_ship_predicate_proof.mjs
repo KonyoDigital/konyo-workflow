@@ -66,42 +66,25 @@ ok('every bail use is `return bail(` (so the promise is awaited)',
 
 
 // ── v32 §1.2 — THE LOCK KEY ──────────────────────────────────────────────────────────────────────
-console.log('\nv32 §1.2 — the lock key must identify the TREE, not the argument shape')
-const keyOf = items => {                       // the REAL expression, transcribed from the engine
-  const _lp = (items || []).map(x => x && x.file).filter(Boolean)
-  const _dirs = _lp.map(f => String(f).replace(/\/[^/]*$/, ''))
-  const _base = _dirs.length
-    ? _dirs.reduce((a, b) => { const X = a.split('/'), Y = b.split('/'), o = []
-        for (let k = 0; k < Math.min(X.length, Y.length) && X[k] === Y[k]; k++) o.push(X[k])
-        return o.join('/') })
-    : ''
-  return (_base.replace(/^\/+/, '').replace(/\//g, '-')) || '__FROM_TREE__'
+console.log('\nv34 — ONE REPO, ONE LOCK: the key is the TREE, never an item path')
+const keyOf = a => String((a && a.lockKey) || '').replace(/^\/+/, '').replace(/\//g, '-') || '__FROM_TREE__'
+const OLDkeyOf = items => {           // v32's item-derived key, kept to prove the defect
+  const dirs = (items || []).map(x => String(x.file).replace(/\/[^/]*$/, ''))
+  const base = dirs.length ? dirs.reduce((a,b)=>{const X=a.split('/'),Y=b.split('/'),o=[]
+    for(let k=0;k<Math.min(X.length,Y.length)&&X[k]===Y[k];k++)o.push(X[k]); return o.join('/')}) : ''
+  return (base.replace(/^\/+/,'').replace(/\//g,'-')) || '__FROM_TREE__'
 }
-const OLDkeyOf = items => {                    // what it used to be
-  const _lp = (items || []).map(x => x && x.file).filter(Boolean)
-  const _base = _lp.length
-    ? _lp.reduce((a, b) => { const X = a.split('/'), Y = b.split('/'), o = []
-        for (let k = 0; k < Math.min(X.length, Y.length) && X[k] === Y[k]; k++) o.push(X[k])
-        return o.join('/') }).replace(/\/[^/]*$/, '')
-    : ''
-  return (_base.replace(/^\/+/, '').replace(/\//g, '-')) || 'no-items'
-}
-// ⚠ THE DEPTH MATTERS AND MY FIRST EXAMPLE HID THE BUG. With a ONE-segment dir ('tv/x.py') the old
-// trailing strip is a no-op, so 1-item and 2-item agreed and the row failed while the CLAIM was
-// right. The defect needs a dir of >= 2 segments — which is the normal case in both repos.
-const one = [{file:'tv/frames/chronicle_template.py'}]
-const two = [{file:'tv/frames/chronicle_template.py'},{file:'tv/frames/test_chronicle_template.py'}]
-ok('OLD: 1 item and 2 items in ONE directory took DIFFERENT locks  <- THE BUG',
-   OLDkeyOf(one) !== OLDkeyOf(two))
-ok('NEW: 1 item and 2 items in one directory take the SAME lock', keyOf(one) === keyOf(two) && keyOf(one) === 'tv-frames')
-ok('OLD: an architect-driven run keyed on the constant "no-items"  <- THE BUG', OLDkeyOf([]) === 'no-items')
-ok('NEW: an architect-driven run defers to the TREE, never a constant', keyOf([]) === '__FROM_TREE__')
-ok('the engine actually emits the tree-derived branch',
-   /__FROM_TREE__/.test(SRC) && /drop the leading "\/" and replace every remaining "\/" with "-"/.test(SRC))
-ok('and it still refuses $HOME (the backstop survives)', /never lock the home directory/.test(SRC))
+const kai = [{file:'tests/test_paper_demo.py'}]
+const rou = [{file:'tests/other_thing.py'}]
+ok('OLD: a relative item path gave a key with NO REPO in it  <- THE BUG', OLDkeyOf(kai) === 'tests')
+ok('OLD: two DIFFERENT repos collided on that same key', OLDkeyOf(kai) === OLDkeyOf(rou))
+ok('NEW: items no longer influence the key at all', keyOf({items: kai}) === '__FROM_TREE__')
+ok('NEW: a run WITH items and one WITHOUT take the SAME key (neither can slip past the other)',
+   keyOf({items: kai}) === keyOf({}))
+ok('NEW: an explicit human lockKey still overrides', keyOf({lockKey: 'my-thing'}) === 'my-thing')
+ok('the engine no longer derives a key from A.items', !/A\.items\s*:\s*\[\]\)\.map\(x => x && x\.file\)/.test(SRC))
+ok('the engine still refuses $HOME', /never lock the home directory/.test(SRC))
 
-
-// ── v32 §(a) LAW19 re-run · §(b) the render fixer's commit ────────────────────────────────────────
 console.log('\nv32 §(a) — the LAW19 re-run must not erase its own tests-not-proven blocker')
 const rerun = SRC.slice(SRC.indexOf('reachability:rerun') - 2000, SRC.indexOf('reachability:rerun') + 2500)
 ok('the re-run schema now REQUIRES tests_added + tests_proven_run',
