@@ -4,7 +4,8 @@
 
 | Slash | File | Role |
 |-------|------|------|
-| **`/Konyo-Grok`** | `../automation/workflows/konyo-workflow.rhai` | **Full implementer** · lean default · `{apply:true}` writes · third-eye = Claude CLI |
+| **`/Konyo-Grok`** | `Konyo-Grok.rhai` | **Full implementer** · lean default · `{apply:true}` writes · third-eye = Claude CLI |
+| **`/konyo-workflow`** | `konyo-workflow.rhai` | **Redirect stub** — returns BLOCKED + re-run args for `/Konyo-Grok` |
 | **`/konyo-workflow-max`** | `konyo-workflow-max.rhai` | **DEPRECATED notice only** — MAX is `{quality:"max"}` on `/Konyo-Grok` |
 
 > **2026-08-07:** The Grok shipper was **audit-only** (read-only laws panel, no builders).
@@ -14,7 +15,7 @@
 
 ## When to use (and when NOT to)
 
-**Primary slash: `/Konyo-Grok`** (short). `/Konyo-Grok` redirects to it.
+**Primary slash: `/Konyo-Grok`** (short). Old `/konyo-workflow` redirects here (stub, does not run).
 
 **Use `/Konyo-Grok` only when** you want a multi-round sealed ship, a night/fleet run, or you explicitly say so.
 

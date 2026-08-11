@@ -1260,14 +1260,26 @@ if (APPLY) {
      refuse-$HOME backstop). That is NOT the "derive it yourself" delegation the comment below warns
      about — the agent is told to apply one exact mechanical transform to a value it has already
      computed deterministically, with no directory left to its judgement. */
-  const _lp = ((A && Array.isArray(A.items)) ? A.items : []).map(x => x && x.file).filter(Boolean)
-  const _dirs = _lp.map(f => String(f).replace(/\/[^/]*$/, ''))     // dirname FIRST — see (b)
-  const _base = _dirs.length
-    ? _dirs.reduce((a, b) => { const X = a.split('/'), Y = b.split('/'), o = []
-        for (let k = 0; k < Math.min(X.length, Y.length) && X[k] === Y[k]; k++) o.push(X[k])
-        return o.join('/') })
-    : ((A && A.lockKey) || '')
-  const _slug = _base.replace(/^\/+/, '').replace(/\//g, '-')
+  /* ══ v34 — ONE REPO, ONE LOCK. THE ITEM-DERIVED KEY WAS ACTIVELY HARMFUL. ══════════════════════
+     v32 §1.2 fixed the key falling through to the constant 'no-items', but kept deriving it from
+     the ITEM PATHS when items were supplied. Item paths are RELATIVE, so `tests/test_paper_demo.py`
+     produced the slug `tests` — a key with no repo in it at all. Measured 2026-08-11, and it did
+     real damage: a run working in ~/kai-achilles took the key `tests`, the lock agent resolved
+     TREE from its own cwd and wrote the lock against ~/d2r_bible_routines, and the engine's own
+     tree_check reported `mismatch: true`. So the lock guarded a repo nobody was editing while
+     kai-achilles sat unprotected — and it ended with TWO AGENTS COMMITTING INTO THAT ONE TREE.
+     Any two repos with a `tests/` directory also collided on one global key.
+
+     ⚠ AND THE OBVIOUS REPAIR IS ALSO WRONG. Making the key `<tree>--<subdir>` would let a run with
+     items and a run without items take DIFFERENT keys on the SAME repo, so neither blocks the
+     other — which is exactly the lost-update the lock exists to prevent, reintroduced by the
+     optimisation meant to fix it. The subdir narrowing only ever bought concurrent runs on
+     different folders of one repo, and those still share its version stamps, its suite and its
+     git index. That is not a thing worth buying.
+
+     So: the key is ALWAYS the tree. An explicit human `{lockKey}` still overrides, because a person
+     naming a key is a person who knows what they are doing. */
+  const _slug = String((A && A.lockKey) || '').replace(/^\/+/, '').replace(/\//g, '-')
   const LOCK_SLUG = _slug || '__FROM_TREE__'
   log(`🔒 lock key (computed in code, not delegated): ${LOCK_SLUG}`)
   const taskSnip = TASK.slice(0, 120).replace(/\s+/g, ' ')
