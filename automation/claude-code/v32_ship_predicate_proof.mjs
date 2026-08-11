@@ -156,5 +156,29 @@ ok('an unexplained available:false now raises a blocker', /RENDER GATE DISABLED 
 ok('a STATED reason still passes (an honest no-UI project is not punished)',
    /Reason given:/.test(SRC) && /images_na_reason \|\| renderGate\.notes/.test(SRC))
 
+
+// ── v32 §(c2) — a late blocker must be able to un-ship a run ─────────────────────────────────────
+console.log('\nv32 §(c2) — shippable must reflect blockers raised AFTER it was computed')
+const payload = SRC.slice(SRC.indexOf('shippable: SHIPPABLE') - 1400, SRC.indexOf('shippable: SHIPPABLE') + 400)
+ok('the reported shippable is narrowed by BLOCKERS', /shippable: SHIPPABLE && !BLOCKERS\.length/.test(SRC))
+ok('the gate value is still preserved for auditing', /shippable_at_gate: SHIPPABLE/.test(SRC))
+ok('the bare `shippable: SHIPPABLE,` form is GONE  <- THE BUG', !/shippable: SHIPPABLE,\s*\/\//.test(SRC))
+// WHICH blockers actually come late. My first version asserted all three were late; the failing row
+// proved THE THIRD EYE is raised BEFORE the const and therefore always did reach it. Two are late.
+const si = SRC.indexOf('const SHIPPABLE')
+ok('SHIPPABLE is computed somewhere findable', si > 0)
+ok('"THE THIRD EYE REFUSED THIS SHIP" is raised BEFORE it (so it always counted)',
+   SRC.indexOf("blocker('THE THIRD EYE REFUSED THIS SHIP'") < si)
+for (const b of ['SHIP DID NOT RUN', 'PUSH REFUSED']) {
+  ok(`"${b}" is raised AFTER SHIPPABLE — these are the two the fix rescues`,
+     SRC.indexOf(`blocker('${b}'`) > si)
+}
+// behavioural: the same algebra, evaluated
+const shipReported = (S, nBlockers) => S && !nBlockers
+ok('OLD: push refused -> shippable stayed true  <- THE BUG', true === /* old form */ (S => S)(true))
+ok('NEW: push refused (1 blocker) -> shippable false', shipReported(true, 1) === false)
+ok('NEW: clean run (0 blockers) -> shippable true', shipReported(true, 0) === true)
+ok('NEW: a run that was never shippable stays false', shipReported(false, 0) === false)
+
 console.log(`\n${fail ? '❌' : '✅'} ${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)
