@@ -146,7 +146,10 @@ ok('NEW: a DRY run still lists Ship as skipped (the honesty survives)', planOf(f
 ok('the engine strips the decoration before matching', /openBase\.indexOf\(t\) < 0/.test(SRC))
 
 console.log('\nv32 §(c4) — passed:true carrying failures is a contradiction, not a pass')
-ok('convergence now also requires an EMPTY failures[]', /!_rWrong\.length && !_rf\.length/.test(SRC))
+// v33 narrowed this from _rf to _rfOwn (failures minus the PROVEN pre-existing ones). The check
+// follows the code rather than pinning the old expression — a test that pins a superseded
+// spelling goes red on a correct change, which trains people to loosen tests.
+ok('convergence still requires an empty OWN-failures list', /!_rWrong\.length && !_rfOwn\.length/.test(SRC))
 ok('the blocker fires on passed:true WITH failures', /!renderGate\.passed \|\| _finalFails\.length/.test(SRC))
 ok('and it is named as a contradiction, not a plain failure',
    /RENDER GATE SAID PASS WHILE LISTING FAILURES/.test(SRC))
@@ -179,6 +182,28 @@ ok('OLD: push refused -> shippable stayed true  <- THE BUG', true === /* old for
 ok('NEW: push refused (1 blocker) -> shippable false', shipReported(true, 1) === false)
 ok('NEW: clean run (0 blockers) -> shippable true', shipReported(true, 0) === true)
 ok('NEW: a run that was never shippable stays false', shipReported(false, 0) === false)
+
+
+// ── v33 — a PROVEN pre-existing failure must not block; an UNPROVEN claim must ────────────────────
+console.log('\nv33 — "already broken" costs one sentence of proof, and silence costs a blocker')
+const narrow = (fails, pre) => {
+  const ok = (pre || []).filter(p => p && String(p.failure || '').trim() && String(p.proof || '').trim())
+  const set = new Set(ok.map(p => String(p.failure).trim()))
+  return fails.filter(f => !set.has(String(f).trim()))
+}
+const F = ['MutationObserver undeclared', 'js-syntax gate timed out', 'forge-progress overlap']
+ok('OLD: any failure blocked, even a proven pre-existing one  <- THE BUG', F.length === 3)
+ok('NEW: all three PROVEN pre-existing -> nothing left to block',
+   narrow(F, F.map(f => ({ failure: f, proof: 'differential probe against HEAD shows it identical' }))).length === 0)
+ok('an entry with NO proof still counts as a real failure',
+   narrow(F, [{ failure: F[0], proof: '' }]).length === 3)
+ok('an entry whose wording does not match a failure excuses nothing',
+   narrow(F, [{ failure: 'something else entirely', proof: 'p' }]).length === 3)
+ok('a REAL new failure survives alongside proven pre-existing ones',
+   narrow([...F, 'the tally reads 0'], F.map(f => ({ failure: f, proof: 'p' }))).length === 1)
+ok('the engine narrows the BLOCKER by proof', /_preSet\.has\(String\(f\)\.trim\(\)\)/.test(SRC))
+ok('the engine narrows CONVERGENCE by the same rule (no second formula)', /!_rWrong\.length && !_rfOwn\.length/.test(SRC))
+ok('the schema demands a proof string, not just a claim', /A restatement of the failure is NOT a proof/.test(SRC))
 
 console.log(`\n${fail ? '❌' : '✅'} ${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)

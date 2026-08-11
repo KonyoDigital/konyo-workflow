@@ -2292,7 +2292,23 @@ if (APPLY) {
           available: { type: 'boolean' },
           ran:       { type: 'string' },
           passed:    { type: 'boolean' },
-          failures:  { type: 'array', items: { type: 'string' } },
+          failures:  { type: 'array', items: { type: 'string' }, description: 'failures THIS CHANGE is responsible for. A failure you have PROVEN pre-existing belongs in pre_existing[], not here.' },
+          /* v33 — A GATE THAT CANNOT SAY "THIS WAS ALREADY BROKEN" BLOCKS EVERY HONEST SHIP.
+             v32 §(c4) correctly stopped `passed:true` with a non-empty failures[] from converging —
+             a pass carrying failures is a contradiction. But it had no way to express the OTHER
+             true state: "I found four failures, I PROVED all four exist identically on HEAD, and
+             none is mine." v1693 hit exactly that: a MutationObserver roster gap, a JS-syntax gate
+             that self-indicts as an instrument failure on a file the ship never touched, and a 2px
+             text-line overlap shown byte-identical on HEAD by a differential probe. All four were
+             proven pre-existing and the ship was blocked anyway.
+             ⚠ THIS MUST NOT BECOME A LOOPHOLE, so it is built like `images_na_reason`: the claim
+             costs ONE SENTENCE OF PROOF, and silence costs a blocker. An entry here without a
+             `proof` is counted as a REAL failure — the honest default, because "it was already
+             broken" is the single easiest thing for a gate to say and the hardest to check. */
+          pre_existing: { type: 'array', description: 'v33 — failures PROVEN to exist on HEAD too, i.e. not introduced by this change. Each needs its proof or it counts as a real failure.', items: { type: 'object', properties: {
+            failure: { type: 'string', description: 'the failure, worded as it appears in failures[]' },
+            proof:   { type: 'string', description: 'HOW you proved it pre-existing — e.g. "differential probe: same 2504px overlap at the same geometry against `git show HEAD:bible.html`", or "grep shows the symbol is 2,800 lines from this diff and absent from it". A restatement of the failure is NOT a proof.' },
+          } } },
           notes:     { type: 'string', description: 'what a human should eyeball that no test covers' },
           images: { type: 'array', description: 'v15 — EVERY image surface you actually OPENED, one entry each. Empty is only acceptable alongside images_na_reason.', items: { type: 'object', properties: {
             surface: { type: 'string', description: 'where it appears in the UI, e.g. "F-Uniques Best runs thumbnail"' },
@@ -2322,8 +2338,15 @@ if (APPLY) {
      not a pass, it is a CONTRADICTION — and the standing rule here is that the contradiction IS
      the finding: refuse and report both halves, never let one silently win.
      [[feedback-contradiction-is-the-finding]] */
+  /* v33 — the convergence test and the blocker must narrow by the SAME rule, or the loop stops for
+     a failure the blocker excuses (or worse, converges on one it does not). Two formulas for one
+     decision is the v18.3 bug this file already carries a scar for. */
+  const _rPre = new Set(((renderGate && Array.isArray(renderGate.pre_existing)) ? renderGate.pre_existing : [])
+    .filter(p => p && String(p.failure || '').trim() && String(p.proof || '').trim())
+    .map(p => String(p.failure).trim()))
+  const _rfOwn = _rf.filter(f => !_rPre.has(String(f).trim()))
   const _rClean = !!(renderGate && renderGate.available && renderGate.passed
-                     && !_rWrong.length && !_rf.length)
+                     && !_rWrong.length && !_rfOwn.length)
 
   if (!renderGate) { renderLoop.stopped = 'the gate did not return'; break }
   if (!renderGate.available) { renderLoop.stopped = 'no UI verification in this project'; break }
@@ -2442,7 +2465,17 @@ if (APPLY) {
      alone would have left the run exhausting its passes and then shipping in silence, because the
      thing that raises the blocker is here. A pass carrying failures is a contradiction, and the
      contradiction is what gets reported — both halves, named. */
-  const _finalFails = (renderGate && Array.isArray(renderGate.failures)) ? renderGate.failures : []
+  /* v33 — subtract the failures PROVEN pre-existing. An entry only counts as proven when it carries
+     a `proof` string; without one it stays a real failure, because "it was already broken" is the
+     easiest claim a gate can make and the hardest to check. The subtraction is by exact wording, so
+     a gate cannot excuse a failure it did not also list. */
+  const _preOK = ((renderGate && Array.isArray(renderGate.pre_existing)) ? renderGate.pre_existing : [])
+    .filter(p => p && String(p.failure || '').trim() && String(p.proof || '').trim())
+  const _preSet = new Set(_preOK.map(p => String(p.failure).trim()))
+  const _allFails = (renderGate && Array.isArray(renderGate.failures)) ? renderGate.failures : []
+  const _finalFails = _allFails.filter(f => !_preSet.has(String(f).trim()))
+  if (_preSet.size) log(`   ↩ ${_preSet.size} failure(s) proven PRE-EXISTING and excluded from the block ` +
+    `(${_allFails.length - _finalFails.length} matched by wording; ${_finalFails.length} remain as this ship's).`)
   if (renderGate && renderGate.available && (!renderGate.passed || _finalFails.length)) {
     // `.failures` is guarded: a truncated agent return used to throw a TypeError at top level here,
     // AFTER the entire run had finished, destroying the report it was about to write.
