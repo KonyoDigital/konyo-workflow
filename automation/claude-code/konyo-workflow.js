@@ -3074,7 +3074,20 @@ return emit({
         ') — fewer eyes reviewed this than the seat count claims'
     : (results.length === 0 || passed.length === 0) ? 'EMPTY — no item passed a gate (vacuous green is forbidden)'
     : 'OK',
-  shippable: SHIPPABLE,   // v23 — the SAME const the Ship phase gated on; never a second formula
+  /* v32 §(c2) — THE ONE AUDIT ITEM I COULD NOT REPRODUCE UNTIL I LOOKED AT THE ORDERING.
+     `SHIPPABLE` is computed ONCE, well above, and that is correct: it is the precondition the Ship
+     phase gates on, and two formulas for one decision is the v18.3 bug. But THREE blockers are
+     raised AFTER that line — 'THE THIRD EYE REFUSED THIS SHIP', 'SHIP DID NOT RUN' and, worst,
+     'PUSH REFUSED' when the repo's own pre-push hook rejects the push. None of them could reach a
+     const already computed, so the payload could carry `verdict: 'BLOCKED — see blockers[]'` and
+     `shippable: true` AT THE SAME TIME. `verdict` reads BLOCKERS.length at emit and was always
+     right; `shippable` is the field a CALLER checks, and it was wrong on exactly the runs that
+     failed at the last step.
+     This is NOT a second formula for the gate — the gate still reads SHIPPABLE and is untouched.
+     It is the same decision NARROWED by facts learned after it was taken, which is the honest
+     direction: a run can stop being shippable, it can never start. */
+  shippable: SHIPPABLE && !BLOCKERS.length,
+  shippable_at_gate: SHIPPABLE,   // what the Ship phase actually gated on, kept for auditing
   shipped,
   passed: passed.length,
   failed: failed.length,
