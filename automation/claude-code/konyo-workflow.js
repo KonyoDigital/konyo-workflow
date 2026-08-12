@@ -1398,11 +1398,40 @@ async function releaseLock() {
 // v22 — tiny buys no triage agent, so it must not open an empty Triage box either (the v18.2
 // lesson: a phase group with nothing in it reads as a phase that failed).
 if (!TINYQ) phase('Triage')
-if (!APPLY && wantsAFile(TASK)) {
-  log('⚠ TRIAGE REFUSED: this is a DRY-RUN (apply:false) but the task asks agents to WRITE A FILE.')
+/* v35 — AN `items` WORK LIST IS FILE-SHAPED BY CONSTRUCTION, AND THIS GUARD COULD NOT SEE IT.
+   wantsAFile() reads the TASK PROSE. A caller who passes items:[{file,instruction}] has named the
+   files outright, which is a stronger statement of intent than any sentence — but the prose may
+   never say "write a file", so the refusal did not fire and the run proceeded as a "dry run".
+
+   IT HAPPENED TWICE, BOTH TIMES SILENTLY: wf_cae716ee-9bb and wf_83f3bfc0-06f both reported
+   mode "DRY-RUN (agents propose diffs, nothing written)" and shippable:false, and both left files
+   MODIFIED in the real working tree. Builders ARE instructed "Do NOT write anything" (:818) and
+   ignored it. The damage is not the edit — the caller wanted those edits — it is that the RESULT
+   SAYS NOTHING WAS WRITTEN while the tree disagrees, so the next commit sweeps up work no gate
+   ever ran on. In wf_83f3bfc0-06f that work was WRONG (it would have minted duplicate roster rows)
+   and only a manual `git checkout --` kept it out of a commit.
+
+   ⚠ THE FIX IS A REFUSAL, NOT A PROMOTION. Auto-setting APPLY=true would be worse than the bug:
+   APPLY gates the render gate, the fat version bar and the SHIP phase (:1924, :1929), so a caller
+   who asked for a dry run would silently get a run that PUSHES. Refuse, name the contradiction,
+   and let them choose. */
+const _fileShapedItems = (A && Array.isArray(A.items)) ? A.items.filter(x => x && x.file).length : 0
+if (!APPLY && (wantsAFile(TASK) || _fileShapedItems)) {
+  const why = _fileShapedItems
+    ? `this is a DRY-RUN (apply:false) but ${_fileShapedItems} item(s) name a FILE to edit.`
+    : 'this is a DRY-RUN (apply:false) but the task asks agents to WRITE A FILE.'
+  log(`⚠ TRIAGE REFUSED: ${why}`)
   log('  Nothing can satisfy that, so every item would fail its gate and rework would multiply.')
+  if (_fileShapedItems) {
+    log('  Worse, builders have twice ignored "do not write" and edited the tree anyway, while the')
+    log('  report still said nothing was written — work that no gate ran on, sitting in the repo.')
+  }
   log('  Re-run with apply:true, or ask for the content in the RESULT instead of on disk.')
-  return bail({ refused: 'dry-run with a file-shaped deliverable', fix: 'apply:true, or drop the file deliverable' })
+  return bail({
+    refused: _fileShapedItems ? 'dry-run with a file-shaped items[] work list' : 'dry-run with a file-shaped deliverable',
+    fix: 'apply:true, or drop the file deliverable',
+    file_shaped_items: _fileShapedItems,
+  })
 }
 
 /* ── v22 — TINY REFUSES A BRIEF IT CANNOT DO IN FOUR HOPS ────────────────────────────────────────

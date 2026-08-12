@@ -188,5 +188,45 @@ ok('the engine narrows the BLOCKER by proof', /_preSet\.has\(String\(f\)\.trim\(
 ok('the engine narrows CONVERGENCE by the same rule (no second formula)', /!_rWrong\.length && !_rfOwn\.length/.test(SRC))
 ok('the schema demands a proof string, not just a claim', /A restatement of the failure is NOT a proof/.test(SRC))
 
+/* ── v35 — A DRY RUN THAT WRITES ────────────────────────────────────────────────────────────────
+   wf_cae716ee-9bb and wf_83f3bfc0-06f both reported mode "DRY-RUN ... nothing written" and both
+   left files MODIFIED in the real tree. The guard read the TASK PROSE (wantsAFile) and could not
+   see an items:[{file,instruction}] work list, which names the files outright.
+   ⚠ The fix must be a REFUSAL, never a promotion: APPLY gates the render gate, the fat version bar
+   and the SHIP phase, so auto-enabling it would turn a requested dry run into one that PUSHES. */
+console.log('\nv35 — dry-run vs a file-shaped items[] work list')
+
+// the REAL wantsAFile, sliced from the engine so this cannot drift from it
+const wantsAFileSrc = SRC.match(/function wantsAFile\(task\)\s*\{[\s\S]*?\n\}/)
+ok('wantsAFile() is still in the engine to slice', !!wantsAFileSrc)
+const wantsAFile = new Function('return ' + wantsAFileSrc[0].replace(/^function /, 'function '))()
+
+// the REAL counter and the REAL refusal condition
+ok('the engine counts file-shaped items', /_fileShapedItems\s*=\s*\(A && Array\.isArray\(A\.items\)\)/.test(SRC))
+ok('the refusal consults it, not just the prose', /!APPLY && \(wantsAFile\(TASK\) \|\| _fileShapedItems\)/.test(SRC))
+ok('it REFUSES rather than promoting APPLY (a promotion would silently enable Ship)',
+   /return bail\(\{[\s\S]{0,200}dry-run with a file-shaped items\[\] work list/.test(SRC))
+ok('APPLY is still derived only from A.apply — the promotion path does not exist',
+   /const APPLY\s*=\s*!!\(A && A\.apply\)/.test(SRC))
+
+const refuses = (apply, task, items) => {
+  const n = Array.isArray(items) ? items.filter(x => x && x.file).length : 0
+  return !apply && (wantsAFile(task) || !!n)
+}
+const FILE_ITEMS = [{ file: 'bible.html', instruction: 'edit it' }, { file: 'tests/x.spec.ts', instruction: 'edit it' }]
+const PROSE = 'v1703 - put four uniques on the roster so they are countable and tickable'
+
+// THE BUG, reproduced: this exact shape ran twice and wrote to his tree
+ok('OLD behaviour ALLOWED dry-run + file items  <- THE BUG', wantsAFile(PROSE) === false)
+ok('NEW: dry-run + file-shaped items is REFUSED', refuses(false, PROSE, FILE_ITEMS) === true)
+ok('apply:true + file items is ALLOWED (the normal way to do this work)',
+   refuses(true, PROSE, FILE_ITEMS) === false)
+ok('dry-run with NO items and prose that wants no file is still ALLOWED (unchanged)',
+   refuses(false, 'review the chronicle lane and report what you find', null) === false)
+ok('dry-run with prose that DOES ask for a file is still refused (original guard intact)',
+   refuses(false, 'write a report file summarising the arc', null) === true)
+ok('an items entry with no .file does not trip the refusal',
+   refuses(false, PROSE, [{ instruction: 'think about it' }]) === false)
+
 console.log(`\n${fail ? '❌' : '✅'} ${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)
