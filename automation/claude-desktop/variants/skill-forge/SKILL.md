@@ -18,30 +18,64 @@ work, would never load at the moment you need it.
 
 ## 1. Does this deserve to be a skill?
 
-Three gates. **All three, or it is not a skill yet.**
+**The bar is evidence, not convenience.** "I have done this three times and keep
+re-explaining it" is a reason to write a note in `session-memory`. It is not, by itself, a
+reason to make a skill. A skill is a claim that these rules should be loaded and followed,
+and that claim has to be paid for by something that actually went wrong.
 
-1. **It repeats.** You have done it at least three times, or you will do it monthly.
-2. **It carries context you re-explain every time** — which systems, which spellings, which
-   facilities, what "done" looks like, what usually goes wrong.
-3. **A written version would have changed the outcome**, not just saved typing.
+### Carve when ALL THREE hold
 
-Two of three means: put it in `session-memory` as a note instead. A library of skills that
-nobody triggers is worse than a short one that always fires — every unused skill makes the
-useful ones harder to find.
+1. **Three or more real failures share a territory.** Three is the floor, because two is a
+   coincidence — two failures that look related are usually one failure written twice. A
+   "failure" means it went wrong, or would have if nobody had caught it, and it cost
+   something: a reissued booklet, a wrong number in front of an employee, an hour spent
+   re-deriving what you already knew.
+2. **The territory has a name a person would recognise** — "facility names spelled
+   differently between systems", "the monthly invoice reconciliation", "open enrollment
+   comms". If you cannot say it in a noun phrase, you have a pile, not a territory.
+3. **There is standing guidance to give** — how to DO the thing, not only what to avoid. A
+   skill that is nothing but a list of don'ts belongs in the scars list, not in its own file.
 
-### The other doorway: three scars in one territory
+### The territory test, applied literally
 
-If the same *shape* of mistake has happened three times, that shape is a territory and it has
-earned a skill. Sort by **failure shape, not by subject**:
+Two failures are in the same territory when **the same one sentence, read beforehand, would
+have prevented both.** Write that sentence out. Then check each failure against it. If you
+have to widen the sentence to make the third one fit, it is probably not the same territory
+— and a rule widened until it covers everything advises nothing.
+
+Sort by **failure shape, never by subject or location**:
 
 | Not a territory | A territory |
 |---|---|
 | "three things went wrong in the invoice audit" | "a facility spelled differently in two systems, so a filter silently matched nothing" |
 | "three booklet errors" | "a figure correct for last plan year, carried into this one" |
+| "three problems with the Hub" | "a correction typed into a page that is regenerated from a workbook" |
 
-Two scars that look related are usually one scar written twice. Wait for the third.
+### Do NOT make a skill out of
 
----
+- **Anything that is always loaded today.** If a rule lives in `session-memory`'s profile —
+  read at the start of every session, unconditionally — moving it into a skill **demotes
+  it**, because a skill loads only when its description matches. That is a silent downgrade
+  of the rule you were most sure about. This is the single most common way a tidy-up makes
+  things worse.
+- **Fewer than three failures.** Wait. A notes list is allowed to have loose entries.
+- **A grouping by WHERE rather than by WHAT WENT WRONG.** "Three problems in the August
+  workbook" is not a territory; that workbook holds unrelated failures.
+- **Something a checklist already enforces.** If a row in `benefits-workflow`'s tables
+  already catches it every time, writing it into prose somewhere else **weakens** it — now
+  there are two statements of one rule and only one of them is checked. Point at the check
+  instead.
+- **Anything Claude reliably does anyway.** A skill's credibility is spent every time it
+  says something obvious.
+
+### After carving — two steps people skip
+
+- **Prune the source.** Whatever the new skill now holds, remove from where it used to live,
+  and leave one line pointing at the skill. If nothing got shorter, nothing graduated — you
+  just made a second copy, and copies drift.
+- **Prove it loads.** Writing the file is not the end. Confirm it actually appears and fires
+  on the words you would really type. **An unloaded skill is strictly worse than the notes
+  it replaced**, because the notes at least got read.
 
 ## 2. What goes in it
 
