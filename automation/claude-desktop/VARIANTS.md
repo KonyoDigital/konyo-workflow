@@ -54,8 +54,24 @@ person still believes it was checked.
    the skill triggers, so put the job's real words in it.
 4. Replace the **"Applies to code and technical work"** table with that job's
    checks. Leave the universal table alone.
+   ⚠ **"Leave it alone" means every row.** Measured on the first real fork: the benefits
+   variant removed FOUR universal rows — `Right context`, `Source read`, `Scars` and
+   `Mode named`. Two were deliberate (that variant dropped scars.md and independence.md);
+   `Right context` was fairly replaced by a sharper `Facility + region`; but **`Source
+   read` was lost outright** — "read what the source says about itself, headers and notes,
+   not only its numbers" — which is precisely the check that catches a rate table read at
+   the wrong tier. A universal row deleted quietly is the one failure mode this doctrine
+   exists to prevent, because the work still gets a verdict.
 5. Add a **failure modes** section — the two or three ways work in that job most
    often goes wrong. This is what makes it feel written *for* them.
+5b. **Rewrite `references/deliverables.md` in their artifact types.** The base ships a
+   generic one (documents / spreadsheets / engines / audits / comms / research); replace
+   the sections with the things they actually hand over, three to six lines each, every
+   line phrased so it can FAIL. A line that cannot fail is decoration.
+   ⚠ This step exists because the idea came from a variant, not the base: a domain fork's
+   benefits fork carried a per-artifact definition of done and the parent had none. If a
+   variant improves on its parent, the improvement belongs upstream — otherwise every
+   later variant is built from the weaker copy.
 6. If they work in another language, add: *"Write all output in <language>. The
    verdict words SHIP / DRAFT / BLOCKED stay in English so they are unambiguous."*
 7. Leave every SPINE item byte-for-byte.
