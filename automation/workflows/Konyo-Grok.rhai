@@ -1,6 +1,6 @@
 let meta = #{
     name: "konyo-grok",
-    description: "Konyo-Grok (/Konyo-Grok) — short name for the Grok Konyo shipper. FULL IMPLEMENTER. ONE body, four qualities (lean|max|standard|tiny). LEAN default: every ship gate (adversarial panel, LAW17/18/19, workspace lock, agent ceiling). max buys multi-architect, completeness, deeper rework. Pass {apply:true} to edit; apply:false dry-run. Third eye = Claude CLI (different family). Args: task, quality, apply, force, items, skeptics, isolate, thirdEye, maxAgents, ignoreLock, push, renderLoop. items[] skips architect. v26 render LOOP; v27/v27.1 SHIPPABLE; v28 PACE+PROXY+PHASE_PLAN+stop reasons; v28.1 early lock; v29 scar FOUNDING vs LEARNED; v30 meter routing (max is not volume); v31 LAW19 parallel first-render hop + images_na fail-closed + rich LAW19 schema; v32 record scars at failure + run-not-inspect; v33 CAPTURE PER ROUND / CARVE PER ARC; v36 Grok-host ports of Claude JS v35/v36 — items[] dry-run refuse (G1), release_held_lock on every abort (G2), plan seat can block (G3), pass+failures cannot PASSED (G4). meta.name is konyo-grok (host lowercase); the FILE stays Konyo-Grok.rhai so /Konyo-Grok still resolves. Never add a sibling konyo-grok.rhai on APFS — case-fold overwrites this file.",
+    description: "Konyo-Grok (/Konyo-Grok) — Grok Konyo shipper. ONE body, four qualities (lean|max|standard|tiny). LEAN default: every ship gate. {apply:true} writes; apply:false dry-run. Third eye = Claude CLI. items[] skips architect. v26–v33 + v36: items[] dry-run refuse, release_held_lock on abort, plan seat can block, pass+failures cannot PASSED. File stays Konyo-Grok.rhai (slash); meta.name is konyo-grok (host lowercase).",
     when_to_use: "SURGICAL — NOT THE DEFAULT FOR EVERY CHAT. Use only when the human asked for a multi-round ship, a sealed version, a night/fleet run, or an explicit /Konyo-Grok (alias /konyo-workflow). Do NOT open this fleet for one-file fixes, Q&A, audits, or routine edits — those use direct tools + the few specialist skills that match the surface. Bare call = lean + dry-run. {apply:true} to write. quality max ONLY for SMALL high-stakes lists (items preferred). quality tiny needs items[]. Multi-stamp: N lean/tiny slices. Carving is separate: open carving-skill only when 3+ scars share a territory (or carve_candidates non-empty), never as a default stack with this workflow.",
     phases: [
         #{ title: "Preflight", detail: "workspace lock when apply:true — shared lock dir with Claude so fleets exclude each other" },
@@ -19,6 +19,10 @@ let meta = #{
         #{ title: "Synthesize", detail: "ONE final ping report; tiny writes its own headline" },
     ],
 };
+
+// APFS on this Mac is case-insensitive. Do NOT create konyo-grok.rhai next to
+// this file — ln/cp under that name overwrites Konyo-Grok.rhai (measured 2026-08-14).
+// Smoke-check copies go in a different directory (e.g. _validate/).
 
 // ═══════════════════════════════════════════════════════════════════════════
 // KONYO WORKFLOW — Grok Build implementer
