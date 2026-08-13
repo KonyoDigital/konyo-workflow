@@ -110,8 +110,8 @@ console.log('SCENARIO 2 — architect_empty (items:[], no summary)')
 }
 console.log('')
 
-// ── 3) POSITIVE — caller items skip architect; empty-plan path not taken ──
-console.log('SCENARIO 3 — caller items[] skip architect (positive control)')
+// ── 3a) v35 — dry-run + file-shaped items[] REFUSES (never reaches architect) ──
+console.log('SCENARIO 3a — dry-run + items[{file}] is refused (v35; does not reach architect-skip)')
 {
   const { json, out } = run({
     task: 'known one-file edit',
@@ -121,7 +121,30 @@ console.log('SCENARIO 3 — caller items[] skip architect (positive control)')
     grok: false,
     items: [{ file: '/tmp/v27-proof.js', instruction: 'add a comment', risk: 'low' }],
     __harness: {
-      // if architect still ran, force empty — should NOT matter because architect is skipped
+      architectItems: [],
+      architectSummary: 'SHOULD NOT RUN',
+    },
+  })
+  expect(json && json.ok !== false, 'script completed')
+  expect(/file-shaped items|DRY-RUN.*FILE|refused/i.test(out) ||
+         (json && /file-shaped|dry-run/i.test(String(json.refused || json.error || ''))),
+    'v35 refuse: dry-run + file-shaped items[]')
+  expect(!(json && json.error === 'architect_noop'), 'did not bail as architect_noop')
+  expect(!(json && json.error === 'architect_empty'), 'did not bail as architect_empty')
+  expect(!(/ARCHITECT SKIPPED/i.test(out)), 'architect-skip log must NOT fire — refuse is earlier')
+}
+
+// ── 3b) POSITIVE — apply:true + caller items skip architect; empty-plan path not taken ──
+console.log('SCENARIO 3b — apply:true + caller items[] skip architect')
+{
+  const { json, out } = run({
+    task: 'known one-file edit',
+    apply: true,
+    quality: 'lean',
+    thirdEye: false,
+    grok: false,
+    items: [{ file: '/tmp/v27-proof.js', instruction: 'add a comment', risk: 'low' }],
+    __harness: {
       architectItems: [],
       architectSummary: 'SHOULD NOT RUN',
     },

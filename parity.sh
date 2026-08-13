@@ -80,6 +80,57 @@ pair "konyo-workflow-max.rhai" "public -> local" \
   "grok/konyo-workflow-max.rhai" \
   "$HOME/.konyo-workflow/workflows/konyo-workflow-max.rhai"
 
+# ── ADDED 2026-08-13 — four load-bearing copies this script could not see ───────────
+# The header above says a guard exists because nothing was comparing these. The same was
+# true of the Grok side: Konyo-Grok.rhai is the ACTUAL Grok shipper and lived in three
+# places watched by nothing, and v27_grok_safeguard_proof.sh had ALREADY drifted — the
+# repo copy is missing the ~10 lines carrying the v32 contract strings, and no output
+# anywhere said so. A guard that cannot see a file reports green forever while it drifts.
+#
+# Each row below was watched going RED before being kept: one copy broken in place, the
+# row observed firing, the copy restored and its md5 re-checked. A row that has never
+# gone red is not a guard, it is a receipt.
+
+pair "Konyo-Grok.rhai" "install -> repo" \
+  "$HOME/.grok/workflows/Konyo-Grok.rhai" \
+  "automation/workflows/Konyo-Grok.rhai"
+
+pair "Konyo-Grok.rhai (konyo-workflow copy)" "install -> local" \
+  "$HOME/.grok/workflows/Konyo-Grok.rhai" \
+  "$HOME/.konyo-workflow/workflows/Konyo-Grok.rhai"
+
+pair "v27_grok_safeguard_proof.sh" "install -> repo" \
+  "$HOME/.grok/workflows/v27_grok_safeguard_proof.sh" \
+  "automation/workflows/v27_grok_safeguard_proof.sh"
+
+pair "v27_grok_safeguard_proof.sh (konyo-workflow copy)" "install -> local" \
+  "$HOME/.grok/workflows/v27_grok_safeguard_proof.sh" \
+  "$HOME/.konyo-workflow/workflows/v27_grok_safeguard_proof.sh"
+
+# ⚠ DIRECTION NOT ESTABLISHED on the next one, and it is deliberately not guessed. Both
+# sides are installs of the same body; nobody has said which is authored. The header's
+# rule applies — guessing wrong destroys work in whichever direction you guessed — so
+# this row REPORTS drift and refuses to imply a resolution. Establish the direction
+# before acting on a red here.
+pair "agent-army.js (vendored in this repo)" "install -> repo  (live install is authored; public is the other product)" \
+  "$HOME/.claude/workflows/agent-army.js" \
+  "automation/claude-code/agent-army.js"
+
+pair "ship-skill body (grok skills <-> claude skills)" "?? ASK — direction not established" \
+  "$HOME/.grok/skills/konyo-workflow-konyo/SKILL.md" \
+  "$HOME/.claude/skills/ship-skill/SKILL.md"
+
+# ⚠ DELIBERATELY NOT A PAIR — do not add it. ~/konyo-workflow/SKILL.md (10,249 B) is the
+# PUBLIC METHOD document and ~/.konyo-workflow/SKILL.md (1,005 B) is a pointer stub. They
+# are different documents that happen to share a filename. Pairing them would print a red
+# row on every run forever, and a guard that is always red is switched off within a week,
+# taking the rows that mean something with it.
+#
+# ⚠ Nor is the .rhai size gap drift. The public konyo-workflow-grok body genericises
+# private repo names and the local one was renamed to Konyo-Grok.rhai, leaving a 2,698 B
+# stub behind. The remote rows below already say this. Never make this script copy the
+# public body over the local one.
+
 echo
 echo "  REMOTES (fetched over git protocol — raw/main and the REST API are both cached"
 echo "  and have each certified stale content while reporting OK)"

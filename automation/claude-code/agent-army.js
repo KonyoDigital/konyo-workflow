@@ -7,7 +7,7 @@ export const meta = {
      Renaming is non-destructive: this file is the PUBLIC agent-army engine and stays usable by
      scriptPath or by its own name; nothing in ~/.claude/commands/ ever invoked it by name. */
   name: 'agent-army',
-  description: 'KONYO WORKFLOW — ONE body, three paths (lean | max | standard). RUNS AT LEAN BY DEFAULT (his instruction, 2026-08-04): EVERY gate max runs — diverse-lens skeptic panel, render gate with vision, LAW17, LAW19, workspace lock, agent ceiling — at ~62% of the tokens, by buying ONE architect instead of a judge panel, one rework round, no completeness critic, and risk:"low" items at the tier their own architect asked for (floored at sonnet; the review is Opus either way, and a failed cheap build escalates on rework). The third eye (Grok — a different model family) is ON at every quality. Pass {quality:"max"} to add the 3-architect judge panel, Opus builders everywhere and the loop-until-dry completeness critic — worth it when being wrong costs more than tokens. Pass {quality:"tiny"} for a SMALL, KNOWN edit set with a ~15-minute wall-clock budget: it REQUIRES an explicit items:[{file,instruction}] work list (max 4 items across 3 files, no diagnosis) and refuses without one, then skips the PLANNING hops only — no triage, no architect, no third-eye plan seat, no completeness critic, no synthesizer — while keeping every gate: the 2-seat adversarial panel, LAW19 reachability, the render gate with vision, LAW17, and the workspace lock. Reachability and the render gate run CONCURRENTLY. v26 — THE RENDER GATE IS NOW A LOOP at every quality: it renders at a narrow AND a wide viewport, and a failure is handed to a fixer and re-rendered (tiny 2 passes / lean 3 / max 4) instead of only being reported. The FINAL pass is what blocks. Pass {quality:"standard"} to opt DOWN to the cost-scaled ladder (Haiku/Sonnet build, Fable gates every merge, ONE architect, no completeness critic). Pass {thirdEye:false} to run without an independent reviewer. LEAN IS NOT MAX-WITH-FEWER-SAFEGUARDS: the flag buys model tier, panel size and extra phases, never a gate.',
+  description: 'KONYO WORKFLOW (agent-army) — ONE body, four paths (tiny | lean | max | standard), and it RUNS AT LEAN BY DEFAULT. Lean already runs EVERY gate max runs — diverse-lens skeptic panel, render gate with vision, LAW17, LAW19, workspace lock, agent ceiling — at ~62% of the tokens, by buying ONE architect instead of a judge panel, one rework round, and no completeness critic. The third eye (Grok — a DIFFERENT model family) is ON at every quality. Pass {quality:"max"} to add the 3-architect judge panel, Opus builders everywhere and the loop-until-dry completeness critic — worth it when being wrong costs more than tokens. Pass {quality:"tiny"} for a SMALL, ALREADY-KNOWN edit set on a ~15-minute budget: it REQUIRES an explicit items:[{file,instruction}] work list (max 4 items across 3 files, no diagnosis) and refuses without one, then skips the PLANNING hops only. Pass {quality:"standard"} to opt DOWN to the cost-scaled ladder — Haiku/Sonnet build, Fable gating every merge, ONE architect, no completeness critic — for routine, easily reversible work. Pass {thirdEye:false} to run without an independent reviewer. LEAN IS NOT MAX-WITH-FEWER-SAFEGUARDS: a quality flag buys model tier, panel size and extra phases, NEVER a gate. The render gate is a LOOP at every quality — narrow AND wide viewport, each failure handed to a fixer and re-rendered, and the FINAL pass is what blocks.',
   whenToUse: 'ANY multi-step task you want orchestrated — it is LEAN unless you say otherwise, because lean already runs every gate and max only buys a judge panel, Opus builders and the completeness critic. It TRIAGES itself first, so a serial diagnosis is sent back to be done directly instead of spawning a fleet, and the ceiling + budget floor still bound every run. Reach for {quality:"tiny"} when you already know the exact edits (file + instruction each) and want them done in ~15 minutes with the gates intact — it is a HOP budget, not an agent budget: wall clock is serial-hops × time-per-hop, so tiny cuts the chain from 11 phases to 4 rather than trimming agents. Reach for {quality:"max"} when the cost of being wrong is high — irreversible edits, data migrations, anything shipping unattended. Opt all the way down with {quality:"standard"} for routine, low-cost-of-wrong, easily reversible work (~10-15x cheaper). Pass {task, quality, thirdEye, apply, maxRounds, dryRounds, budgetFloor, force, skeptics, maxAgents, isolate, items}. items:[{file,instruction}] skips the architect at ANY quality (not only tiny) — an architect that returns items:[] no longer becomes a vacuous green ship. `grok:false` still works as the old name for thirdEye:false; `fast` still resolves to `lean`.',
   phases: [
     { title: 'Preflight',   detail: 'workspace lock — refuse to start if another run is already editing this tree' },
@@ -326,7 +326,13 @@ const PROOF = '\n\nVERIFY THE THING, NOT A PROXY FOR IT. Before you assert somet
    MCP connection at all and so survives headless and cron runs where MCP servers may be absent. Nothing read the "unavailable"
    string, so a third eye that never spoke read as a clean pass. That is the v16 defect class
    (a null that reads as success) living inside the safeguard machinery itself.
-   THE TRANSPORT THAT WORKS: the Grok CLI at ~/.grok/bin/grok (0.2.118) authenticates on its own
+   ⚠ v36 — DO NOT PIN A VERSION NUMBER IN PROSE HERE. This line carried an 0.2.x pin (exact digits in
+   git history, not repeated here so a guard grepping the stale literal is not tripped by the comment
+   recording its death) long enough for the binary to move two major versions underneath it: measured
+   2026-08-13, `grok --version` prints 1.0.3, and `--best-of-n` is gone. A number in a comment has no
+   owner and no guard, so it rots silently and then briefs an agent with a lie. Ask the binary.
+   (The CLI version is 1.0.3; the default MODEL self-reports as Grok 4.6 — two different numbers.)
+   THE TRANSPORT THAT WORKS: the Grok CLI at ~/.grok/bin/grok authenticates on its own
    session, independent of that key. Measured working the same day, twice: a plain prompt, and an
    agentic read of a repo (`--cwd`) that ran `git log` and answered correctly. It is ALSO multimodal
    — asked what art/mephisto_graphic.png depicts, with no hint of what it should be, it answered
@@ -362,6 +368,20 @@ const PROOF = '\n\nVERIFY THE THING, NOT A PROXY FOR IT. Before you assert somet
 // GROK_CLI is only ever interpolated into a shell command an agent runs, so the
 // resolution belongs in the SHELL, where the environment actually exists.
 const GROK_CLI = '"${AGENT_ARMY_GROK_CLI:-$(command -v grok || echo "$HOME/.grok/bin/grok")}"'
+/* v36 §C3 — THE WRAPPER IS PART OF THE INVOCATION, NOT AN OPTIONAL EXTRA. The block comment above
+   explains at length that the Bash tool's timeout kills BASH and not bash's GRANDCHILDREN, and that
+   `timeout` is not installed — then the courier prompt used to hand the agent a BARE cli call. The
+   documentation and the instruction disagreed, and the instruction is the one that runs. Putting the
+   wrapper in a constant the prompt interpolates means the command cannot be written without it.
+   Exit 142 = the alarm fired = TIMED OUT, which is a real verdict (unreachable), never agreement.
+   ⚠ THIS CONSTANT IS REFERENCED BY grokHow() BELOW. It was added in the same edit as that reference:
+   `node --check` PASSES on a file that references an undefined const — the error is a runtime
+   ReferenceError, which is precisely what load_harness.mjs exists to catch and what caught it here.
+   Kept dependency-free (perl ships with macOS) so it stays portable, like GROK_CLI above. */
+const GROK_TIMEOUT_S = 180
+const PERL_ALARM = `perl -e 'my $t=shift; my $p=fork; die unless defined $p; if(!$p){exec @ARGV; exit 127} ` +
+  `$SIG{ALRM}=sub{kill "TERM",$p; waitpid($p,0); exit 142}; alarm $t; waitpid($p,0); ` +
+  `my $st=$?; alarm 0; exit(($st & 127) ? 128+($st & 127) : ($st >> 8));' ${GROK_TIMEOUT_S}`
 const THIRD_EYE_SEATS = []            // every consult attempted, reached or not — the ledger IS the report
 const THIRD_EYE_SCHEMA = {
   type: 'object', additionalProperties: false,
@@ -393,13 +413,27 @@ function grokHow(question, opts = {}) {
   return (
     `TRANSPORT — do this literally, in this order, and report which one answered.\n` +
     `1. CLI FIRST (this is the working path). Write the question below to a temp file with the Write ` +
-    `tool (e.g. /tmp/te_$$.txt), then run with the Bash tool:\n` +
-    `   ${GROK_CLI} --cwd ${cwd} --prompt-file <file> --no-memory --disable-web-search --output-format plain\n` +
-    `   Set the Bash tool's OWN timeout parameter to 180000. Do NOT use the \`timeout\` binary — it is ` +
-    `not installed on this Mac and the command would die with command-not-found.\n` +
+    `tool (e.g. /tmp/te_$$.txt), then run this with the Bash tool — COPY IT WHOLE, the perl prefix is ` +
+    `part of the command, not decoration:\n` +
+    `   ${PERL_ALARM} \\\n` +
+    `     ${GROK_CLI} --cwd ${cwd} --prompt-file <file> --no-memory --disable-web-search --output-format plain\n` +
+    `   Why the perl: the Bash tool's timeout kills BASH, not bash's GRANDCHILDREN, so a hung grok is ` +
+    `reparented to init and burns a core forever — two were found alive at 3 and 10 days. The perl ` +
+    `forks, alarms and SIGTERMs the child. Do NOT use the \`timeout\` binary: it is not installed on ` +
+    `this Mac and the command would die with command-not-found.\n` +
+    `   Also set the Bash tool's OWN timeout parameter to 180000 as a backstop, not a replacement.\n` +
+    `   EXIT 142 MEANS THE ALARM FIRED — grok TIMED OUT. Report that as reached:false / ` +
+    `verdict:'unreachable'. It is NEVER agreement and never "no concerns".\n` +
+    `   ⚠ Put the COMPLETE command in \`command\` — do NOT clip it. The perl prefix is ~243 characters, ` +
+    `so the part naming the grok binary sits past character 250, and a clipped command cannot be ` +
+    `verified as a real grok invocation.\n` +
     `2. Only if the CLI errors or returns empty, try the MCP fallback: ToolSearch for ` +
-    `mcp__grok-mcp__chat and call it. It is EXPECTED to fail with "Incorrect API key provided"; that ` +
-    `is a known-dead key, not something to debug or work around.\n` +
+    `mcp__grok-mcp__chat and call it. If it fails, put the ACTUAL error text you received in ` +
+    `\`reason\` — verbatim. Do NOT assume the key is dead: that key was measured WORKING on ` +
+    `2026-08-13 (a live models listing and a real completion through Grok-MCP), and an older version ` +
+    `of this prompt told couriers for months to EXPECT "Incorrect API key provided" after the root ` +
+    `cause had already been found and fixed. If it fails now, that is NEWS and the error string is ` +
+    `the evidence — report it, do not explain it away.\n` +
     `3. If neither answered, return reached:false, transport:'none', verdict:'unreachable', and put ` +
     `the ACTUAL error text in reason. \n` +
     `\n🚫 YOU ARE A COURIER, NOT THE THIRD EYE. Never answer the question yourself, never paraphrase ` +
@@ -1698,17 +1732,49 @@ log(`Plan "${plan.version_label}": ${items.length} items — ` +
    opinion on the user's own instruction. Seats 2-4 (the skeptic panel, the render gate's pictures
    and the pre-ship verdict challenge) all still sit — those read the DIFF, which nobody has seen
    yet, and the skeptic seat is the one that caught a real type-flip bug this session. */
+/* ⚠ v36 §C8 — THE PLAN SEAT'S ANSWER WAS THROWN AWAY HERE TOO (twin of konyo-workflow.js §C1).
+   `await thirdEyeAsk('plan', ...)` with no assignment: the third eye could refuse the plan and this
+   fleet built it anyway, at full cost. Same defect, same repair, deliberately NOT a body merge —
+   agent-army is a DIFFERENT PRODUCT from konyo-workflow.js and only this hunk is shared.
+   ⚠ THE ONE REAL DIFFERENCE, AND IT IS LOAD-BEARING: konyo-workflow.js fixed lock-leaking inside
+   bail() itself (its v32 §1.3), so there a bare `return bail()` is safe. THIS file's bail() is the
+   older SYNCHRONOUS one that does NOT release the lock — this script releases at each call site
+   instead (see the `await releaseLock()` at the no-work path above). So this exit MUST release
+   explicitly, or the fix for a wasted fleet would have introduced a three-hour tree leak in its
+   place. Copying the sibling's hunk verbatim would have done exactly that.
+   The lock-leak asymmetry itself is NOT fixed here: that is an unrelated port and this pass does
+   not "while I am here" merge the two engines. It is named in the shipment report instead. */
 if (USE_GROK && !TINYQ) {
   phase('Third-eye')
-  await thirdEyeAsk('plan',
+  const planSeat = await thirdEyeAsk('plan',
     `You are the independent second opinion on an implementation plan. You are a DIFFERENT model from ` +
     `the one that wrote it — that is exactly why you were asked.\n\nTASK: ${TASK}\n\nPLAN:\n` +
     items.map(i => `- [${i.tier}] ${i.file}: ${i.instruction}`).join('\n') +
     `\n\nWhat is wrong with this plan? Look for: the wrong problem being solved, a step that cannot ` +
     `work as described, a missing step whose absence only shows up later, and any assumption that has ` +
     `not been checked. Reply with your top 3 concerns, or say plainly that you have none — an empty ` +
-    `answer to be agreeable is worthless here.`,
+    `answer to be agreeable is worthless here.\n` +
+    `Set severity:'blocking' ONLY if building this plan would be a concrete, demonstrable mistake — ` +
+    `the wrong problem, or a step that provably cannot work. THAT ANSWER STOPS THE FLEET BEFORE IT ` +
+    `SPENDS ANYTHING. A preference about ordering or style is 'minor': recorded and read, not obeyed.`,
     'Third-eye')
+  // Only a REACHED seat can refuse. An unreachable transport is silence, and silence is not a veto.
+  if (planSeat && planSeat.reached && planSeat.severity === 'blocking') {
+    blocker('THE THIRD EYE REFUSED THIS PLAN',
+      `plan seat (${planSeat.transport}): ` +
+      `${planSeat.concerns.slice(0, 3).join(' · ') || planSeat.reason || 'blocking, no detail given'}`)
+    log('⛔ ABORTING BEFORE BUILD — the plan was refused by an independent model. Nothing was built.')
+    await releaseLock()          // this file's bail() does NOT release — see the note above
+    return bail({
+      refused: 'the third eye refused this plan',
+      third_eye_plan_seat: planSeat,
+      thirdEye: { seats: THIRD_EYE_SEATS, reached: THIRD_EYE_SEATS.filter(s => s.reached).length,
+                  of: THIRD_EYE_SEATS.length },
+      verdict: 'BLOCKED — an independent model (different family) refused the plan before any work began',
+      fix: 'address the concerns and re-run, or re-run with {thirdEye:false} if you have judged the ' +
+           'objection wrong — but do that deliberately, not by accident',
+    })
+  }
 }
 
 // 3) BUILD + GATE (pipeline, no barrier — each item gates the moment its build lands)

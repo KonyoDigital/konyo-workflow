@@ -1,3 +1,19 @@
+/* ═══ RETIRED 2026-08-13 (v36) — THIS PROOF WAS DEAD, NOT PASSING ═══════════════════════════════
+   It read /Users/konyo/.claude/workflows/konyo-workflow-max.js, which no longer exists (that file
+   was retired at v18; the repo still carries konyo-workflow-max.js.retired-v18). Running it does
+   not report on the ceiling — it throws ENOENT before reading a line of any live engine.
+
+   A proof pointed at a retired file is worse than no proof: it sits in a directory of real proofs,
+   its NAME claims coverage of the ceiling, and nobody re-reads a file that "exists". The only
+   reason this was caught is that someone actually ran it.
+
+   THE LIVE SUCCESSOR IS ceiling_proof_v4.mjs, in this same directory, and it PASSES:
+     items planned : 18 trimmed of 22 · "ceiling holds" · "the run can still REPORT"
+
+   Kept rather than deleted so what it used to cover is not lost. Do NOT run it, and do NOT "fix" it
+   by repointing it at konyo-workflow.js — v4 already covers that engine, and two proofs for one
+   property is how the optimistic one ends up binding.
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
 import fs from 'fs';
 const src = fs.readFileSync('/Users/konyo/.claude/workflows/konyo-workflow-max.js','utf8')
   .replace(/^export const meta/m,'const meta');

@@ -4,8 +4,9 @@
 
 | Slash | File | Role |
 |-------|------|------|
-| **`/konyo-workflow`** | `../automation/workflows/konyo-workflow.rhai` | **Full implementer** · lean default · `{apply:true}` writes · third-eye = Claude CLI |
-| **`/konyo-workflow-max`** | `konyo-workflow-max.rhai` | **DEPRECATED notice only** — MAX is `{quality:"max"}` on `/konyo-workflow` |
+| **`/Konyo-Grok`** | `../automation/workflows/Konyo-Grok.rhai` | **Full implementer** · lean default · `{apply:true}` writes · third-eye = Claude CLI |
+| **`/konyo-workflow`** | `../automation/workflows/konyo-workflow.rhai` | **Redirect stub** — returns BLOCKED + re-run args for `/Konyo-Grok` |
+| **`/konyo-workflow-max`** | `konyo-workflow-max.rhai` | **DEPRECATED notice only** — MAX is `{quality:"max"}` on `/Konyo-Grok` |
 
 > **2026-08-07:** The Grok shipper was **audit-only** (read-only laws panel, no builders).
 > That body is retired to `konyo-workflow.rhai.bak-audit-only-2026-08-07`.
@@ -93,7 +94,7 @@ bash ~/.grok/workflows/v27_grok_safeguard_proof.sh
 
 | | Claude Code host | Grok Build host |
 |--|------------------|-----------------|
-| Engine | `konyo-workflow.js` | `konyo-workflow.rhai` |
+| Engine | `konyo-workflow.js` | `Konyo-Grok.rhai` (`konyo-workflow.rhai` is a redirect stub) |
 | Builders | Opus/Sonnet/Haiku ladder | Grok agents + **depth directive** in prompt |
 | Third eye default | **Grok CLI** | **Claude CLI** (`claude -p --model opus`) |
 | Write boundary | harness tools | `capability_mode`: `read-only` / `read-write` / `all` |
@@ -112,7 +113,7 @@ bash ~/.grok/workflows/v27_grok_safeguard_proof.sh
 
 ```bash
 # from konyo-workflow repo
-cp automation/workflows/konyo-workflow.rhai ~/.grok/workflows/
+cp automation/workflows/Konyo-Grok.rhai ~/.grok/workflows/
 cp automation/workflows/v27_grok_safeguard_proof.sh ~/.grok/workflows/
 cp grok/konyo-workflow-max.rhai ~/.grok/workflows/
 bash ~/.grok/workflows/v27_grok_safeguard_proof.sh

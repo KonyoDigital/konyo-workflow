@@ -1,6 +1,6 @@
 let meta = #{
-    name: "Konyo-Grok",
-    description: "Konyo-Grok (/Konyo-Grok) — short name for the Grok Konyo shipper. FULL IMPLEMENTER. ONE body, four qualities (lean|max|standard|tiny). LEAN default: every ship gate (adversarial panel, LAW17/18/19, workspace lock, agent ceiling). max buys multi-architect, completeness, deeper rework. Pass {apply:true} to edit; apply:false dry-run. Third eye = Claude CLI (different family). Args: task, quality, apply, force, items, skeptics, isolate, thirdEye, maxAgents, ignoreLock, push, renderLoop. items[] skips architect. v26 render LOOP; v27/v27.1 SHIPPABLE; v28 PACE+PROXY+PHASE_PLAN+stop reasons; v28.1 early lock; v29 scar FOUNDING vs LEARNED; v30 meter routing (max is not volume); v31 LAW19 parallel first-render hop + images_na fail-closed + rich LAW19 schema; v32 record scars at failure + run-not-inspect; v33 CAPTURE PER ROUND / CARVE PER ARC (Claude JS v31 parity 2026-08-11) — sibling failures brief rework; arc-end carve candidates PROPOSE only, never suppress a gate.",
+    name: "konyo-grok",
+    description: "Konyo-Grok (/Konyo-Grok) — short name for the Grok Konyo shipper. FULL IMPLEMENTER. ONE body, four qualities (lean|max|standard|tiny). LEAN default: every ship gate (adversarial panel, LAW17/18/19, workspace lock, agent ceiling). max buys multi-architect, completeness, deeper rework. Pass {apply:true} to edit; apply:false dry-run. Third eye = Claude CLI (different family). Args: task, quality, apply, force, items, skeptics, isolate, thirdEye, maxAgents, ignoreLock, push, renderLoop. items[] skips architect. v26 render LOOP; v27/v27.1 SHIPPABLE; v28 PACE+PROXY+PHASE_PLAN+stop reasons; v28.1 early lock; v29 scar FOUNDING vs LEARNED; v30 meter routing (max is not volume); v31 LAW19 parallel first-render hop + images_na fail-closed + rich LAW19 schema; v32 record scars at failure + run-not-inspect; v33 CAPTURE PER ROUND / CARVE PER ARC; v36 Grok-host ports of Claude JS v35/v36 — items[] dry-run refuse (G1), release_held_lock on every abort (G2), plan seat can block (G3), pass+failures cannot PASSED (G4). meta.name is konyo-grok (host lowercase); the FILE stays Konyo-Grok.rhai so /Konyo-Grok still resolves. Never add a sibling konyo-grok.rhai on APFS — case-fold overwrites this file.",
     when_to_use: "SURGICAL — NOT THE DEFAULT FOR EVERY CHAT. Use only when the human asked for a multi-round ship, a sealed version, a night/fleet run, or an explicit /Konyo-Grok (alias /konyo-workflow). Do NOT open this fleet for one-file fixes, Q&A, audits, or routine edits — those use direct tools + the few specialist skills that match the surface. Bare call = lean + dry-run. {apply:true} to write. quality max ONLY for SMALL high-stakes lists (items preferred). quality tiny needs items[]. Multi-stamp: N lean/tiny slices. Carving is separate: open carving-skill only when 3+ scars share a territory (or carve_candidates non-empty), never as a default stack with this workflow.",
     phases: [
         #{ title: "Preflight", detail: "workspace lock when apply:true — shared lock dir with Claude so fleets exclude each other" },
@@ -55,6 +55,20 @@ fn as_arr(v) {
 
 fn truthy(v) {
     if v == true { true } else { false }
+}
+
+// v36 G2 — one release path. Every apply-mode abort used to copy-paste an agent()
+// block; architect-fail omitted it and leaked the tree for the full TTL.
+fn release_held_lock(token) {
+    if trimmed(token) == "" { return false; }
+    let rel = agent(
+        "WORKSPACE LOCK — release. Bash only.\nLOCKDIR=\"$HOME/.claude/workflows/.locks\"\n" +
+        "Find the file whose token is exactly " + json_encode(token) + " and delete ONLY that file.\n" +
+        "Return acquired:false, key:released.",
+        #{ label: "lock:release-early", phase: "Preflight", capability_mode: "execute", output_schema: lock_schema });
+    if rel != () && rel.success { log("🔓 Workspace lock released."); }
+    else { log("⚠ Lock release uncertain — TTL will expire it."); }
+    true
 }
 
 // ---------- schemas ----------
@@ -232,6 +246,19 @@ let lock_schema = #{
         "holder_expires": #{ "type": "string" },
         "holder_task": #{ "type": "string" },
         "purged_stale": #{ "type": "integer" },
+    },
+};
+
+// v36 G3 — plan seat must be machine-readable or it cannot refuse the plan.
+let te_schema = #{
+    "type": "object",
+    "required": ["reached", "verdict", "severity", "concerns", "reason"],
+    "properties": #{
+        "reached": #{ "type": "boolean" },
+        "verdict": #{ "type": "string" },
+        "severity": #{ "type": "string" },
+        "concerns": #{ "type": "array", "items": #{ "type": "string" } },
+        "reason": #{ "type": "string" },
     },
 };
 
@@ -725,6 +752,28 @@ if !apply_mode {
             }
         }
     }
+    let file_shaped_items = 0;
+    let _fi = 0;
+    while _fi < items_arg.len() {
+        let it = as_map(items_arg[_fi]);
+        if trimmed(it.file) != "" { file_shaped_items += 1; }
+        _fi += 1;
+    }
+    // v36 G1 — items[] is file-shaped even when the task prose is not (Claude JS v35).
+    if file_shaped_items > 0 {
+        log("⛔ TRIAGE REFUSED: dry-run (apply:false) but " + file_shaped_items.to_string() + " item(s) name a FILE to edit.");
+        log("   Re-run with {apply:true}, or drop the file deliverable. Do not auto-promote apply.");
+        complete(#{
+            verdict: "blocked",
+            ship_allowed: false,
+            shippable: false,
+            quality: quality,
+            refused: "dry-run with a file-shaped items[] work list",
+            fix: "apply:true, or drop the file deliverable",
+            file_shaped_items: file_shaped_items,
+            blockers: ["dry-run cannot write files the items[] list demands"],
+        });
+    }
     if wants_file {
         log("⛔ TRIAGE REFUSED: dry-run (apply:false) but task asks to write files.");
         log("   Re-run with {apply:true}, or ask for content in the RESULT instead of on disk.");
@@ -775,15 +824,7 @@ if tiny_q {
     if bad != "" {
         log("⛔ TINY REFUSED: " + bad);
         log("   {quality:\"tiny\", apply:true, items:[{file:\"/abs/path\", instruction:\"…\", risk:\"low\", anchor:\"~line N\"}]}");
-        if lock_acquired && lock_token != "" {
-            let rel_e3 = agent(
-                "WORKSPACE LOCK — release. Bash only.\nLOCKDIR=\"$HOME/.claude/workflows/.locks\"\n" +
-                "Find the file whose token is exactly " + json_encode(lock_token) + " and delete ONLY that file.\n" +
-                "Return acquired:false, key:released.",
-                #{ label: "lock:release-early", phase: "Preflight", capability_mode: "execute", output_schema: lock_schema });
-            if rel_e3 != () && rel_e3.success { log("🔓 Workspace lock released (tiny-refuse bail)."); }
-            lock_acquired = false;
-        }
+        if lock_acquired { release_held_lock(lock_token); lock_acquired = false; }
         complete(#{
             verdict: "blocked",
             ship_allowed: false,
@@ -836,16 +877,7 @@ if !tiny_q {
             // v28.1 — RELEASE THE LOCK ON EVERY EARLY EXIT. Workflow-5 took the lock,
             // bailed as direct, and left Users-konyo.json for 180 minutes — blocking
             // the next lean apply cold. complete() never reaches the bottom release.
-            if lock_acquired && lock_token != "" {
-                let rel_early = agent(
-                    "WORKSPACE LOCK — release. Bash only.\nLOCKDIR=\"$HOME/.claude/workflows/.locks\"\n" +
-                    "Find the file whose token is exactly " + json_encode(lock_token) + " and delete ONLY that file.\n" +
-                    "Return acquired:false, key:released.",
-                    #{ label: "lock:release-early", phase: "Triage", capability_mode: "execute", output_schema: lock_schema });
-                if rel_early != () && rel_early.success { log("🔓 Workspace lock released (early bail)."); }
-                else { log("⚠ Early lock release uncertain — TTL will expire it."); }
-                lock_acquired = false;
-            }
+            if lock_acquired { release_held_lock(lock_token); lock_acquired = false; }
             complete(#{
                 verdict: "not_run",
                 ship_allowed: false,
@@ -971,6 +1003,7 @@ if tiny_q || items_arg.len() > 0 {
     if arch_r == () || !arch_r.success || arch_r.output == () {
         spawn_errors.push("architect failed");
         blockers.push(#{ what: "no plan", why: "architect produced no usable plan" });
+        if lock_acquired { release_held_lock(lock_token); lock_acquired = false; }
         complete(#{
             verdict: "blocked",
             ship_allowed: false,
@@ -1148,15 +1181,7 @@ if plan_items.len() == 0 {
     log("⛔ EMPTY PLAN — " + why);
     blockers.push(#{ what: "empty plan", why: why });
     // v28.1 — release lock before complete() (same orphan bug as triage-direct bail)
-    if lock_acquired && lock_token != "" {
-        let rel_e2 = agent(
-            "WORKSPACE LOCK — release. Bash only.\nLOCKDIR=\"$HOME/.claude/workflows/.locks\"\n" +
-            "Find the file whose token is exactly " + json_encode(lock_token) + " and delete ONLY that file.\n" +
-            "Return acquired:false, key:released.",
-            #{ label: "lock:release-early", phase: "Architect", capability_mode: "execute", output_schema: lock_schema });
-        if rel_e2 != () && rel_e2.success { log("🔓 Workspace lock released (empty-plan bail)."); }
-        lock_acquired = false;
-    }
+    if lock_acquired { release_held_lock(lock_token); lock_acquired = false; }
     complete(#{
         verdict: if err == "architect_noop" { "already_complete_or_noop" } else { "blocked" },
         ship_allowed: false,
@@ -1195,21 +1220,39 @@ if use_third_eye && !tiny_q {
     }
     let q_plan = "You are the independent second opinion on an implementation plan. Different model family from the planner.\n\nTASK:\n" + task + "\n\nPLAN:\n" + plan_lines + "\nWhat is wrong? Top 3 concerns, or say plainly you have none. Empty agreement is worthless.";
     if third_eye == "claude" {
-        let te_p = "THIRD EYE transport — call Claude CLI (different model family). Bash only.\n";
-        te_p += "Run: claude -p --model opus --output-format text " + json_encode(q_plan) + "\n";
-        te_p += "If claude is missing or fails, return acquired:false-style note in your text and say transport_down.\n";
-        te_p += "Return the Claude reply verbatim as your final answer (plain text is fine).";
-        // Use a simple agent that shells out
+        let te_p = "THIRD EYE courier — you RELAY Claude CLI (different model family). Never answer the plan yourself.\n";
+        te_p += "Write the question to a temp file, then run (perl alarm — `timeout` is not on this Mac):\n";
+        te_p += "perl -e 'my $t=shift; my $p=fork; die unless defined $p; if(!$p){exec @ARGV; exit 127} $SIG{ALRM}=sub{kill \"TERM\",$p; waitpid($p,0); exit 142}; alarm $t; waitpid($p,0); my $st=$?; alarm 0; exit(($st & 127) ? 128+($st & 127) : ($st >> 8));' 180 ";
+        te_p += "/usr/local/bin/claude -p --model opus --output-format text \"$(cat <file>)\"\n";
+        te_p += "QUESTION:\n" + q_plan + "\n";
+        te_p += "Fill reached=true ONLY if Claude actually answered. severity=blocking ONLY for a concrete demonstrable mistake (wrong problem, or a step that cannot work) WITH concerns[] holding those words. verdict='no concerns' beside severity=blocking is a contradiction — do not set blocking then. If claude is missing or exit 142, reached=false, verdict=unreachable, reason=the ACTUAL error.\n";
         let te_r = agent(te_p, #{
             label: "third-eye:plan:claude",
             phase: "Third-eye",
             capability_mode: "execute",
+            output_schema: te_schema,
         });
         agents_spent += 1;
-        if te_r != () && te_r.success {
-            let ans = if type_of(te_r.output) == "string" { te_r.output } else { json_encode(te_r.output) };
-            third_eye_seats.push(#{ seat: "plan", transport: "claude-cli", spoke: true, answer: ans.sub_string(0, if ans.len() < 2000 { ans.len() } else { 2000 }) });
-            log("Third-eye (Claude) spoke on the plan.");
+        if te_r != () && te_r.success && te_r.output != () {
+            let rec = as_map(te_r.output);
+            let spoke = rec.reached == true;
+            third_eye_seats.push(#{ seat: "plan", transport: "claude-cli", spoke: spoke, answer: rec, severity: rec.severity, verdict: rec.verdict });
+            log("Third-eye (Claude) spoke on the plan: reached=" + spoke.to_string() + " severity=" + trimmed(rec.severity));
+            let concerns = as_arr(rec.concerns);
+            let veto = spoke && trimmed(rec.severity) == "blocking" && concerns.len() > 0 && trimmed(rec.verdict) != "no concerns";
+            if veto {
+                log("⛔ ABORTING BEFORE BUILD — plan seat came back blocking. Seat empty is NOT a veto.");
+                if lock_acquired { release_held_lock(lock_token); lock_acquired = false; }
+                complete(#{
+                    verdict: "blocked",
+                    ship_allowed: false,
+                    shippable: false,
+                    quality: quality,
+                    refused: "the plan seat returned a blocking refusal",
+                    third_eye_plan_seat: rec,
+                    blockers: ["THE PLAN SEAT RETURNED A BLOCKING REFUSAL"],
+                });
+            }
         } else {
             third_eye_seats.push(#{ seat: "plan", transport: "claude-cli", spoke: false, answer: "" });
             spawn_errors.push("third-eye plan seat empty");
@@ -1769,6 +1812,8 @@ if apply_mode {
         render_available = out.available == true;
         render_passed = p == true;
         render_failures = as_arr(out.failures);
+        // v36 G4 — pass:true carrying a non-empty failures[] must not converge as PASSED
+        if render_passed && render_failures.len() > 0 { render_passed = false; }
         render_screenshots = as_arr(out.screenshots);
         render_notes = trimmed(out.notes);
         if render_notes == "" { render_notes = trimmed(out.reason); }
@@ -2371,6 +2416,10 @@ complete(#{
         v30_tip_honesty_and_thrash: true,
         v31_render_law19_concurrent_first_hop: true,
         v31_images_na_fail_closed: true,
+        v36_g1_items_file_shaped_dry_run_refuse: true,
+        v36_g2_release_held_lock: true,
+        v36_g3_plan_seat_can_block: true,
+        v36_g4_pass_with_failures_not_passed: true,
         v31_reach_rich_schema: true,
     },
     thin_panels: thin_panels,
