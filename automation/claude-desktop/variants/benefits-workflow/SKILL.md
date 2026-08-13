@@ -397,6 +397,14 @@ it is why the base's version does not port directly. But you already built the s
 
 ### When a scar has earned its own skill
 
+**Making the skill itself is a separate skill: `skill-forge`.** It carries the three gates,
+how to write a description that actually triggers, and the packaging rules that reject
+uploads. It is deliberately not folded in here — a skill loads by its description, and
+"should this be its own skill?" would never match "finish HR and benefits work properly",
+so guidance about building skills, kept inside this one, would sit unread exactly when it
+was needed.
+#### The territory test
+
 **Three or more scars in the same territory means that territory should become its own
 skill.** Not three scars in the same FILE — three scars with the same *failure shape*. "Three
 things went wrong in the invoice audit" is a pile. "Three times a facility's name was spelled
