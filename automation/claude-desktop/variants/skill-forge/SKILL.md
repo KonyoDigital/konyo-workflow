@@ -23,6 +23,10 @@ re-explaining it" is a reason to write a note in `session-memory`. It is not, by
 reason to make a skill. A skill is a claim that these rules should be loaded and followed,
 and that claim has to be paid for by something that actually went wrong.
 
+⚠ **Every rule below came from something that actually went wrong.** Where a rule has a
+cost attached, it is named — a rule you cannot trace is one you will eventually follow for
+a reason that stopped being true.
+
 ### Carve when ALL THREE hold
 
 1. **Three or more real failures share a territory.** Three is the floor, because two is a
@@ -117,7 +121,8 @@ cd <where the folder lives>
 zip -rq <name>.zip <name> -x "*.DS_Store"
 ```
 
-**Validate before sending:**
+**Validate before sending** — this catches the SILENT failure, where the skill uploads and
+then simply never loads and nothing tells you why:
 
 ```bash
 python3 - <<'PY'
@@ -128,6 +133,13 @@ fm = re.match(r"^---\n(.*?)\n---\n", s, re.S).group(1)
 name = re.search(r"^name:\s*(.+)$", fm, re.M).group(1).strip()
 desc = re.search(r"^description:\s*(.+)$", fm, re.M).group(1).strip().strip('"')
 print("name", name, "== folder", d, "->", name == d)
+# the SILENT one: a colon-space in an unquoted description makes YAML read a second key
+try:
+    import yaml; yaml.safe_load(fm)
+    print("YAML parses -> OK")
+except Exception as e:
+    print("YAML REFUSES IT ->", str(e).split("\\n")[0][:70],
+          "  (quote the description, or drop the colon)")
 print("desc", len(desc), "/200 ->", "OK" if len(desc) <= 200 else "TOO LONG")
 for r in sorted(set(re.findall(r"references/[a-z_]+\.md", s))):
     print(("OK  " if os.path.isfile(os.path.join(d, r)) else "MISSING"), r)
@@ -152,7 +164,38 @@ will behave exactly as though you never made it.
 
 ---
 
-## 5. Where a skill's memory lives
+## 5. Retiring one — the half nobody does
+
+A library only stays useful if things leave it. Making and growing without ever removing is
+how a set of skills becomes a set of files.
+
+**Retire it when any of these is true:**
+
+- **It has not fired in months.** Not "you have not thought about it" — it did not LOAD. If
+  you cannot remember it changing an answer, it is not earning its place.
+- **Its territory moved.** The process it describes was replaced, the system was renamed,
+  the carrier changed. A skill describing last year's process does not sit quietly; it
+  answers confidently and wrongly.
+- **Another skill absorbed it.** Two skills covering one territory means whichever loads
+  first wins, and which one that is will not be predictable.
+
+**How, in order:**
+
+1. **Find what still points at it.** Other skills, `session-memory` notes, anything that
+   says "see X". A pointer to a skill that no longer exists is worse than no pointer.
+2. **Move anything still true somewhere that IS read.** Usually the store, or the skill
+   that absorbed it. This is the step people skip, and it is the whole reason retirement
+   feels risky.
+3. **Then remove it** — from the Skills list in Desktop, not only from your folder. The
+   installed copy is the one that loads; deleting the local file changes nothing.
+4. **Say what went**, in the store, with the date. A skill that vanished silently reads as
+   a skill that was never there, and the next person re-derives it from scratch.
+
+⚠ **Never retire something because it is quiet.** A skill that fires rarely and is right
+each time is doing exactly its job. The test is whether it is still TRUE, not how often it
+is used.
+
+## 6. Where a skill's memory lives
 
 Skills are static once uploaded. Anything that changes — current state, open items, the
 scars list — belongs in `session-memory`, not baked into the skill. The rule that keeps the
@@ -163,3 +206,50 @@ two straight:
 A carrier's name is skill material. Which facilities are still outstanding this month is
 store material. Putting the second kind in a skill is how a skill starts confidently telling
 you last month's truth.
+
+---
+
+## How this goes wrong — the three failure modes
+
+Its own rule: every skill names the two or three ways its work actually fails. These are
+the ones for making skills.
+
+1. **The skill that never loads.** By far the most common, and it is SILENT. The
+   description does not contain the words you would really type, or the file will not parse
+   at all. Both look identical from the outside: nothing happens, and nothing tells you
+   why. Measured today: a skill whose description contained a colon-space was rejected by
+   YAML with "mapping values are not allowed here" and simply sat in the tree doing
+   nothing.
+2. **The skill that is a summary.** It restates what Claude already knows, so it adds
+   length without adding a single thing that can fail. The tell: read it and ask "which
+   line here could ever turn out FALSE?" If none can, it is a document, not a skill.
+3. **The skill built from convenience, not evidence.** "I do this a lot" produces a skill
+   nobody consults, because there was never a failure to make it worth loading. The gate in
+   §1 exists precisely because this one feels the most productive while you do it.
+
+---
+
+## A worked example
+
+**What happened.** Three times in two months, a filter matched zero rows and the result
+read as clean: once because a facility was spelled `Acme` in one system and
+`St Marys` in another, once on a trailing space, once on a renamed plan. Each time it was
+caught by eye, late, and fixed in place.
+
+**Does it deserve a skill?** Run §1.
+- Three or more real failures: **yes**, three, and each cost a re-issued figure.
+- One territory with a name: **yes** — "a filter that matched nothing, read as clean".
+- Standing guidance to give: **yes** — confirm the spelling in the target system before
+  believing a zero.
+
+**The one-sentence test:** *"A zero-row result is unproven until the filter value has been
+confirmed to exist in that system."* Read beforehand, that sentence prevents all three.
+It does not need widening to fit the third — so it is one territory, not a pile.
+
+**What it is NOT.** Not "three problems in the invoice audit" — that is grouping by where.
+The renamed-plan one did not even happen in the invoice audit.
+
+**Then:** write it with the failure modes and what done means; give it a description
+carrying the words actually typed ("zero rows", "filter", "no matches", "came back empty");
+check it against §3; upload it; and confirm it fires by asking a question you would really
+ask.
