@@ -132,6 +132,13 @@ has "v32 one per distinct flag" 'v32_scar_one_per_distinct_failure'
 has "v32 run not inspect flag" 'v32_run_not_inspect'
 
 echo ""
+echo "v39 LOG-PASS (opt-in finish log — not a ship, not a door)"
+has "log_pass_on flag" 'let log_pass_on'
+has "logPass requires apply" 'logPass requires apply:true'
+has "LOG-PASS courier" 'LOG-PASS courier'
+has "v39 safeguard flag" 'v39_log_pass'
+
+echo ""
 echo "v38 STAKES DIAL (2026-08-15) — no max/lean/tiny door"
 has "stakes is the public dial" 'stakes is the public dial'
 has "stakes reversible maps to standard" 'stakes_asked == "reversible"'

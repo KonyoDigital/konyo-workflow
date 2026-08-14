@@ -60,6 +60,7 @@
 | `push` | `false` | Ship phase may `git push` only if shippable; never `--force` |
 | `maxAgents` | `24` | Hard agent ceiling |
 | `ignoreLock` | `false` | Proceed over a live workspace lock |
+| `logPass` | `false` | After each proven item, commit+push that file only. Requires apply. Not a ship. |
 
 ## Quality law (identical spirit to Claude)
 

@@ -363,6 +363,8 @@ let force_run = truthy(a.force);
 let ignore_lock = truthy(a.ignore_lock) || truthy(a.ignoreLock);
 let isolate_mode = (truthy(a.isolate) || truthy(a.isolation_worktree)) && apply_mode;
 let do_push = truthy(a.push);  // ship phase only if true AND shippable
+// v39 — log each proven pass. Opt-in finish/revival loop. Not the door, not a ship.
+let log_pass_on = truthy(a.logPass) || truthy(a.log_pass);
 
 let max_rounds = 1;
 if max_only { max_rounds = 2; }
@@ -833,6 +835,19 @@ if !apply_mode {
             blockers: ["dry-run cannot write files the task demands"],
         });
     }
+}
+
+if log_pass_on && !apply_mode {
+    log("⛔ logPass:true is a DRY-RUN — a log of a pass that wrote nothing is a lie.");
+    complete(#{
+        verdict: "blocked",
+        ship_allowed: false,
+        shippable: false,
+        quality: quality,
+        refused: "logPass requires apply:true",
+        fix: "apply:true with logPass:true, or drop logPass",
+        blockers: ["logPass requires apply:true"],
+    });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2220,6 +2235,37 @@ while ti < results.len() {
     ti += 1;
 }
 
+// v39 — log each proven pass (opt-in). Builders never push; this courier only
+// runs automation/log-pass.sh. The script refuses a dirty index.
+let log_pass_commits = [];
+if log_pass_on && apply_mode {
+    let li = 0;
+    while li < results.len() {
+        let rr = as_map(results[li]);
+        let gg = as_map(rr.gate);
+        let ii = as_map(rr.item);
+        let ff = trimmed(ii.file);
+        if trimmed(gg.verdict) == "pass" && ff != "" {
+            let lp = "You are the LOG-PASS courier. Run EXACTLY one command and nothing else.\n";
+            lp += "Do not git add, commit, or push yourself. The script does those and refuses a dirty index.\n";
+            lp += "Try in order: $HOME/.konyo-workflow/log-pass.sh then $HOME/.grok/workflows/log-pass.sh then $HOME/.claude/workflows/log-pass.sh\n";
+            lp += "Command:\n";
+            lp += "bash \"$HOME/.konyo-workflow/log-pass.sh\" --message " + json_encode("konyo pass: " + ff + " — proven pass") + " -- " + json_encode(ff) + "\n";
+            lp += "If that path is missing, retry with ~/.grok/workflows/log-pass.sh. Report stdout/stderr verbatim. Do not invent a git command.\n";
+            let lpr = agent(lp, #{
+                label: "log-pass:" + ff,
+                phase: "Build+Gate",
+                capability_mode: "all",
+            });
+            agents_spent += 1;
+            let ok = lpr != () && lpr.success;
+            log_pass_commits.push(#{ file: ff, ok: ok });
+            if ok { log("logPass: " + ff); } else { log("logPass REFUSED " + ff); }
+        }
+        li += 1;
+    }
+}
+
 // Parity with Claude v27.1 — the WHOLE predicate (do not shorten to the first line):
 //   · apply:true required (dry-run proposed diffs is never "ready to push")
 //   · passed_n > 0 (empty fleet used to be SHIPPABLE because failed=[] is vacuously true)
@@ -2424,6 +2470,7 @@ complete(#{
     ship_allowed: shippable,
     shippable: shippable,
     shipped: shipped,
+    log_pass: #{ on: log_pass_on, commits: log_pass_commits },
     passed: passed_n,
     failed: failed_n,
     scars: run_scars,
@@ -2446,6 +2493,7 @@ complete(#{
         shippable_requires_no_thin_panels: true,
         architect_noop_honest: true,
         builders_never_push: true,
+        v39_log_pass: true,
         v28_pace_and_proxy: true,
         v28_phase_plan: true,
         v28_render_stop_passed_ceiling_stalled: true,

@@ -249,6 +249,10 @@ const LOCK_TTL_MIN = (A && A.lockTtlMinutes) || 180
    for {isolate:true} gets the worktree builders AND the merge phase that carries their work back.
    Gating the merge on quality would mean a standard isolate run silently discarded every change. */
 const ISOLATE = !!(A && A.isolate) && APPLY
+/* v39 — LOG EACH PROVEN PASS. Opt-in finish/revival loop. Not the door, not a ship.
+   After an item PASSES its gate, commit+push THAT FILE ONLY via automation/log-pass.sh.
+   Default off. Requires apply:true. Builders still never push; the orchestrator logs. */
+const LOG_PASS = !!(A && (A.logPass || A.log_pass))
 
 // ── THE CEILING (2026-08-01, ported from max after it blew a 34-cap into 119 agents / 4.1 hours) ──
 // This workflow's only bound was a SENTENCE IN A PROMPT — "Produce AT MOST N items" — which asks the
@@ -395,6 +399,47 @@ async function bail(o) {
     verdict: 'ABORTED — the run exited before completing; see error/refused',
     shippable: false,
   }, o))
+}
+
+/* v39 — one routine. The script refuses a dirty index and denylisted books.
+   Orchestrator runs it; builders still never push. */
+function logPassScript() {
+  const home = (typeof process !== 'undefined' && process.env && process.env.HOME) || ''
+  const cands = [
+    home + '/.konyo-workflow/log-pass.sh',
+    home + '/.claude/workflows/log-pass.sh',
+    home + '/.grok/workflows/log-pass.sh',
+    '/Users/konyo/konyo-workflow/automation/log-pass.sh',
+  ]
+  for (const p of cands) {
+    try {
+      const fs = (typeof process !== 'undefined' && typeof require === 'function') ? require('fs') : null
+      if (fs && fs.existsSync(p)) return p
+    } catch { /* host has no fs */ }
+  }
+  return cands[0]
+}
+
+function runLogPass(file, message) {
+  const rec = { file, ok: false, sha: '', reason: '' }
+  if (!file) { rec.reason = 'no file'; return rec }
+  const script = logPassScript()
+  try {
+    const { spawnSync } = require('child_process')
+    const r = spawnSync('bash', [script, '--message', message, '--', file], {
+      encoding: 'utf8', timeout: 120000,
+    })
+    rec.reason = ((r.stdout || '') + (r.stderr || '')).slice(0, 500)
+    rec.ok = r.status === 0
+    const m = rec.reason.match(/\bpushed ([0-9a-f]{7,})\b/)
+    if (m) rec.sha = m[1]
+  } catch (e) {
+    rec.reason = 'exec unavailable: ' + String((e && e.message) || e).slice(0, 200)
+  }
+  log(rec.ok
+    ? `logPass: ${file} → ${rec.sha || 'ok'}`
+    : `logPass REFUSED ${file}: ${rec.reason}`)
+  return rec
 }
 
 if (!TASK) { log('No task given. Pass a task string or {task:"..."} as args.'); return bail({ error: 'no task' }) }
@@ -1611,6 +1656,14 @@ if (!APPLY && (wantsAFile(TASK) || _fileShapedItems)) {
     refused: _fileShapedItems ? 'dry-run with a file-shaped items[] work list' : 'dry-run with a file-shaped deliverable',
     fix: 'apply:true, or drop the file deliverable',
     file_shaped_items: _fileShapedItems,
+  })
+}
+
+if (LOG_PASS && !APPLY) {
+  log('⚠ logPass:true is a DRY-RUN — a log of a pass that wrote nothing is a lie.')
+  return bail({
+    refused: 'logPass requires apply:true',
+    fix: 'apply:true with logPass:true, or drop logPass',
   })
 }
 
@@ -3007,6 +3060,14 @@ if (APPLY) {
 if (!TINYQ) phase('Synthesize')  // v22 — tiny writes its own report in-script
 const passed = results.filter(r => r.gate && r.gate.verdict === 'pass')
 const failed = results.filter(r => !r.gate || r.gate.verdict !== 'pass')
+const logPassLedger = []
+if (LOG_PASS && APPLY) {
+  for (const r of passed) {
+    const f = r.item && r.item.file
+    const lie = (r.item && r.item.instruction) || 'proven pass'
+    logPassLedger.push(runLogPass(f, `konyo pass: ${f} — ${String(lie).slice(0, 160)}`))
+  }
+}
 /* v22 — TINY WRITES ITS OWN REPORT. The synthesizer is an Opus/high round-trip whose job is to
    INTEGRATE many results into prose. Tiny has at most four items, and every fact the report needs is
    already computed in this script: which items passed, which failed, and the blockers ledger. Paying
@@ -3559,6 +3620,7 @@ return emit({
   shippable: SHIPPABLE && !BLOCKERS.length,
   shippable_at_gate: SHIPPABLE,   // what the Ship phase actually gated on, kept for auditing
   shipped,
+  log_pass: { on: LOG_PASS, commits: logPassLedger },
   passed: passed.length,
   failed: failed.length,
   // v30 — meter routing (Grok parity 2026-08-07)
@@ -3569,6 +3631,7 @@ return emit({
     v30_item_cap_by_quality: true,
     v30_max_not_for_volume_arcs: true,
     v30_tip_honesty_and_thrash: true,
+    v39_log_pass: true,
   },
   render_gate: renderGate,
   /* v26 — the loop, reported rather than inferred. `converged:true` means a render came back clean;

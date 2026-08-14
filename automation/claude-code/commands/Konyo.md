@@ -95,5 +95,7 @@ stale generation after an edit, and `agent-army.js` registers the name `konyo-wo
 `{skeptics:N}` sets the panel by hand. `{thirdEye:false}` drops the independent reviewer.
 `{isolate:true}` builds in git worktrees and merges the patches back. `{force:true}` overrules
 *triage only*. `{ignoreLock:true}` overrules the **workspace lock** — only when the holder is dead.
+`{logPass:true}` logs each proven pass (commit+push that file only). Requires `apply:true`. Not a
+ship and not a door.
 
 Full map: [`ROUTING.md`](../../../ROUTING.md)

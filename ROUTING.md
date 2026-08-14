@@ -91,6 +91,7 @@ resolves to **irreversible** and logs that it did. A misread flag fails expensiv
 | `{isolate:true}` | each builder gets a git worktree, and one merge agent applies the patches back — opt-in, because a merge stage that goes wrong loses work |
 | `{force:true}` | overrules *triage* only. Deliberately **not** the lock override |
 | `{ignoreLock:true}` | overrules the **workspace lock** — only when the holder is genuinely dead |
+| `{logPass:true}` | **opt-in finish/revival log.** After each item that PASSES its gate, commit+push **that file only** via `automation/log-pass.sh`. Requires `apply:true`. Not a ship (`{push:true}` is still the end-of-run push). Not the door. Default **off**. The script refuses a dirty index and denylisted books/secrets. |
 
 Invoke by **`scriptPath`, not `{name}`** — the engine snapshots named workflows and can serve a stale
 generation after an edit. This matters more than it looks: `agent-army.js` also registers the name

@@ -13,6 +13,19 @@ if [[ -f "$ROOT/SKILL.md" ]]; then
   # The routing map is the single source for WHICH entry point to run. Installed beside the method
   # so the answer is on disk, not only on GitHub.
   [[ -f "$ROOT/ROUTING.md" ]] && cp "$ROOT/ROUTING.md" "$DEST/ROUTING.md" || true
+  # Opt-in finish-loop logger. One routine both hosts call. Not installed = logPass cannot fire.
+  if [[ -f "$ROOT/automation/log-pass.sh" ]]; then
+    cp "$ROOT/automation/log-pass.sh" "$DEST/log-pass.sh"
+    chmod +x "$DEST/log-pass.sh"
+    if [[ -d "${HOME}/.claude/workflows" ]]; then
+      cp "$ROOT/automation/log-pass.sh" "${HOME}/.claude/workflows/log-pass.sh"
+      chmod +x "${HOME}/.claude/workflows/log-pass.sh"
+    fi
+    if [[ -d "${HOME}/.grok/workflows" ]]; then
+      cp "$ROOT/automation/log-pass.sh" "${HOME}/.grok/workflows/log-pass.sh"
+      chmod +x "${HOME}/.grok/workflows/log-pass.sh"
+    fi
+  fi
   if [[ -d "$ROOT/automation/workflows" ]]; then
     cp "$ROOT/automation/workflows/"*.rhai "$DEST/workflows/" 2>/dev/null || true
     # Static safeguard proofs (v27 empty-plan / render-loop contracts) — install
