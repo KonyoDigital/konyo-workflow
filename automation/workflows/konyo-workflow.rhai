@@ -1,7 +1,7 @@
 let meta = #{
     name: "konyo-workflow",
     description: "DEPRECATED short-path name — use /Konyo-Grok. This entry no longer runs the fleet: it returns BLOCKED with the exact re-run args for /Konyo-Grok so old saved invocations fail LOUDLY instead of running a second copy of the shipper.",
-    when_to_use: "Do not use. Kept only so /konyo-workflow still appears and redirects. For a real ship call /Konyo-Grok with the same args (task, apply, quality, items, force, push, …).",
+    when_to_use: "Do not use. Kept only so /konyo-workflow still appears and redirects. For a real ship call /Konyo-Grok with the same args (task, apply, stakes, items, force, push, …).",
     phases: [
         #{ title: "Delegation notice", detail: "returns BLOCKED with re-run instructions — no agents, no lock, no gates" },
     ],
@@ -37,7 +37,15 @@ let rerun = #{};
 // pass through common knobs so the human can paste into /Konyo-Grok
 if task != "" { rerun.task = task; }
 if a.apply != () { rerun.apply = a.apply; }
-if a.quality != () { rerun.quality = a.quality; }
+if a.stakes != () {
+    rerun.stakes = a.stakes;
+} else if a.quality != () {
+    let q = trimmed(a.quality);
+    q = q.to_lower();
+    if q == "max" { rerun.stakes = "irreversible"; }
+    else if q == "standard" { rerun.stakes = "reversible"; }
+    else { rerun.stakes = "costly"; }
+}
 if a.force != () { rerun.force = a.force; }
 if a.items != () { rerun.items = a.items; }
 if a.push != () { rerun.push = a.push; }
@@ -53,7 +61,7 @@ log("   Re-run: /Konyo-Grok " + json_encode(rerun));
 let md = "# Redirected — use /Konyo-Grok\n\n";
 md += "This slash is **deprecated** as an implementer. The one Grok Konyo body is:\n\n";
 md += "```\n/Konyo-Grok " + json_encode(rerun) + "\n```\n\n";
-md += "Same args: `task`, `apply`, `quality` (lean|max|standard|tiny), `items`, `push`, …\n";
+md += "Same args: `task`, `apply`, `stakes` (reversible|costly|irreversible), `items`, `push`, …\n";
 md += "Workflow is **not** the default for every chat — only when you want a sealed multi-round ship.\n";
 
 let report_path = write_scratch_file("konyo-workflow-redirect.md", md);

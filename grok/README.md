@@ -4,9 +4,9 @@
 
 | Slash | File | Role |
 |-------|------|------|
-| **`/Konyo-Grok`** | `../automation/workflows/Konyo-Grok.rhai` | **Full implementer** · lean default · `{apply:true}` writes · third-eye = Claude CLI |
+| **`/Konyo-Grok`** | `../automation/workflows/Konyo-Grok.rhai` | **Full implementer** · one door · stakes default costly · `{apply:true}` writes · third-eye = Claude CLI |
 | **`/konyo-workflow`** | `../automation/workflows/konyo-workflow.rhai` | **Redirect stub** — returns BLOCKED + re-run args for `/Konyo-Grok` |
-| **`/konyo-workflow-max`** | `konyo-workflow-max.rhai` | **DEPRECATED notice only** — MAX is `{quality:"max"}` on `/Konyo-Grok` |
+| **`/konyo-workflow-max`** | `konyo-workflow-max.rhai` | **DEPRECATED notice only** — there is no max door; `{stakes:"irreversible"}` on `/Konyo-Grok` |
 
 > **2026-08-07:** The Grok shipper was **audit-only** (read-only laws panel, no builders).
 > That body was replaced, not archived in-tree — recover it from git history if you ever
@@ -21,30 +21,27 @@
 ## How to invoke (Grok Build)
 
 ```text
-# Lean default, dry-run (propose only — safe)
-/konyo-workflow {"task":"…"}
+# Costly default, dry-run (propose only — safe)
+/Konyo-Grok {"task":"…"}
 
-# Actually edit files (default quality = lean)
-/konyo-workflow {"task":"…","apply":true}
+# Actually edit files (unstated stakes = costly)
+/Konyo-Grok {"task":"…","apply":true}
 
-# Max ONLY when being wrong is expensive AND the list is SMALL
-/konyo-workflow {"task":"…","apply":true,"quality":"max","items":[
+# Irreversible — money, security, trading, live ships. Keep the list SMALL.
+/Konyo-Grok {"task":"…","apply":true,"stakes":"irreversible","items":[
   {"file":"/abs/path","instruction":"…","risk":"high","anchor":"~line N"}
 ]}
 
-# Tiny: known edit set, ~15-minute hop budget, every ship gate kept (max 4 items)
-/konyo-workflow {"task":"…","apply":true,"quality":"tiny","items":[
+# Known edit set: items[] skips the architect
+/Konyo-Grok {"task":"…","apply":true,"items":[
   {"file":"/abs/path","instruction":"…","risk":"low","anchor":"~line N, symbol"}
 ]}
 
-# Multi-version product arcs: N lean/tiny slices — NOT one max fleet of 30 stamps
-/konyo-workflow {"task":"Arc slice 1 of 4: …","apply":true,"quality":"lean"}
-
-# Standard cheap ladder
-/konyo-workflow {"task":"…","apply":true,"quality":"standard"}
+# Cheap to be wrong
+/Konyo-Grok {"task":"…","apply":true,"stakes":"reversible"}
 
 # Push only after shippable (builders never push)
-/konyo-workflow {"task":"…","apply":true,"push":true}
+/Konyo-Grok {"task":"…","apply":true,"push":true}
 ```
 
 ### Args (same names as Claude where possible)
@@ -53,7 +50,7 @@
 |-----|---------|---------|
 | `task` / `objective` | required | What to ship |
 | `apply` | `false` | `true` = builders edit; `false` = dry-run diffs only |
-| `quality` | `lean` | `lean` · `max` · `standard` · `tiny` (`fast`→`lean`) |
+| `stakes` | `costly` | `reversible` · `costly` · `irreversible` (unrecognised → irreversible) |
 | `force` | `false` | Override triage `direct` |
 | `items` | — | `[{file, instruction, risk?, anchor?}]` — **skips architect at ANY quality** (required for tiny) |
 | `maxItems` | by quality | Hard item cap: **tiny 4 · max 6 · lean 8 · standard 10** (override if you must) |

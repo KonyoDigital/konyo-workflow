@@ -71,7 +71,7 @@ if echo_objective == "" { echo_objective = "<your objective>"; }
 let rerun_with = #{
     objective: objective,
     task: objective,
-    quality: "max",
+    stakes: "irreversible",
     apply: a.apply == true,
     force: a.force == true,
 };
@@ -81,9 +81,9 @@ if a.skeptics != () { rerun_with.skeptics = a.skeptics; }
 if a.thirdEye != () { rerun_with.thirdEye = a.thirdEye; }
 if a.grok != () { rerun_with.grok = a.grok; }
 
-log("⛔ /konyo-workflow-max HAS MOVED — MAX is now a quality FLAG on /konyo-workflow, not a second script.");
+log("⛔ /konyo-workflow-max HAS MOVED — there is no max door. Use /Konyo-Grok with stakes:irreversible.");
 log("   Nothing was run: no triage, no plan, no agents, no render gate, no third-eye.");
-log("   Re-run as: /konyo-workflow {\"task\":\"" + echo_objective + "\",\"quality\":\"max\"}");
+log("   Re-run as: /Konyo-Grok {\"task\":\"" + echo_objective + "\",\"apply\":true,\"stakes\":\"irreversible\"}");
 
 // Bail-SHAPED, using the same fields the old body returned (verdict / ship_allowed / blockers) so no
 // existing reader has to learn a new schema to notice this is not a completed run. ship_allowed is
@@ -93,12 +93,12 @@ complete(#{
     ship_allowed: false,
     moved_to: "konyo-workflow",
     error: "moved",
-    summary: "konyo-workflow-max was merged into konyo-workflow; MAX is now {\"quality\":\"max\"} on that single shipper. This entry point runs nothing.",
+    summary: "konyo-workflow-max is not a door. Use /Konyo-Grok with {\"stakes\":\"irreversible\"}. This entry point runs nothing.",
     blockers: [
-        "MAX WORKFLOW MOVED — konyo-workflow-max.rhai is no longer an implementation. MAX quality is now {\"quality\":\"max\"} on /konyo-workflow, the single Grok orchestrator. This entry point deliberately aborts rather than run a stale duplicate. Re-run using rerun_with.",
+        "MAX WORKFLOW MOVED — konyo-workflow-max.rhai is no longer an implementation. There is no max door. Re-run /Konyo-Grok with stakes:irreversible. This entry point deliberately aborts rather than run a stale duplicate.",
     ],
     next_actions: [
-        "Re-run: /konyo-workflow {\"task\":\"" + echo_objective + "\",\"quality\":\"max\"}",
+        "Re-run: /Konyo-Grok {\"task\":\"" + echo_objective + "\",\"apply\":true,\"stakes\":\"irreversible\"}",
         "Update any saved invocation, overnight chain or alias that still says /konyo-workflow-max.",
     ],
     // A workflow that silently ignores an argument it does not understand is indistinguishable from

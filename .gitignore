@@ -1,3 +1,4 @@
 handoffs/
 .claude/
 .DS_Store
+automation/workflows/_validate/

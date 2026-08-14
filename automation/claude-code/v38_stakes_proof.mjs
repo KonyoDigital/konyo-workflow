@@ -51,13 +51,29 @@ ok(/STAKES: "irreversible" → quality:max/.test(irr),
 console.log('\nFAIL EXPENSIVE, NEVER QUIETLY CHEAP')
 const typo = run({ stakes: 'cheap' })
 ok(quality(typo) === 'max', 'an unrecognised stakes word resolves to MAX, not to the cheap shape')
-ok(/UNRECOGNISED stakes word/.test(typo), 'and it is shouted rather than absorbed')
+ok(/stakes:"cheap" is not a stakes this workflow knows/.test(typo),
+   'and it is shouted rather than absorbed')
+
+console.log('\nA DIAL MANGLED IN TRANSIT')
+/* A door that forwards $ARGUMENTS naturally produces `--irreversible`, flag and all. Without the
+   strip that reads as an unknown word — which lands on MAX, so it would have LOOKED fine while
+   actually taking the typo path, and the typo warning would have cried wolf on every correct call. */
+const dashed = run({ stakes: '--irreversible' })
+ok(quality(dashed) === 'max', 'stakes:"--irreversible" resolves to max, not via the typo path')
+ok(!/is not a stakes this workflow knows/.test(dashed),
+   'and is NOT reported as a typo — the leading -- is stripped')
+ok(quality(run({ stakes: '--reversible' })) === 'standard',
+   'stakes:"--reversible" resolves to standard, where the typo path would have wrongly said max')
+ok(quality(run({ stakes: '  IRREVERSIBLE  ' })) === 'max', 'whitespace and case are tolerated')
 
 console.log('\nPRECEDENCE AND BACK-COMPAT')
 ok(quality(run({})) === 'lean', 'no stakes and no quality still resolves to the lean default')
+/* Konyo's call, 2026-08-15: stakes is the PUBLIC dial and quality is plumbing, so a caller who
+   passes both meant the one they typed at the door. This deliberately reverses the first draft of
+   this feature, which let quality win. */
 const both = run({ stakes: 'reversible', quality: 'max' })
-ok(quality(both) === 'max', 'an explicit quality still wins over stakes (saved invocations unbroken)')
-ok(/STAKES: "reversible" IGNORED/.test(both), 'and the engine says which one it obeyed')
+ok(quality(both) === 'standard', 'stakes OVERRULES an explicit quality — the door wins over plumbing')
+ok(/OVERRULED/.test(both), 'and the engine says out loud which one it obeyed')
 for (const q of ['max', 'lean', 'standard', 'tiny']) {
   ok(quality(run({ quality: q, items: [{ file: '/tmp/x', instruction: 'y' }] })) === q,
      `quality:"${q}" alone is unchanged by this feature`)

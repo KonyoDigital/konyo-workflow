@@ -22,66 +22,70 @@ There is **one** command. `/Konyo` — and its first legal answer is *"run nothi
 
 ### Why one door and not four
 
-The four quality paths were never four systems. Across `tiny`, `lean`, `max` and `standard`,
-**exactly three things vary**: model tier, planning depth (architects, completeness critic) and
-rework rounds. **Every gate is identical in all four** — skeptic panel, third-eye seats, render gate
-with vision, LAW17, LAW19, blockers ledger, agent ceiling, workspace lock.
+The four quality names were never four systems. Across the old `tiny` / `lean` / `max` / `standard`
+labels, **exactly three things vary**: model tier, planning depth (architects, completeness critic)
+and rework rounds. **Every gate is identical** — skeptic panel, third-eye seats, render gate with
+vision, LAW17, LAW19, blockers ledger, agent ceiling, workspace lock.
 
 Triage already derives tier and planning depth from the task. It cannot derive **one** thing: what
 being wrong costs. A contained CSS fix and a contained CSS fix on the live console during market
 hours are the same diff. That is the only question that ever needed a human — so it is the only
 question the door asks.
 
-Two of the four were already redundant before this page existed:
+**There is no max / lean / tiny door.** Those names are retired. They still exist as loud redirects
+so an old slash fails instead of silently picking a cost shape. The engine keeps them as *internal*
+shape names; you never type them.
 
-- **`tiny` is an argument, not a tier.** Since v27, `items:[{file,instruction}]` skips the architect
-  at *any* quality. Tiny is a lean run whose plan arrived with the request.
-- **`standard` vs `lean` is model tier**, which triage infers from task shape.
+Two of the four were already not doors:
+
+- **A known edit list is an argument, not a tier.** Since v27, `items:[{file,instruction}]` skips the
+  architect at *any* stakes.
+- **Cheap vs costly is model tier**, which triage infers from task shape once you have named the
+  stakes.
 
 **Unstated stakes resolve to COSTLY, never cheap** — the same direction as the existing string rule.
 
-### The four old names are RETIRED
+### Retired slashes (loud redirects, not doors)
 
-`/KonyoTiny` `/KonyoLean` `/KonyoMax` `/KonyoCost` are loud redirects now. They do not pick a
-shape. Keeping them as "manual overrides" was the half-measure — it still asked you to name a cost,
-which is the machine's job.
+Keeping them as "manual overrides" was the half-measure — it still asked you to name a cost, which
+is the machine's job.
 
-| Was | Now |
-|-----|-----|
-| `/KonyoLean` | `/Konyo` with no flag |
+| Old invoke | Now |
+|------------|-----|
+| `/KonyoLean` | `/Konyo <task>` |
 | `/KonyoMax` | `/Konyo <task> --irreversible` |
 | `/KonyoCost` | `/Konyo <task> --reversible` |
-| `/KonyoTiny` | `/Konyo` plus `items:[{file,instruction}]` — tiny was a plan, not a door |
+| `/KonyoTiny` | `/Konyo <task>` + `items:[{file,instruction}]` — tiny was a plan, not a door |
 
-### stakes is the dial; quality is the machine token
+### stakes is the public dial; quality is the internal name
 
 The door sends `stakes`. The engine maps it: `reversible → standard`, `costly` (or unstated) →
-`lean`, `irreversible → max`. An **explicit `quality` still wins**, so saved invocations and both
-Grok shippers are unchanged, and an unrecognised stakes word resolves to **max** and says so.
+`lean`, `irreversible → max`, and every existing gate keeps keying off the internal `quality`.
+**Stakes overrules an explicit `quality`** — the dial you typed at the door wins over plumbing — a
+leading `--` is stripped, and an unrecognised stakes word resolves to **max** and says so.
 
 > **This joint was broken and silent (2026-08-15).** The door was rewritten to send `stakes`; the
 > engine read only `quality`. Nothing threw. `stakes` fell on the floor and every run resolved to
 > the lean default — so `--irreversible`, whose entire purpose is "buy the careful shape", bought
-> the cheap one while the caller believed otherwise. Gated now by
+> the cheap one while the caller believed otherwise. Measured on the shipped engine:
+> `maxItems=8 (quality=lean)` before, `maxItems=6 (quality=max)` after. Gated now by
 > `node automation/claude-code/v38_stakes_proof.mjs`.
 
 Stakes buys model tier, panel size and extra phases — **never a gate.**
 
-**Volume is N lean/tiny slices, not one max run.** Measured 2026-08-07: `quality:max` + "30 whole-console
-fat versions" + `force` → multi-hour run, agent ceiling hit, render CEILING, PARTIAL/BLOCKED ship.
-The gates worked correctly. The tokens burned anyway.
+**Volume is N slices, not one irreversible fleet.** Measured 2026-08-07: irreversible shape + "30
+whole-console fat versions" + `force` → multi-hour run, agent ceiling hit, render CEILING,
+PARTIAL/BLOCKED ship. The gates worked correctly. The tokens burned anyway.
 
-**Item caps by quality:** tiny 4 · max 6 · lean 8 · standard 10. Override `{maxItems:N}`, hard cap 24.
+**Only a recognised stakes word opts down.** `reversible` opts down; `cheap`, `fast-ish`, or a typo
+resolves to **irreversible** and logs that it did. A misread flag fails expensive, never quietly cheap.
 
-**Only the exact string opts down.** `standard` opts down; `cheap`, `fast-ish`, or a typo resolves to
-**MAX** and logs that it did. A misread flag fails expensive, never quietly cheap.
-
-### Knobs that apply at any quality
+### Knobs that apply at any stakes
 
 | Flag | Does |
 |------|------|
 | `apply:false` | dry-run: agents propose diffs, write nothing. **Never pair with a file-shaped deliverable** — refused in one line, because it once climbed 97 → 101 → 108 agents over 2.5 hours producing no file |
-| `items:[{file,instruction}]` | skips the architect hop at **any** quality, not only tiny |
+| `items:[{file,instruction}]` | skips the architect hop at **any** stakes |
 | `{skeptics:N}` | sets the adversarial panel by hand (max floor is 2, one seat is the third eye) |
 | `{thirdEye:false}` | runs with no independent reviewer |
 | `{isolate:true}` | each builder gets a git worktree, and one merge agent applies the patches back — opt-in, because a merge stage that goes wrong loses work |
@@ -94,13 +98,30 @@ generation after an edit. This matters more than it looks: `agent-army.js` also 
 
 ---
 
+## Shipping code (Grok Build) — same door
+
+There is **one** command. `/Konyo-Grok` — same stakes, same gates. The slash is different because
+the Grok host requires a lowercase `meta.name` and the file must stay `Konyo-Grok.rhai` (APFS is
+case-insensitive; a `konyo-grok.rhai` next to it overwrites the live file).
+
+```text
+/Konyo-Grok {"task":"…","apply":true}
+/Konyo-Grok {"task":"…","apply":true,"stakes":"reversible"}
+/Konyo-Grok {"task":"…","apply":true,"stakes":"irreversible"}
+/Konyo-Grok {"task":"…","apply":true,"items":[{"file":"/abs/path","instruction":"…","anchor":"~line N"}]}
+```
+
+`/konyo-workflow` and `/konyo-workflow-max` are loud redirects. They do not run.
+
+---
+
 ## Not on Claude Code
 
 | Surface | Where | What you need to know |
 |---------|-------|-----------------------|
 | **Claude Desktop** — no terminal, no second AI | `automation/claude-desktop/konyo-workflow.zip` (upload it), variants in `automation/claude-desktop/variants/` | de-identified public bundles, rebuilt from source in this repo |
 | **Claude Desktop**, maintained personal copy | [`KonyoDigital/ship-skill`](https://github.com/KonyoDigital/ship-skill) | the same method with ratified founding rules and real scars |
-| **Grok Build** | [`KonyoDigital/konyo-workflow-grok`](https://github.com/KonyoDigital/konyo-workflow-grok), `automation/workflows/*.rhai` | **no workspace lock** — a Grok run and a Claude Code run can still collide in one tree |
+| **Grok Build** | `/Konyo-Grok` in this repo (`automation/workflows/Konyo-Grok.rhai`); public package [`KonyoDigital/konyo-workflow-grok`](https://github.com/KonyoDigital/konyo-workflow-grok) | **same door, same stakes.** Host slash is `/Konyo-Grok` (meta.name must be lowercase). Pass `{task, apply, stakes}`. No max/lean/tiny door. Workspace lock is shared with Claude |
 | **The fleet** | [`KonyoDigital/agent-army`](https://github.com/KonyoDigital/agent-army) | registers `konyo-workflow` too — invoke by scriptPath |
 | **Any AI, no automation** | `SKILL.md` (installed to `~/.konyo-workflow/SKILL.md`) | paste it as instructions and say *"Use the Konyo Workflow."* |
 

@@ -94,7 +94,7 @@ if [[ -d "$HOME/.claude" ]]; then
         && CMD_N=$((CMD_N + 1)) || true
     fi
   done
-  echo "   Slash commands → $CLAUDE_CMDS (${CMD_N}/5: /Konyo + 4 overrides)"
+  echo "   Slash commands → $CLAUDE_CMDS (${CMD_N}/5: /Konyo + 4 retired redirects)"
   # `|| true` is load-bearing: under `set -e` a false test as the LAST command in this block exits
   # the script — i.e. the SUCCESS case (5/5) would abort the install before the final banner.
   [[ "$CMD_N" -lt 5 ]] && echo "   ⚠️  only ${CMD_N}/5 commands installed — /Konyo may be missing" || true
@@ -174,5 +174,5 @@ echo "✅ Konyo Workflow installed to $DEST"
 echo "   Give your AI: $DEST/SKILL.md"
 echo "   Which command to run: $DEST/ROUTING.md"
 echo "   Say: Use the Konyo Workflow.   Or run: /Konyo <what you want done>"
-echo "   Grok implementer: /Konyo-Grok (alias /konyo-workflow redirects) {\"task\":\"…\",\"apply\":true}  (lean default; quality:max|standard|tiny)"
-echo "   Grok third-eye = Claude CLI.  /konyo-workflow-max is a deprecation notice only."
+echo "   Grok implementer: /Konyo-Grok {\"task\":\"…\",\"apply\":true,\"stakes\":\"costly\"}  (one door; no max/lean/tiny)"
+echo "   Grok third-eye = Claude CLI.  /konyo-workflow and /konyo-workflow-max are redirect stubs."

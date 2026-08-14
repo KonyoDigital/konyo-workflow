@@ -1,7 +1,7 @@
 let meta = #{
     name: "konyo-grok",
-    description: "Konyo-Grok (/Konyo-Grok) — Grok Konyo shipper. ONE body, four qualities (lean|max|standard|tiny). LEAN default: every ship gate. {apply:true} writes; apply:false dry-run. Third eye = Claude CLI. items[] skips architect. v26–v33 + v36: items[] dry-run refuse, release_held_lock on abort, plan seat can block, pass+failures cannot PASSED. File stays Konyo-Grok.rhai (slash); meta.name is konyo-grok (host lowercase).",
-    when_to_use: "SURGICAL — NOT THE DEFAULT FOR EVERY CHAT. Use only when the human asked for a multi-round ship, a sealed version, a night/fleet run, or an explicit /Konyo-Grok (alias /konyo-workflow). Do NOT open this fleet for one-file fixes, Q&A, audits, or routine edits — those use direct tools + the few specialist skills that match the surface. Bare call = lean + dry-run. {apply:true} to write. quality max ONLY for SMALL high-stakes lists (items preferred). quality tiny needs items[]. Multi-stamp: N lean/tiny slices. Carving is separate: open carving-skill only when 3+ scars share a territory (or carve_candidates non-empty), never as a default stack with this workflow.",
+    description: "Konyo (/Konyo-Grok) — ONE door. You set stakes (reversible|costly|irreversible); the engine derives cost. Unstated = costly. {apply:true} writes; apply:false dry-run. Third eye = Claude CLI. items[] skips architect. Every ship gate always runs. v26–v36 + v38 stakes dial. File stays Konyo-Grok.rhai; meta.name is konyo-grok (host lowercase).",
+    when_to_use: "SURGICAL — NOT THE DEFAULT FOR EVERY CHAT. Use only when the human asked for a multi-round ship, a sealed version, a night/fleet run, or an explicit /Konyo-Grok. Do NOT open this fleet for one-file fixes, Q&A, audits, or routine edits. Bare call = costly + dry-run. {apply:true} to write. {stakes:\"reversible\"} when cheap to be wrong; {stakes:\"irreversible\"} for money/security/trading/live ships. items[] skips the architect (a plan, not a door). There is no max/lean/tiny door. Carving is separate: open carving-skill only when 3+ scars share a territory.",
     phases: [
         #{ title: "Preflight", detail: "workspace lock when apply:true — shared lock dir with Claude so fleets exclude each other" },
         #{ title: "Triage", detail: "right-size before spending; SKIPPED at tiny" },
@@ -47,6 +47,13 @@ fn trimmed(s) {
     } else {
         ""
     }
+}
+
+fn cut_flag(s, flag) {
+    let t = s;
+    if type_of(t) != "string" { return ""; }
+    if t.contains(flag) { t.replace(flag, " "); }
+    trimmed(t)
 }
 
 fn as_map(v) {
@@ -294,13 +301,48 @@ if a.task != () { task = trimmed(a.task); }
 if task == "" && a.objective != () { task = trimmed(a.objective); }
 if task == "" && a.query != () { task = trimmed(a.query); }
 if task == "" {
-    pause("verification", "Pass args.task (or objective) — what are we shipping? e.g. {\"task\":\"…\",\"apply\":true,\"quality\":\"lean\"}");
+    pause("verification", "Pass args.task (or objective) — what are we shipping? e.g. {\"task\":\"…\",\"apply\":true,\"stakes\":\"costly\"}");
+}
+
+// v38 — stakes is the public dial. quality remains the INTERNAL shape so every
+// existing gate still keys off lean|max|standard|tiny. The human names what
+// being wrong costs; this block derives the shape. Konyo 2026-08-15: no
+// max/lean/tiny door.
+task = cut_flag(task, "--reversible");
+task = cut_flag(task, "--irreversible");
+task = cut_flag(task, "--costly");
+
+let stakes_asked = "";
+if a.stakes != () { stakes_asked = trimmed(a.stakes); stakes_asked = stakes_asked.to_lower(); }
+if stakes_asked.len() >= 2 {
+    let pref = stakes_asked.sub_string(0, 2);
+    if pref == "--" { stakes_asked = stakes_asked.sub_string(2, stakes_asked.len() - 2); }
 }
 
 // quality: lean default (Claude v20). Only exact tokens. Typo → max (fail expensive).
+// If stakes is set it WINS over a leftover quality flag.
 let quality_asked = "";
 if a.quality != () { quality_asked = trimmed(a.quality); quality_asked = quality_asked.to_lower(); }
 if quality_asked == "fast" { quality_asked = "lean"; }
+if stakes_asked == "reversible" {
+    if quality_asked != "" && quality_asked != "standard" {
+        log("⚠ stakes=reversible wins over quality='" + quality_asked + "'");
+    }
+    quality_asked = "standard";
+} else if stakes_asked == "irreversible" {
+    if quality_asked != "" && quality_asked != "max" {
+        log("⚠ stakes=irreversible wins over quality='" + quality_asked + "'");
+    }
+    quality_asked = "max";
+} else if stakes_asked == "costly" {
+    if quality_asked != "" && quality_asked != "lean" {
+        log("⚠ stakes=costly wins over quality='" + quality_asked + "'");
+    }
+    quality_asked = "lean";
+} else if stakes_asked != "" {
+    quality_asked = "max";
+    log("⚠ stakes '" + stakes_asked + "' unrecognised — failing EXPENSIVE to irreversible/max (not quiet reversible).");
+}
 let quality = "lean";
 if quality_asked == "max" || quality_asked == "lean" || quality_asked == "standard" || quality_asked == "tiny" {
     quality = quality_asked;
@@ -308,7 +350,7 @@ if quality_asked == "max" || quality_asked == "lean" || quality_asked == "standa
     quality = "max";
     log("⚠ quality '" + quality_asked + "' unrecognised — failing EXPENSIVE to max (not quiet standard).");
 }
-let quality_defaulted = quality_asked == "";
+let quality_defaulted = quality_asked == "" && stakes_asked == "";
 let tiny_q = quality == "tiny";
 let lean_q = quality == "lean";
 // MAXQ = every max-only GATE applies to lean and tiny too
@@ -590,7 +632,7 @@ fn builder_cap(do_apply, do_isolate) {
 // ---------- announce ----------
 let mode_label = if apply_mode { "APPLY (agents edit files)" } else { "DRY-RUN (propose only, write nothing)" };
 log("════════════════════════════════════════════════════════");
-log("KONYO WORKFLOW · Grok Build IMPLEMENTER · quality=" + quality + (if quality_defaulted { " (default lean)" } else { "" }));
+log("KONYO WORKFLOW · Grok Build IMPLEMENTER · stakes=" + (if stakes_asked != "" { stakes_asked } else { "costly" }) + " · shape=" + quality + (if quality_defaulted { " (default costly)" } else { "" }));
 log("mode=" + mode_label + " · thirdEye=" + third_eye + " · isolate=" + isolate_mode.to_string() + " · push=" + do_push.to_string());
 log("maxRounds=" + max_rounds.to_string() + " · maxAgents=" + max_agents.to_string() + " · maxItems=" + max_items_cap.to_string() + " · skepticFloor=" + skeptic_floor.to_string());
 log("RENDERLOOP=" + render_loop_n.to_string() + " (v26 loop · v28 stop: PASSED|CEILING|STALLED) · SHIPPABLE=apply+passed>0+no spawn_errors (v27.1)");
@@ -823,11 +865,11 @@ if tiny_q {
     }
     let tlow = task.to_lower();
     if bad == "" && (tlow.contains("investigate") || tlow.contains("figure out") || tlow.contains("find out why") || tlow.contains("diagnose") || tlow.contains("root cause")) {
-        bad = "this reads as a DIAGNOSIS — serial work; drop quality:tiny or use lean";
+        bad = "this reads as a DIAGNOSIS — serial work; do not pass a known-edit items[] list for a hunt";
     }
     if bad != "" {
         log("⛔ TINY REFUSED: " + bad);
-        log("   {quality:\"tiny\", apply:true, items:[{file:\"/abs/path\", instruction:\"…\", risk:\"low\", anchor:\"~line N\"}]}");
+        log("   {apply:true, items:[{file:\"/abs/path\", instruction:\"…\", risk:\"low\", anchor:\"~line N\"}]}");
         if lock_acquired { release_held_lock(lock_token); lock_acquired = false; }
         complete(#{
             verdict: "blocked",
@@ -1178,7 +1220,7 @@ if plan_items.len() == 0 {
             why = "architect returned 0 items on purpose. summary: " + sum.sub_string(0, if sum.len() < 240 { sum.len() } else { 240 });
             err = "architect_noop";
         } else {
-            why = "architect returned 0 items (not a cap trim — raw count was 0). Pass items:[{file,instruction}] or quality:\"tiny\" with a work list.";
+            why = "architect returned 0 items (not a cap trim — raw count was 0). Pass items:[{file,instruction}] with a work list.";
             err = "architect_empty";
         }
     }
@@ -1192,7 +1234,7 @@ if plan_items.len() == 0 {
         shippable: false,
         quality: quality,
         error: err,
-        fix: "Pass items:[{file,instruction}] (works at ANY quality now), or quality:\"tiny\" with the same list. Do not rely on the architect when the work list is already known.",
+        fix: "Pass items:[{file,instruction}] (skips the architect at any stakes). Do not rely on the architect when the work list is already known.",
         architect_summary: if plan.summary != () { plan.summary } else { () },
         blockers: blockers,
     });
