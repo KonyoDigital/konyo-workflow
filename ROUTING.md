@@ -40,20 +40,32 @@ Two of the four were already redundant before this page existed:
 
 **Unstated stakes resolve to COSTLY, never cheap** — the same direction as the existing string rule.
 
-### The four still work, as manual overrides
+### The four old names are RETIRED
 
-Unchanged, and they pass their quality string straight through. Reach for them to override the
-derivation by hand, not as the normal way in.
+`/KonyoTiny` `/KonyoLean` `/KonyoMax` `/KonyoCost` are loud redirects now. They do not pick a
+shape. Keeping them as "manual overrides" was the half-measure — it still asked you to name a cost,
+which is the machine's job.
 
-| Invoke | Forces | Note |
-|--------|--------|------|
-| `/KonyoLean` | `quality:'lean'` — one architect, one rework round | **~0.38x** max tokens; ~15% wall clock, not a speed setting |
-| `/KonyoMax` | `quality:'max'` — 3-architect judge panel, Opus everywhere, completeness critic | max is **not** volume |
-| `/KonyoCost` | `quality:'standard'` — Haiku/Sonnet build, Fable gating every merge | only the exact string `standard` opts down |
-| `/KonyoTiny` | `quality:'tiny'` — cuts the planning hops only | **refuses** without an explicit `items[]` |
+| Was | Now |
+|-----|-----|
+| `/KonyoLean` | `/Konyo` with no flag |
+| `/KonyoMax` | `/Konyo <task> --irreversible` |
+| `/KonyoCost` | `/Konyo <task> --reversible` |
+| `/KonyoTiny` | `/Konyo` plus `items:[{file,instruction}]` — tiny was a plan, not a door |
 
-A quality flag buys model tier, panel size and extra phases — **never a gate.** Lean is not
-max-with-fewer-safeguards.
+### stakes is the dial; quality is the machine token
+
+The door sends `stakes`. The engine maps it: `reversible → standard`, `costly` (or unstated) →
+`lean`, `irreversible → max`. An **explicit `quality` still wins**, so saved invocations and both
+Grok shippers are unchanged, and an unrecognised stakes word resolves to **max** and says so.
+
+> **This joint was broken and silent (2026-08-15).** The door was rewritten to send `stakes`; the
+> engine read only `quality`. Nothing threw. `stakes` fell on the floor and every run resolved to
+> the lean default — so `--irreversible`, whose entire purpose is "buy the careful shape", bought
+> the cheap one while the caller believed otherwise. Gated now by
+> `node automation/claude-code/v38_stakes_proof.mjs`.
+
+Stakes buys model tier, panel size and extra phases — **never a gate.**
 
 **Volume is N lean/tiny slices, not one max run.** Measured 2026-08-07: `quality:max` + "30 whole-console
 fat versions" + `force` → multi-hour run, agent ceiling hit, render CEILING, PARTIAL/BLOCKED ship.
@@ -131,8 +143,25 @@ node automation/claude-code/v27_empty_plan_proof.mjs     # a vacuous green ship 
 node automation/claude-code/v30_meter_routing_proof.mjs  # quality → cost shape, item caps
 node automation/claude-code/v32_ship_predicate_proof.mjs # SHIPPABLE requires apply + passed>0
 node automation/claude-code/v36_proofs.mjs               # current engine contracts
+node automation/claude-code/v38_stakes_proof.mjs         # stakes → quality; fails expensive
+node automation/claude-code/scar_hook_proof.mjs          # scar capture, clustering, JS↔Py parity
 ./parity.sh                                              # the four shippers still agree
 ```
+
+---
+
+## Scars — captured automatically, carved on purpose
+
+| Where | What is automatic | What is not |
+|-------|-------------------|-------------|
+| **In a run** | every round captures its own failures; at arc end a territory hit **3 times** is carved into a skill | nothing is deleted — carved scars are *archived*; a dry run carves nothing; capped at 2 per arc; `{carve:false}` opts out |
+| **In an ordinary session** | a `UserPromptSubmit` hook records correction-shaped turns to `SCARS.inbox.md`; a `SessionStart` hook reports a territory that hit 3 | the carve itself. The machine counts, you decide — `/carving-skill` |
+
+Carving mid-run would rewrite the rules underneath live agents, which is why it happens only at the
+end. Three is the floor because two is a coincidence.
+
+⚠ **A scar narrows attention. It never suppresses a gate.** Nothing captured or carved may skip a
+check, lower a bar, or mark anything already-judged. Details: `automation/claude-code/hooks/README.md`.
 
 ---
 
