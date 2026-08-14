@@ -1,5 +1,5 @@
 ---
-description: Konyo workflow at MAX — Opus everywhere, 3-architect judge panel, adversarial skeptic gate, completeness critic, third eye on. This is the default.
+description: Konyo workflow forced to MAX — Opus everywhere, 3-architect judge panel, adversarial skeptic gate, completeness critic, third eye on. A manual override; the normal door is /Konyo and the default quality is LEAN.
 argument-hint: [what you want done]
 ---
 
@@ -10,8 +10,10 @@ Workflow({
 })
 ```
 
-MAX is already the default, so `quality:'max'` here is belt-and-braces. Use this when being wrong
-costs more than tokens: trading code, security, data migrations, anything you cannot roll back.
+**The default quality is LEAN** (2026-08-04), so `quality:'max'` here is a real override, not
+belt-and-braces. Use it when being wrong costs more than tokens: trading code, security, data
+migrations, anything you cannot roll back — or say `/Konyo <task> --irreversible` and let the door
+buy this shape for you.
 
 Invoke by **scriptPath, not `{name}`** — the engine snapshots named workflows and may serve a stale
 generation after an edit.
@@ -21,7 +23,9 @@ floor is 2, and one of those seats is the third eye). `{thirdEye:false}` runs wi
 reviewer; `{thirdEye:'claude'}` is a labelled same-family stand-in. `{isolate:true}` builds in git
 worktrees and merges after. `{maxAgents:N}` raises the ceiling.
 
-Faster: `/KonyoFast`. Cheaper: `/KonyoCost`.
+Cheaper: `/KonyoLean` (renamed from `/KonyoFast` on 2026-08-04 — it saves ~62% of tokens but only
+~15% of wall clock, so the old name promised the number it was worst at). Cheapest: `/KonyoCost`.
+Full map: [`ROUTING.md`](../../../ROUTING.md).
 
 ## v30 meter routing
 
