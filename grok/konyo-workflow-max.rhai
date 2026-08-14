@@ -17,9 +17,9 @@ let meta = #{
 //
 // The fix is the same fix, applied to the fourth shipper: konyo-workflow.rhai becomes the ONE Grok
 // implementation and carries the quality knob; the max-only phases live there behind it. Nothing was
-// deleted — it MOVED. The previous body is preserved at konyo-workflow-max.rhai.bak-merge, whose
-// name does NOT end in `.rhai`, so install.sh's `grok/*.rhai` copy step can never ship it as a live
-// workflow again.
+// deleted — it MOVED. The previous body is no longer archived beside this file; recover it from git
+// history (`git log -- grok/konyo-workflow-max.rhai`) if it is ever needed. An in-tree copy could
+// only ever be picked up by install.sh's `grok/*.rhai` step and shipped as a live workflow again.
 //
 // Why this is a NOTICE and not a wrapper that forwards to the real one:
 //
