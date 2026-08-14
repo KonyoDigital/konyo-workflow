@@ -39,6 +39,23 @@ per-deliverable specifics attached — use that one there. Load durable facts fr
 
 ---
 
+## Before Rule 0 — "this doesn't need the workflow" is a legal answer
+
+If the whole job is one small, known thing — fix one number, answer one question, correct one
+line — say so and just do it. Running six steps over a one-line change does not make the change
+better; it produces ceremony around it and buries the answer in a report nobody asked for.
+
+Saying *"this is a two-minute job, here it is"* is a **success**, not a failure to follow the
+skill. The workflow is for work with enough moving parts that something can quietly go wrong in
+one of them.
+
+Two things this does **not** excuse. It is not a shortcut for work that only *looks* small —
+if it touches money, goes to someone outside, or cannot be taken back, it is not small no matter
+how few words it took to describe. And the honesty rule still applies: doing it directly never
+means claiming something was checked when it was not.
+
+---
+
 ## Rule 0 — the verdict is one of three words, and it fails closed
 
 Every run ends with exactly one:
@@ -460,9 +477,11 @@ Override that judgement by saying so:
 something unchecked. It reduces how *much* gets examined, never how *honestly* it is
 reported. If a quick pass finds something serious, it stops being quick and says so.
 
-> **If you know the Claude Code version:** its `tiny` / `lean` / `max` qualities route
-> parallel agents, which don't exist here — so those words would control nothing. The
-> tables above change depth and independence, the only things that actually vary.
+> **If you know the Claude Code version:** it used to ask you to pick a cost name —
+> `tiny` / `lean` / `max`. Those are retired. It now asks the one question the machine
+> cannot answer for itself: **what does being wrong cost?** Everything else is derived.
+> The tables above are the same idea in a place with no parallel agents to buy — the
+> stakes decide the depth, and depth and independence are the only things that vary here.
 
 ---
 
