@@ -70,6 +70,24 @@ rules are in force.
 
 ---
 
+## ⚠ The one law every scar obeys
+
+**A scar narrows attention. It never suppresses a check.**
+
+A scar may tell the next round where the traps are, so it does not spend time rediscovering
+what already went wrong. It may **not** skip a check, lower a bar, mark something as
+already-verified, or record a verdict that a later round reads instead of proving again.
+
+The difference matters more than it sounds. "Last time the totals were wrong in column F"
+is a scar — it points a check somewhere. "The totals were verified" is a **cached verdict**
+wearing a scar's clothes, and the moment it is written down, the check it describes stops
+happening while the file still claims it did. A scar that can silence a check is how a run
+reports SHIP on something nobody looked at.
+
+If a rule cannot be written without reading as permission to skip something, do not write it.
+
+---
+
 ## The format — six lines, every time
 
 ```
@@ -216,8 +234,12 @@ instructions:
 3. **Name the scar each rule came from.** A rule without a recorded origin gets deleted by
    the first person tidying up, and then it happens again.
 4. **Leave a pointer** so this skill loads the child in that territory.
-5. **Delete those entries from `SCARS.md`.** Not housekeeping — the file stays short *because*
-   things graduate out of it.
+5. **Move those entries out of `SCARS.md` — into `SCARS.archive.md`, never into the bin.**
+   The file stays short *because* things graduate out of it; that part is not housekeeping, it
+   is the whole point. But archive rather than delete: once the new skill says "always check X",
+   the only way to ever question that rule is the three failures it came from. Delete the
+   evidence and you are left with an instruction nobody can argue with, which is worse than no
+   instruction — it gets obeyed long after it stopped being true, and nobody can say why.
 
 That loop is how the workflow gets better at **her** job rather than at jobs in general:
 work produces scars → scars accumulate into a territory → the territory becomes a skill →
