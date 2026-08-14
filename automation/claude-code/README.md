@@ -53,12 +53,21 @@ Overrides: `{"force":true}` runs the fleet anyway; `{"skeptics":3}` sets the cou
 every agent. Max on a *planning document* spent ~106 agents and 2.5 hours where a few plus one
 adversarial read found the same holes. Same setting, opposite verdicts — which is why triage exists.
 
-| File | Mode | Use it for |
-|------|------|-----------|
-| `konyo-workflow.js` | **Cost-scaled** — cheapest capable model per job (Haiku bulk · Sonnet build · Fable gate · Opus only architects + synthesizes) | Everyday work. ~1x cost. |
-| `konyo-workflow-max.js` | **Max quality** — Opus everywhere · 3-architect judge panel · 3-skeptic diverse-lens adversarial gate (majority-refute kills a change) · loop-until-dry completeness critic | High-stakes / correctness-critical work (trading code, security audits, production ships). ~10–15x cost. |
+**There is ONE engine.** `konyo-workflow-max.js` was retired at v18 and is kept only as
+`.retired-v18` for history — it is not installed and cannot be invoked. Max is a *quality string on
+the one body*, not a second file.
 
-Both: one owner per file, a quality gate on every change, optional Grok third-eye, version per round, ONE final report.
+| File | What | Use it for |
+|------|------|-----------|
+| `konyo-workflow.js` | **The engine.** One body, four cost shapes selected by `quality` — `standard` (Haiku bulk · Sonnet build · Fable gate) → `lean` (default) → `max` (Opus everywhere · 3-architect judge panel · 3-skeptic diverse-lens adversarial gate where majority-refute kills a change · loop-until-dry completeness critic). `tiny` cuts planning hops only. | Everything. `standard` ≈ 0.07–0.1x, `lean` ≈ 0.38x, `max` = 1x baseline. |
+| `agent-army.js` | The fleet variant. **Registers the name `konyo-workflow` too** — always invoke by `scriptPath`, never `{name}`. | See [agent-army](https://github.com/KonyoDigital/agent-army). |
+| `commands/` | `/Konyo` — the one door, which derives the cost shape from stakes. Plus `/KonyoLean` `/KonyoMax` `/KonyoCost` `/KonyoTiny` as manual overrides. | Start at `/Konyo`. |
+
+Every quality: one owner per file, a quality gate on every change, optional Grok third-eye, version
+per round, ONE final report. **A quality flag buys model tier, panel size and extra phases — never a
+gate.**
+
+Routing map, including what each shape is *wrong* for: [`ROUTING.md`](../../ROUTING.md).
 
 Args: `{task, apply, maxRounds, budgetFloor, grok}` (max also takes `dryRounds`). Args may be an object or a JSON string.
 

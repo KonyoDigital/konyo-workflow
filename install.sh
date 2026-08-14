@@ -10,6 +10,9 @@ mkdir -p "$DEST/workflows"
 if [[ -f "$ROOT/SKILL.md" ]]; then
   cp "$ROOT/SKILL.md" "$DEST/SKILL.md"
   [[ -f "$ROOT/docs/SHIP_LAWS.md" ]] && cp "$ROOT/docs/SHIP_LAWS.md" "$DEST/SHIP_LAWS.md" || true
+  # The routing map is the single source for WHICH entry point to run. Installed beside the method
+  # so the answer is on disk, not only on GitHub.
+  [[ -f "$ROOT/ROUTING.md" ]] && cp "$ROOT/ROUTING.md" "$DEST/ROUTING.md" || true
   if [[ -d "$ROOT/automation/workflows" ]]; then
     cp "$ROOT/automation/workflows/"*.rhai "$DEST/workflows/" 2>/dev/null || true
     # Static safeguard proofs (v27 empty-plan / render-loop contracts) — install
@@ -35,6 +38,7 @@ if [[ -f "$ROOT/SKILL.md" ]]; then
 else
   curl -fsSL "$BASE/SKILL.md" -o "$DEST/SKILL.md"
   curl -fsSL "$BASE/docs/SHIP_LAWS.md" -o "$DEST/SHIP_LAWS.md" 2>/dev/null || true
+  curl -fsSL "$BASE/ROUTING.md" -o "$DEST/ROUTING.md" 2>/dev/null || true
   for f in konyo-workflow review-changes security-pass ship-ready find-flaky-tests; do
     curl -fsSL "$BASE/automation/workflows/${f}.rhai" -o "$DEST/workflows/${f}.rhai" 2>/dev/null || true
   done
@@ -53,9 +57,12 @@ fi
 # Claude Code registers a workflow from the meta block of any .js in ~/.claude/workflows, so
 # dropping the files there is the whole install.
 CLAUDE_DEST="${CLAUDE_WORKFLOW_HOME:-$HOME/.claude/workflows}"
+CLAUDE_CMDS="${CLAUDE_COMMANDS_HOME:-$HOME/.claude/commands}"
 if [[ -d "$HOME/.claude" ]]; then
   mkdir -p "$CLAUDE_DEST"
-  for f in konyo-workflow konyo-workflow-max; do
+  # ONE engine. konyo-workflow-max.js was retired at v18 — max is a quality string on this body,
+  # not a second file. Listing it here fetched a 404 forever and implied a shipper that is gone.
+  for f in konyo-workflow; do
     if [[ -f "$ROOT/automation/claude-code/${f}.js" ]]; then
       cp "$ROOT/automation/claude-code/${f}.js" "$CLAUDE_DEST/${f}.js"
     else
@@ -69,10 +76,33 @@ if [[ -d "$HOME/.claude" ]]; then
     fi
   done
   echo "   Claude Code shippers → $CLAUDE_DEST (konyo-workflow + v27 proof)"
+
+  # ---- Slash commands ------------------------------------------------------------------------
+  # 2026-08-15: these had NO install path. install.sh handled *.rhai, *.js and two *.mjs proofs and
+  # nothing else, so /Konyo /KonyoLean /KonyoMax /KonyoCost /KonyoTiny existed in the repo, were
+  # documented in the README, and DID NOT EXIST for anyone who ran the curl one-liner. Both halves
+  # were built correctly and never joined. Claude Code registers a command from any .md in
+  # ~/.claude/commands, so copying them there is the whole install.
+  mkdir -p "$CLAUDE_CMDS"
+  CMD_N=0
+  for f in Konyo KonyoLean KonyoMax KonyoCost KonyoTiny; do
+    if [[ -f "$ROOT/automation/claude-code/commands/${f}.md" ]]; then
+      cp "$ROOT/automation/claude-code/commands/${f}.md" "$CLAUDE_CMDS/${f}.md"
+      CMD_N=$((CMD_N + 1))
+    else
+      curl -fsSL "$BASE/automation/claude-code/commands/${f}.md" -o "$CLAUDE_CMDS/${f}.md" 2>/dev/null \
+        && CMD_N=$((CMD_N + 1)) || true
+    fi
+  done
+  echo "   Slash commands → $CLAUDE_CMDS (${CMD_N}/5: /Konyo + 4 overrides)"
+  # `|| true` is load-bearing: under `set -e` a false test as the LAST command in this block exits
+  # the script — i.e. the SUCCESS case (5/5) would abort the install before the final banner.
+  [[ "$CMD_N" -lt 5 ]] && echo "   ⚠️  only ${CMD_N}/5 commands installed — /Konyo may be missing" || true
 fi
 
 echo "✅ Konyo Workflow installed to $DEST"
 echo "   Give your AI: $DEST/SKILL.md"
-echo "   Say: Use the Konyo Workflow."
+echo "   Which command to run: $DEST/ROUTING.md"
+echo "   Say: Use the Konyo Workflow.   Or run: /Konyo <what you want done>"
 echo "   Grok implementer: /Konyo-Grok (alias /konyo-workflow redirects) {\"task\":\"…\",\"apply\":true}  (lean default; quality:max|standard|tiny)"
 echo "   Grok third-eye = Claude CLI.  /konyo-workflow-max is a deprecation notice only."

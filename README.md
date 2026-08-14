@@ -12,6 +12,10 @@ Any model. Any chat that can use tools and helpers.
 
 Battle-tested by Konyo across hundreds of shipped versions.
 
+> **Which command do I run? → [`ROUTING.md`](./ROUTING.md).** One page: intent → command, with what
+> each is *wrong* for and what it costs. It is the single source for routing — if any other file
+> here disagrees with it, that file is the bug.
+
 ---
 
 ## Quick start
@@ -66,11 +70,12 @@ Not required: Obsidian, a new GitHub org, or foreign names. **Same spirit as a p
 
 | Path | What |
 |------|------|
+| **`ROUTING.md`** | **Which command to run** — intent → command, with anti-recommendations and cost |
 | `SKILL.md` | The method — give this to the AI |
-| `install.sh` | Copies into `~/.konyo-workflow/` |
+| `install.sh` | Copies into `~/.konyo-workflow/`, plus engines and commands into `~/.claude/` |
 | `docs/SHIP_LAWS.md` | 19 ship laws |
-| `automation/claude-desktop/` | **Claude Desktop skill** — upload the zip, no terminal, no second AI required |
-| `automation/claude-code/` | Claude Code engine (`konyo-workflow.js`) + `/KonyoTiny` `/KonyoLean` `/KonyoMax` |
+| `automation/claude-desktop/` | **Claude Desktop bundles** — upload the zip, no terminal, no second AI required. De-identified public builds; the maintained personal copy lives in [ship-skill](https://github.com/KonyoDigital/ship-skill) |
+| `automation/claude-code/` | Claude Code engine (`konyo-workflow.js`) + `commands/` — `/Konyo` (the door) and the four manual overrides `/KonyoTiny` `/KonyoLean` `/KonyoMax` `/KonyoCost` |
 | `automation/workflows/` | Optional scripts if your setup can run them |
 
 ---
@@ -83,11 +88,21 @@ Public, Grok-only package: shipper + install + safeguard proof. No Claude Code e
 curl -fsSL https://raw.githubusercontent.com/KonyoDigital/konyo-workflow-grok/main/install.sh | bash
 ```
 
-## No terminal? → [ship-skill](https://github.com/KonyoDigital/ship-skill)
+## No terminal? → Desktop
 
-The Desktop skill moved to its own repo and is maintained there. The copy that lived
-here was **deleted rather than left**, because a stale copy is worse than none — someone
-downloads it, it works, and never learns they are a dozen fixes behind.
+Two things, and they are not the same artifact:
+
+- **`automation/claude-desktop/`** — the **de-identified public bundles**, rebuilt from their sources
+  in this repo. Upload `konyo-workflow.zip` to Claude Desktop and go. These carry the method with no
+  personal scars in them.
+- **[ship-skill](https://github.com/KonyoDigital/ship-skill)** — the **maintained personal copy**,
+  same method with the six ratified founding rules and real scars already in `SCARS.md`. It lives in
+  its own repo and is updated there.
+
+The rule that keeps these from rotting into each other: **author upstream, sync one way.** A copy is
+not a merge, and a stale copy is worse than none — someone downloads it, it works, and never learns
+they are a dozen fixes behind. If you change the method, change it at the source and rebuild the
+bundles; never patch a zip.
 
 **The fleet moved too → [agent-army](https://github.com/KonyoDigital/agent-army).**
 
