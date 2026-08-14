@@ -1,10 +1,20 @@
 # Konyo Workflow — Claude Code implementations
 
 Runnable **Claude Code** workflow scripts (JS) that implement the Konyo Workflow doctrine.
-Drop either file in `~/.claude/workflows/` and run it from Claude Code with:
+`install.sh` drops the engine in `~/.claude/workflows/` and the commands in `~/.claude/commands/`.
 
-    Workflow: name "konyo-workflow"       args {"task":"<what to do>", "apply":true}
-    Workflow: name "konyo-workflow"       args {"task":"…", "apply":true, "items":[{"file":"/abs/path","instruction":"…"}]}
+Normally you do not call the engine by hand — run **`/Konyo <what you want done>`** and let the door
+pick the cost shape. To call it directly, invoke by **`scriptPath`, never `{name}`**:
+
+    Workflow({ scriptPath: '~/.claude/workflows/konyo-workflow.js',
+               args: { task: '<what to do>', apply: true } })
+
+    Workflow({ scriptPath: '~/.claude/workflows/konyo-workflow.js',
+               args: { task: '…', apply: true, items: [{ file: '/abs/path', instruction: '…' }] } })
+
+**Why not `{name:"konyo-workflow"}`:** `agent-army.js` registers that same name, so the bare form is
+ambiguous between two engines — and the runner snapshots named workflows, so it can serve a stale
+generation after an edit. Two different ways to run something other than what you meant.
 
 (`apply:false` = dry-run: agents propose diffs, write nothing. **Never pair it with a
 file-shaped deliverable** — see the guard below.)

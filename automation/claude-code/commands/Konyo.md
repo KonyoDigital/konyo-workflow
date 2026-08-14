@@ -49,19 +49,40 @@ arrived with the request.
 
 Give `anchor` when you know roughly where in the file. It is the single biggest wall-clock saving.
 
+### Build the payload — two edits you MUST make, not comments to read past
+
+**1. Strip the stakes flag out of the task.** `$ARGUMENTS` contains it. `--reversible` /
+`--irreversible` are instructions to *this door*, not work for the engine — passing them through
+puts a flag in the text an architect is trying to plan from.
+
+**2. Pick the quality line by hand from the table above.** There is no default to fall back on here;
+copy the block that matches. A quality chosen by a comment beside a literal is a quality nobody
+chose.
+
+`--reversible` → 
 ```
-Workflow({
-  scriptPath: '/Users/konyo/.claude/workflows/konyo-workflow.js',
-  args: {
-    task: '$ARGUMENTS',
-    quality: 'lean',        // <- 'standard' if --reversible, 'max' if --irreversible
-    apply: true,
-    // OPTIONAL. Present = skip the architect. <=4 items, <=3 distinct files, one owner per file.
-    // items: [{ file: '/abs/path', instruction: 'the exact edit', risk: 'low',
-    //           anchor: '~line 11286, _aiSetName' }],
-  }
-})
+Workflow({ scriptPath: '/Users/konyo/.claude/workflows/konyo-workflow.js',
+  args: { task: '<$ARGUMENTS, flag removed>', quality: 'standard', apply: true } })
 ```
+
+no flag → 
+```
+Workflow({ scriptPath: '/Users/konyo/.claude/workflows/konyo-workflow.js',
+  args: { task: '<$ARGUMENTS>', quality: 'lean', apply: true } })
+```
+
+`--irreversible` → 
+```
+Workflow({ scriptPath: '/Users/konyo/.claude/workflows/konyo-workflow.js',
+  args: { task: '<$ARGUMENTS, flag removed>', quality: 'max', apply: true } })
+```
+
+Add `items:` to any of them when you already have the plan — `<=4` items, `<=3` distinct files,
+one owner per file:
+`items: [{ file: '/abs/path', instruction: 'the exact edit', risk: 'low', anchor: '~line 11286, _aiSetName' }]`
+
+**If the stakes word is present but unrecognised** (`--cheap`, `--fast`, a typo): use `max` and
+**say out loud that you did**. A misread flag fails expensive, never quietly cheap.
 
 Invoke by **`scriptPath`, not `{name}`** — the engine snapshots named workflows and can serve a
 stale generation after an edit, and `agent-army.js` registers the name `konyo-workflow` as well.
