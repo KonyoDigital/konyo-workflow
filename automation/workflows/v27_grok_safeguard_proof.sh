@@ -79,7 +79,7 @@ has "v28 safeguards flag" 'v28_render_stop_passed_ceiling_stalled'
 echo ""
 echo "v28.1 EARLY LOCK RELEASE"
 has "early release on triage-direct" 'lock:release-early'
-has "triage-direct bail releases" 'Early lock release'
+has "triage-direct bail releases" 'release_held_lock'
 
 
 echo ""
@@ -120,6 +120,31 @@ has "v31 images_na safeguard flag" 'v31_images_na_fail_closed'
 has "v31 reach rich schema flag" 'v31_reach_rich_schema'
 has "thin_panels in payload" 'thin_panel_count: thin_panels.len()'
 has "phase Render concurrent" 'Render ‖ Reachability'
+
+echo ""
+echo "v32 SCAR@FAILURE + RUN-NOT-INSPECT (2026-08-08)"
+has "record at the failure craft" 'RECORD AT THE FAILURE'
+has "one per distinct failure craft" 'One scar per DISTINCT failure'
+has "run not inspect craft" 'RUN THE THING — READING IS NOT PROOF'
+has "synth scar mid-run question" 'did I record the ones I hit'
+has "v32 scar record flag" 'v32_scar_record_at_failure'
+has "v32 one per distinct flag" 'v32_scar_one_per_distinct_failure'
+has "v32 run not inspect flag" 'v32_run_not_inspect'
+
+echo ""
+echo "v36 GROK-HOST PORTS OF CLAUDE JS v35/v36 (2026-08-14)"
+has "G1 file-shaped items refuse string" 'dry-run with a file-shaped items[] work list'
+has "G1 file_shaped_items counter" 'file_shaped_items'
+has "G2 release_held_lock helper" 'fn release_held_lock'
+has "G2 architect-fail also releases" 'if lock_acquired { release_held_lock(lock_token); lock_acquired = false; }'
+has "G3 te_schema" 'let te_schema'
+has "G3 plan-seat blocking complete" 'the plan seat returned a blocking refusal'
+has "G3 never fill empty seat with Grok" 'never filled by Grok'
+has "G4 pass+failures cannot PASSED" 'pass:true carrying a non-empty failures[] must not converge as PASSED'
+has "v36 G1 flag" 'v36_g1_items_file_shaped_dry_run_refuse'
+has "v36 G2 flag" 'v36_g2_release_held_lock'
+has "v36 G3 flag" 'v36_g3_plan_seat_can_block'
+has "v36 G4 flag" 'v36_g4_pass_with_failures_not_passed'
 
 if [[ "$fail" -eq 0 ]]; then
   echo "ALL SAFEGUARD CONTRACTS PRESENT."

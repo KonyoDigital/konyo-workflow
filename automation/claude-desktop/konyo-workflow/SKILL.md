@@ -33,7 +33,7 @@ per-deliverable specifics attached — use that one there. Load durable facts fr
   spreadsheets, engines, audits, communications, research. The checks below are universal;
   that file is where the artifact-specific bar lives, so neither list has to be vague.
   ⚠ A variant should REPLACE it with its own artifact types — this idea came from a variant
-  (a domain fork's benefits fork) that had one when the base did not.
+  (a domain fork) that had one when the base did not.
 - `references/scars.md` — turning a failure into a durable rule, and where the scars
   live. Read it when a run produced one, or at the start of a session to load them.
 

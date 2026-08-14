@@ -9,7 +9,7 @@ in one list makes the list either too vague to catch anything or too long to rea
 So the universal checks stay in SKILL.md, and this file answers a narrower question for each
 artifact type: **what must be true before this specific thing leaves your hands.**
 
-> **This idea came from a variant, not from the base.** a domain fork's benefits fork carried a
+> **This idea came from a variant, not from the base.** A domain fork carried a
 > `deliverables.md` naming what "done" means for each artifact she actually ships — booklets,
 > the Hub, the monthly invoice audit, rate tables. The base had no equivalent, and its checks
 > were correspondingly abstract. A variant improving on its parent is the system working;

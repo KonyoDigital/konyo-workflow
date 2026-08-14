@@ -1,6 +1,6 @@
 # Grok Build workflows (Konyo)
 
-**Parity target:** Claude Code `konyo-workflow.js` (lean default, gates) + **v26** render loop + **v28** (PACE+PROXY, PHASE_PLAN, PASSED|CEILING|STALLED) + **v28.1** early lock release + **v29** scar law + **v30** meter routing / fleet caps / thrash+tip honesty + **v31** concurrent LAW19‖render + **v32** scar-at-failure + run-not-inspect + **v33** CAPTURE PER ROUND / CARVE PER ARC (Claude JS v31, 2026-08-11 — sibling gate failures brief rework; arc-end carve candidates propose only, never suppress a gate).
+**Parity target:** Claude Code `konyo-workflow.js` (lean default, gates) + **v26** render loop + **v28** (PACE+PROXY, PHASE_PLAN, PASSED|CEILING|STALLED) + **v28.1** early lock release + **v29** scar law + **v30** meter routing / fleet caps / thrash+tip honesty + **v31** concurrent LAW19‖render + **v32** scar-at-failure + run-not-inspect + **v33** CAPTURE PER ROUND / CARVE PER ARC + **v36** Grok-host ports of Claude JS v35/v36 (items[] dry-run refuse, `release_held_lock` on every abort, plan seat can block, pass+failures cannot PASSED). File name stays `Konyo-Grok.rhai` (slash `/Konyo-Grok`); `meta.name` is `konyo-grok` because the host requires lowercase.
 
 | Slash | File | Role |
 |-------|------|------|
@@ -103,7 +103,7 @@ bash ~/.grok/workflows/v27_grok_safeguard_proof.sh
 
 | | Claude Code host | Grok Build host |
 |--|------------------|-----------------|
-| Engine | `konyo-workflow.js` | `konyo-workflow.rhai` |
+| Engine | `konyo-workflow.js` | `Konyo-Grok.rhai` (`konyo-workflow.rhai` is a **redirect stub**) |
 | Builders | Opus/Sonnet/Haiku ladder | Grok agents + **depth directive** in prompt |
 | Third eye default | **Grok CLI** | **Claude CLI** (`claude -p --model opus`) |
 | Write boundary | harness tools | `capability_mode`: `read-only` / `read-write` / `all` |
@@ -122,10 +122,11 @@ bash ~/.grok/workflows/v27_grok_safeguard_proof.sh
 
 ```bash
 # from konyo-workflow repo
-cp automation/workflows/konyo-workflow.rhai ~/.grok/workflows/
+cp automation/workflows/Konyo-Grok.rhai ~/.grok/workflows/
+cp automation/workflows/konyo-workflow.rhai ~/.grok/workflows/   # redirect stub only
 cp automation/workflows/v27_grok_safeguard_proof.sh ~/.grok/workflows/
 cp grok/konyo-workflow-max.rhai ~/.grok/workflows/
-bash ~/.grok/workflows/v27_grok_safeguard_proof.sh
+bash ~/.grok/workflows/v27_grok_safeguard_proof.sh ~/.grok/workflows/Konyo-Grok.rhai
 ```
 
 Or `./install.sh` from the repo root when that path is wired for Grok.

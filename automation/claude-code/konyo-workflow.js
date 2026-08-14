@@ -1,6 +1,6 @@
 export const meta = {
   name: 'konyo-workflow',
-  description: 'KONYO WORKFLOW — ONE body, three paths (lean | max | standard). RUNS AT LEAN BY DEFAULT (his instruction, 2026-08-04): EVERY gate max runs — diverse-lens skeptic panel, render gate with vision, LAW17, LAW19, workspace lock, agent ceiling — at ~62% of the tokens, by buying ONE architect instead of a judge panel, one rework round, no completeness critic, and risk:"low" items at the tier their own architect asked for (floored at sonnet; the review is Opus either way, and a failed cheap build escalates on rework). The third eye (Grok — a different model family) is ON at every quality. Pass {quality:"max"} to add the 3-architect judge panel, Opus builders everywhere and the loop-until-dry completeness critic — worth it when being wrong costs more than tokens. Pass {quality:"tiny"} for a SMALL, KNOWN edit set with a ~15-minute wall-clock budget: it REQUIRES an explicit items:[{file,instruction}] work list (max 4 items across 3 files, no diagnosis) and refuses without one, then skips the PLANNING hops only — no triage, no architect, no third-eye plan seat, no completeness critic, no synthesizer — while keeping every gate: the 2-seat adversarial panel, LAW19 reachability, the render gate with vision, LAW17, and the workspace lock. Reachability and the render gate run CONCURRENTLY. v26 — THE RENDER GATE IS NOW A LOOP at every quality: it renders at a narrow AND a wide viewport, and a failure is handed to a fixer and re-rendered (tiny 2 passes / lean 3 / max 4) instead of only being reported. The FINAL pass is what blocks. Pass {quality:"standard"} to opt DOWN to the cost-scaled ladder (Haiku/Sonnet build, Fable gates every merge, ONE architect, no completeness critic). Pass {thirdEye:false} to run without an independent reviewer. LEAN IS NOT MAX-WITH-FEWER-SAFEGUARDS: the flag buys model tier, panel size and extra phases, never a gate. v30 METER ROUTING (Grok parity): item caps by quality, volume-arc heuristic, tip honesty + thrash resistance; max is not volume.',
+  description: 'KONYO WORKFLOW — ONE body, four paths (tiny | lean | max | standard), and it RUNS AT LEAN BY DEFAULT (his instruction, 2026-08-04). Lean already runs EVERY gate max runs — diverse-lens skeptic panel, render gate with vision, LAW17, LAW19, workspace lock, agent ceiling — at ~62% of the tokens, by buying ONE architect instead of a judge panel, one rework round, and no completeness critic. The third eye (Grok — a DIFFERENT model family) is ON at every quality. Pass {quality:"max"} to add the 3-architect judge panel, Opus builders everywhere and the loop-until-dry completeness critic — worth it when being wrong costs more than tokens. Pass {quality:"tiny"} for a SMALL, ALREADY-KNOWN edit set on a ~15-minute budget: it REQUIRES an explicit items:[{file,instruction}] work list (max 4 items across 3 files, no diagnosis) and refuses without one, then skips the PLANNING hops only. Pass {quality:"standard"} to opt DOWN to the cost-scaled ladder — Haiku/Sonnet build, Fable gating every merge, ONE architect, no completeness critic, ~10-15x cheaper — for routine, easily reversible work. Pass {thirdEye:false} to run without an independent reviewer. LEAN IS NOT MAX-WITH-FEWER-SAFEGUARDS: a quality flag buys model tier, panel size and extra phases, NEVER a gate. The render gate is a LOOP at every quality — narrow AND wide viewport, each failure handed to a fixer and re-rendered, and the FINAL pass is what blocks.',
   whenToUse: 'ANY multi-step task you want orchestrated — it is LEAN unless you say otherwise, because lean already runs every gate and max only buys a judge panel, Opus builders and the completeness critic. It TRIAGES itself first, so a serial diagnosis is sent back to be done directly instead of spawning a fleet, and the ceiling + budget floor still bound every run. Reach for {quality:"tiny"} when you already know the exact edits (file + instruction each) and want them done in ~15 minutes with the gates intact — it is a HOP budget, not an agent budget: wall clock is serial-hops × time-per-hop, so tiny cuts the chain from 11 phases to 4 rather than trimming agents. Reach for {quality:"max"} when the cost of being wrong is high — irreversible edits, data migrations, anything shipping unattended. Opt all the way down with {quality:"standard"} for routine, low-cost-of-wrong, easily reversible work (~10-15x cheaper). Pass {task, quality, thirdEye, apply, maxRounds, dryRounds, budgetFloor, force, skeptics, maxAgents, isolate, items, maxItems}. items:[{file,instruction}] skips the architect at ANY quality (not only tiny) — an architect that returns items:[] no longer becomes a vacuous green ship. v30 meter routing: quality item caps (tiny4/max6/lean8/standard10), volume-arc heuristic, thrash/tip craft — max is NOT for 30-version volume arcs (use N lean/tiny slices). `grok:false` still works as the old name for thirdEye:false; `fast` still resolves to `lean`.',
   phases: [
     { title: 'Preflight',   detail: 'workspace lock — refuse to start if another run is already editing this tree' },
@@ -427,7 +427,7 @@ const PROOF = '\n\nVERIFY THE THING, NOT A PROXY FOR IT. Before you assert somet
    MCP connection at all and so survives headless and cron runs where MCP servers may be absent. Nothing read the "unavailable"
    string, so a third eye that never spoke read as a clean pass. That is the v16 defect class
    (a null that reads as success) living inside the safeguard machinery itself.
-   THE TRANSPORT THAT WORKS: the Grok CLI at ~/.grok/bin/grok (0.2.118) authenticates on its own
+   THE TRANSPORT THAT WORKS: the Grok CLI at ~/.grok/bin/grok authenticates on its own
    session, independent of that key. Measured working the same day, twice: a plain prompt, and an
    agentic read of a repo (`--cwd`) that ran `git log` and answered correctly. It is ALSO multimodal
    — asked what art/mephisto_graphic.png depicts, with no hint of what it should be, it answered
@@ -450,8 +450,35 @@ const PROOF = '\n\nVERIFY THE THING, NOT A PROXY FOR IT. Before you assert somet
    outlived their parent and `reap -f` kills them.
    THE RULE THAT MAKES IT WORTH HAVING: a Claude agent may NEVER fill a Grok seat. If the transport
    is down the seat is reported EMPTY — panel 3 becomes 2, named in the payload — because a panel
-   that looks diverse while being an echo is worse than a panel that is honestly short. */
+   that looks diverse while being an echo is worse than a panel that is honestly short.
+   ⚠ v36 §C3 — DO NOT PIN A VERSION NUMBER IN PROSE HERE AGAIN. This paragraph carried an 0.2.x pin
+   (exact digits in git history — not repeated here, so that a guard grepping for the stale literal
+   cannot be tripped by the comment that records killing it) long enough that the binary moved two
+   major versions underneath it: measured 2026-08-13, `grok --version`
+   prints `grok 1.0.3 (1a29d5bc12d4)` and ~/.grok/bin/grok is a symlink to grok-1.0.3-macos-aarch64.
+   `--best-of-n` is gone from that build. A pinned number in a comment is a fact with no owner and no
+   guard — nothing re-measures it, so it rots silently and then briefs an agent with a lie. Ask the
+   binary: `grok --version`. (Separately: the CLI VERSION is 1.0.3 and the default MODEL self-reports
+   as Grok 4.6 — two different numbers, and confusing them is how "1.0.3" got called wrong.)
+   Verified present in 1.0.3 and used below: --cwd, --prompt-file, --no-memory, --disable-web-search,
+   --output-format plain. 1.0.3 also adds --json-schema, which constrains the model to a JSON shape;
+   not used here because the COURIER already returns the schema and the seat wants Grok's raw prose. */
 const GROK_CLI = '/Users/konyo/.grok/bin/grok'
+// v36 §C4 — the MCP fallback's tool namespace. Any mcp__grok-mcp__* tool (chat, chat_with_vision,
+// chat_with_files) is a legitimate Grok transport; the prefix is what identifies it as one.
+const GROK_MCP_PREFIX = 'mcp__grok-mcp__'
+/* v36 §C3 — THE WRAPPER IS THE INVOCATION, NOT AN OPTIONAL EXTRA. The block comment above spends
+   six lines explaining that the Bash tool's timeout kills bash and NOT bash's grandchildren, that
+   two hung `grok` processes were found alive at 3 and 10 days burning a core and a half, and that
+   `timeout` is not installed on this Mac — and then the courier prompt told the agent to run a BARE
+   `grok`. The documentation and the instruction disagreed, and the instruction is the one that runs.
+   So the wrapper now lives in a constant that the prompt interpolates: there is no way to write the
+   command without it. Exit 142 = the alarm fired = TIMED OUT, which is a real verdict (unreachable),
+   never agreement. Measured 2026-08-13: `perl … 60 grok --version` exits 0 and prints 1.0.3. */
+const GROK_TIMEOUT_S = 180
+const PERL_ALARM = `perl -e 'my $t=shift; my $p=fork; die unless defined $p; if(!$p){exec @ARGV; exit 127} ` +
+  `$SIG{ALRM}=sub{kill "TERM",$p; waitpid($p,0); exit 142}; alarm $t; waitpid($p,0); ` +
+  `my $st=$?; alarm 0; exit(($st & 127) ? 128+($st & 127) : ($st >> 8));' ${GROK_TIMEOUT_S}`
 const THIRD_EYE_SEATS = []            // every consult attempted, reached or not — the ledger IS the report
 const THIRD_EYE_SCHEMA = {
   type: 'object', additionalProperties: false,
@@ -473,7 +500,10 @@ const THIRD_EYE_SCHEMA = {
        the command it ran and the raw head of stdout. Checked below — reached:true without evidence
        is downgraded to NOT reached, because an unverifiable claim of independence is worth less than
        an honest empty seat. */
-    command:   { type: 'string', description: 'REQUIRED when reached=true: the exact command line you ran, e.g. the full grok invocation' },
+    // v36.1 — "COMPLETE" is stated because raw_head below teaches a ~200-char clip, and the perl
+    // wrapper puts the grok binary at ~index 251. A clipped command loses the only part that
+    // identifies the transport, and the seat is then discarded as unproven.
+    command:   { type: 'string', description: 'REQUIRED when reached=true: the exact command line you ran, COMPLETE and UNTRUNCATED (do NOT clip it — the part that names the grok binary may sit past character 200, after the perl wrapper)' },
     raw_head:  { type: 'string', description: 'REQUIRED when reached=true: the first ~200 characters of the transport RAW stdout, verbatim, before any tidying' },
   },
 }
@@ -483,13 +513,26 @@ function grokHow(question, opts = {}) {
   return (
     `TRANSPORT — do this literally, in this order, and report which one answered.\n` +
     `1. CLI FIRST (this is the working path). Write the question below to a temp file with the Write ` +
-    `tool (e.g. /tmp/te_$$.txt), then run with the Bash tool:\n` +
-    `   ${GROK_CLI} --cwd ${cwd} --prompt-file <file> --no-memory --disable-web-search --output-format plain\n` +
-    `   Set the Bash tool's OWN timeout parameter to 180000. Do NOT use the \`timeout\` binary — it is ` +
-    `not installed on this Mac and the command would die with command-not-found.\n` +
+    `tool (e.g. /tmp/te_$$.txt), then run this with the Bash tool — COPY IT WHOLE, the perl prefix is ` +
+    `part of the command, not decoration:\n` +
+    `   ${PERL_ALARM} \\\n` +
+    `     ${GROK_CLI} --cwd ${cwd} --prompt-file <file> --no-memory --disable-web-search --output-format plain\n` +
+    `   Why the perl: the Bash tool's timeout kills BASH, not bash's GRANDCHILDREN, so a hung grok is ` +
+    `reparented to init and burns a core forever — two were found alive at 3 and 10 days. The perl ` +
+    `forks, alarms and SIGTERMs the child, so nothing can outlive the call. Do NOT use the \`timeout\` ` +
+    `binary: it is not installed on this Mac and the command would die with command-not-found.\n` +
+    `   Also set the Bash tool's OWN timeout parameter to 180000 as a backstop — belt and braces, not ` +
+    `a replacement for the wrapper.\n` +
+    `   EXIT 142 MEANS THE ALARM FIRED — grok TIMED OUT. That is a real verdict: report it as ` +
+    `reached:false / verdict:'unreachable' with reason 'grok timed out after ${GROK_TIMEOUT_S}s ` +
+    `(perl alarm, exit 142)'. It is NEVER agreement and never "no concerns".\n` +
     `2. Only if the CLI errors or returns empty, try the MCP fallback: ToolSearch for ` +
-    `mcp__grok-mcp__chat and call it. It is EXPECTED to fail with "Incorrect API key provided"; that ` +
-    `is a known-dead key, not something to debug or work around.\n` +
+    `mcp__grok-mcp__chat and call it. If it fails, put the ACTUAL error text you received in ` +
+    `\`reason\` — verbatim. Do NOT assume the key is dead: that key was measured WORKING on ` +
+    `2026-08-13 (a live models listing and a real completion), and an older version of this very ` +
+    `prompt told couriers to expect "Incorrect API key provided" for months after the root cause ` +
+    `had been found and fixed. If it fails now, that is NEWS and the error string is the evidence — ` +
+    `report it, do not explain it away.\n` +
     `3. If neither answered, return reached:false, transport:'none', verdict:'unreachable', and put ` +
     `the ACTUAL error text in reason. \n` +
     `\n🚫 YOU ARE A COURIER, NOT THE THIRD EYE. Never answer the question yourself, never paraphrase ` +
@@ -553,11 +596,55 @@ async function thirdEyeAsk(seat, question, phaseName, opts = {}) {
      it is recorded as NOT reached. That is deliberately harsher than "trust the courier": the only
      thing this phase sells is that the words came from outside Claude, so a claim of independence
      that cannot be evidenced is exactly the proxy PROOF exists to refuse. */
+  /* v36 §C4 — "NON-EMPTY" IS NOT "PROVENANCE". The v19.3 check above required `command` and
+     `raw_head` to be non-blank strings, and stopped there. A courier whose CLI call failed could
+     satisfy it with `command:'echo hi'` and 200 characters of its own prose, and the payload would
+     then report an independent different-family review that never happened — the precise outcome
+     v19.3 was written to prevent, defeated by the weakest possible reading of its own rule.
+     A string test can only ever ask "did you write something?"; the question worth asking is
+     "does this command NAME THE TRANSPORT YOU CLAIMED?" So a cli seat must show the actual grok
+     binary and an mcp seat must show an actual grok MCP tool. This is not cryptographic — a
+     determined fabricator can still write the right path — but it closes the any-string hole, and
+     the failure it catches is the LIKELY one: a courier that quietly substituted itself.
+     ⚠ The tilde form is accepted on purpose. ~/.grok/bin/grok and /Users/konyo/.grok/bin/grok are
+     the same binary, and downgrading a genuine Grok review because the courier typed a tilde would
+     be the instrument lying about the measurement — the opposite of what this check is for. */
+  /* ⚠ v36.1 — THE FIRST CUT OF THIS CHECK REJECTED REAL GROK REVIEWS. Found by the third eye on
+     the very diff that introduced it, and every claim verified on this machine before acting:
+       · it accepted exactly two spellings, GROK_CLI and the ~ form;
+       · `~/.local/bin/grok` EXISTS here and symlinks to the same binary → would have been refused;
+       · bare `grok` resolves on PATH (`which grok` → the same binary) → refused;
+       · `/Users/konyo/.grok/downloads/grok-1.0.3-macos-aarch64` is what GROK_CLI actually points
+         at — and the C3 comment above NAMES that path — → refused;
+       · worst, §C3's own perl wrapper is 243 characters, so the grok path now starts at index ~251
+         of the command, while the sibling `raw_head` field teaches the courier to clip at ~200.
+         A courier clipping `command` the same way keeps the perl and loses the binary.
+     So C3 made C4 reject genuine work, and the two changes shipped in the same pass. The failure
+     mode is the one this check exists to prevent, pointed the other way: a real independent review
+     discarded, which — because §C1 aborts only when a seat is `reached` — ALSO silently disarms the
+     plan seat's veto. A false negative here is not conservative, it is a disabled safeguard.
+     The rule now: does the command NAME grok as the program being run? That still refuses
+     `echo hi` (the actual hole) without adjudicating which of five legitimate spellings was used. */
+  const _cmd = String(rec.command || '')
+  // grok as a command token: a path ending in /grok, a bare `grok`, or the versioned binary name.
+  const _namesGrokBinary = /(?:^|[\s"'=|/])grok(?:-[\w.-]+)?(?:\s|$|["'])/.test(_cmd) ||
+                           _cmd.includes(GROK_CLI) || _cmd.includes('~/.grok/bin/grok')
+  const _namesTransport =
+    rec.transport === 'cli' ? _namesGrokBinary
+    : rec.transport === 'mcp' ? _cmd.includes(GROK_MCP_PREFIX)
+    : false
   if (rec.reached && rec.transport !== 'claude-standin' &&
-      !(String(rec.command).trim() && String(rec.raw_head).trim())) {
+      !(_cmd.trim() && String(rec.raw_head).trim())) {
     rec.reached = false
     rec.reason = 'claimed ' + rec.transport + ' but produced no command/raw stdout as evidence — ' +
       'an unverifiable independent review is recorded as no review. ' + (rec.reason || '')
+  } else if (rec.reached && rec.transport !== 'claude-standin' && !_namesTransport) {
+    rec.reached = false
+    rec.reason = 'claimed transport ' + rec.transport + ' but the command it showed (' +
+      _cmd.slice(0, 120) + ') does not name ' +
+      (rec.transport === 'mcp' ? 'a ' + GROK_MCP_PREFIX + '* tool' : GROK_CLI) +
+      ' — evidence that does not identify the transport is not evidence of independence. ' +
+      (rec.reason || '')
   }
   // A stand-in is never counted as the real thing, whatever it reports about itself.
   if (standin) { rec.reached = false; rec.transport = 'claude-standin' }
@@ -637,6 +724,9 @@ const LOCK_SCHEMA = {
     holder_since:  { type: 'string',  description: 'if not acquired: when the holder took it' },
     holder_expires:{ type: 'string',  description: 'if not acquired: when the holder lock expires on its own' },
     holder_task:   { type: 'string',  description: 'if not acquired: the holder task snippet' },
+    // v36 §C9 — the read-only liveness probe from step 5b. Advisory: it never clears a lock itself.
+    holder_evidence:     { type: 'string', description: 'if not acquired: ONE line of measured evidence about whether the holder is still alive (lock age, processes holding the tree, newest mtime). Say which probe failed if one did.' },
+    holder_lock_age_min: { type: 'number', description: 'if not acquired: age of the holder lock FILE in whole minutes' },
   },
 }
 
@@ -1300,9 +1390,35 @@ if (APPLY) {
     `invalid under zsh, the test silently fails, and a dead lock then survives forever and locks the ` +
     `human out of their own repo. Also DELETE any lock whose cwd is exactly "$HOME" (toxic home-wide). ` +
     `Count deletions -> purged_stale. Malformed/unparseable counts as stale — delete it too.\n` +
-    `5. If "$LOCKFILE" still exists after the purge, another LIVE run owns this EXACT tree. Do NOT touch ` +
+    `5. If "$LOCKFILE" still exists after the purge, another run owns this EXACT tree. Do NOT touch ` +
     `or overwrite it. Return acquired:false with its token/started_at/expires_at/task as holder_token / ` +
     `holder_since / holder_expires / holder_task.\n` +
+    /* v36 §C9 — GATHER THE EVIDENCE A HUMAN WOULD OTHERWISE HAVE TO GATHER BY HAND.
+       Reported live 2026-08-13 by a peer session: a run died mid-flight, its lock stayed valid for
+       the full TTL, and the next run refused against a holder that had already gone home. It cost a
+       full launch cycle and a human adjudication. The purge in step 4 only removes EXPIRED locks, so
+       a dead-but-unexpired holder is invisible to it.
+       WHAT THIS DELIBERATELY DOES NOT DO IS AUTO-CLEAR. There is no trustworthy liveness signal to
+       key on: the lock is WRITTEN by a short-lived subagent shell, so a recorded pid would name a
+       process that exited seconds later and every lock would look dead. Guessing wrong in the other
+       direction is far worse than waiting — this file already records what happened the last time a
+       lock was cleared by hand: two runs shared one tree. A wrong wait costs minutes; two fleets
+       writing the same files costs the tree.
+       So the probe REPORTS and lets the decision stay with the human, but does the legwork first,
+       which is the part that actually cost the peer its cycle. */
+    `5b. LIVENESS EVIDENCE (only when step 5 refused). Do NOT delete or modify anything here — this ` +
+    `step is READ-ONLY and its output is advisory. Gather, with a 20s budget total:\n` +
+    `   · the lock file's own age: AGE_MIN=$(( ( $(date -u +%s) - $(stat -f %m "$LOCKFILE") ) / 60 ))\n` +
+    `   · whether any process still holds that tree as its working directory:\n` +
+    `     lsof -a -d cwd -- "<the holder cwd>" 2>/dev/null | tail -n +2 | wc -l\n` +
+    `     ⚠ lsof ORs its selection flags — the -a is REQUIRED to AND them. Without it you get every ` +
+    `open file on the machine and a meaningless non-zero count.\n` +
+    `   · the newest mtime inside that tree, so "the holder has written nothing for 2 hours" is a ` +
+    `fact and not a feeling.\n` +
+    `Put a ONE-LINE plain summary in holder_evidence, e.g. "lock 127m old; 0 processes hold the tree; ` +
+    `newest file mtime 2h05m ago — holder looks DEAD" or "... 3 processes hold the tree; written 40s ` +
+    `ago — holder looks ALIVE". Put the integer minutes in holder_lock_age_min. If a probe fails, say ` +
+    `which one failed in holder_evidence — never report a clean "looks dead" off a command that errored.\n` +
     `6. Otherwise WRITE "$LOCKFILE" with exactly these keys, then return acquired:true:\n` +
     `   token         = a unique id you generate (e.g. "$(date -u +%Y%m%dT%H%M%SZ)-$RANDOM")\n` +
     `   started_at    = now, ISO-8601 UTC (human-readable only)\n` +
@@ -1324,13 +1440,35 @@ if (APPLY) {
     log(`   held by  : ${lock.holder_token || '(unknown)'} since ${lock.holder_since || '(unknown)'}`)
     log(`   its task : ${lock.holder_task || '(not recorded)'}`)
     log(`   expires  : ${lock.holder_expires || '(unknown)'} (locks self-expire after ${LOCK_TTL_MIN}m)`)
+    /* v36 §C9 — SAY WHETHER THE HOLDER IS STILL BREATHING. Without this the refusal named a token
+       and a timestamp and left the human to work out, by hand, whether anything was still running —
+       which is exactly the cycle a peer session lost tonight to a holder that had already finished. */
+    if (lock.holder_evidence) {
+      log(`   liveness : ${lock.holder_evidence}`)
+      log(`   lock age : ${lock.holder_lock_age_min != null ? lock.holder_lock_age_min + ' min' : '(unknown)'} ` +
+          `of a ${LOCK_TTL_MIN}m TTL`)
+    } else {
+      log(`   liveness : NOT MEASURED — treat the holder as ALIVE. An unmeasured holder is not a dead one.`)
+    }
     log(`   Refusing to start. Two fleets editing one tree silently overwrite each other.`)
     log(`   Wait for it, stop it, or re-run with {ignoreLock:true} if you KNOW the holder is dead.`)
+    /* ⚠ THE ENGINE WILL NOT CLEAR THIS FOR YOU, AND THAT IS ON PURPOSE. The evidence above is
+       advisory. Clearing a lock whose holder is actually alive puts two fleets in one tree, and the
+       last time one was cleared by hand that is precisely what happened. If the evidence says dead:
+       ARCHIVE the lock file (move it aside, do not delete it — the peer that did this tonight kept
+       the artifact and it is how this defect got diagnosed at all), then re-run normally so this run
+       TAKES a lock of its own. Prefer that to {ignoreLock:true}, which walks over the lock WITHOUT
+       taking one and leaves your own fleet unprotected against the next run. Never pkill by name. */
+    log(`   If the evidence says DEAD: archive the lock file (mv, do not rm) and re-run normally so ` +
+        `this run takes its OWN lock — {ignoreLock:true} proceeds without taking one at all.`)
     // v13 defect #4 — every exit routes through bail(), or it carries no verdict and no shippable.
     return bail({
       refused: 'workspace locked by another run',
       lock,
-      fix: 'wait for the holder to finish, TaskStop it, or pass {ignoreLock:true} if it is dead',
+      holder_liveness: lock.holder_evidence || 'not measured',
+      fix: 'wait for the holder to finish, TaskStop it, or — if the liveness evidence says it is ' +
+           'dead — archive the lock file with mv and re-run normally (preferred over {ignoreLock:true}, ' +
+           'which proceeds without taking a lock of its own)',
       verdict: 'NOT RUN — refused at preflight; another run holds this tree',
     })
   }
@@ -1902,17 +2040,87 @@ if (LOOKS_LIKE_VOLUME_ARC && MAXONLY) {
    opinion on the user's own instruction. Seats 2-4 (the skeptic panel, the render gate's pictures
    and the pre-ship verdict challenge) all still sit — those read the DIFF, which nobody has seen
    yet, and the skeptic seat is the one that caught a real type-flip bug this session. */
+/* ⚠ v36 §C1 — THE PLAN SEAT WAS A DECORATION: ITS ANSWER WAS THROWN AWAY.
+   This call had no assignment. `await thirdEyeAsk('plan', ...)` — return value discarded, nothing
+   read it, nothing could act on it. So the third eye could say "this plan solves the wrong problem"
+   and the fleet built that plan anyway, at full cost, and the run still reached the Ship phase.
+   The seat DID reach the ledger (thirdEyeAsk pushes itself), but THIRD_EYE_SEATS was only ever read
+   AFTER `SHIPPABLE` was computed — so even the ledger could not turn a refusal into a verdict.
+   That is the exact defect class this whole file exists to kill: a gate that observes and cannot
+   refuse (the same shape as the 3-skeptic gate that ran on a 1-skeptic panel). The pre-ship seat
+   below has had teeth since v18; the plan seat — the CHEAPEST leverage in the run, one call before
+   a single builder spends anything — had none.
+   WHY THIS ONE BAILS INSTEAD OF JUST RAISING A BLOCKER: a blocker here would be honest but useless.
+   BLOCKERS is not read until SHIPPABLE, thousands of lines and an entire fleet later, so the run
+   would still buy every builder, every skeptic and every gate to reach a verdict that was already
+   decided. The whole value of reviewing the plan BEFORE Build+Gate is not spending that money.
+   bail() is the correct exit: it releases the workspace lock (v32 §1.3) rather than holding the
+   tree for the full TTL, and it carries the blocker and the seat ledger out in the payload.
+   ONLY a reached seat can block. An unreachable transport is silence, and silence is not a refusal —
+   that would let a dead Grok CLI abort every run on this machine. Advisory severities (minor/major)
+   stay in the ledger and reach the report; only 'blocking' — which the prompt reserves for a
+   concrete, demonstrable defect — stops the fleet. */
 if (USE_GROK && !TINYQ) {
   phase('Third-eye')
-  await thirdEyeAsk('plan',
+  const planSeat = await thirdEyeAsk('plan',
     `You are the independent second opinion on an implementation plan. You are a DIFFERENT model from ` +
     `the one that wrote it — that is exactly why you were asked.\n\nTASK: ${TASK}\n\nPLAN:\n` +
     items.map(i => `- [${i.tier}] ${i.file}: ${i.instruction}`).join('\n') +
     `\n\nWhat is wrong with this plan? Look for: the wrong problem being solved, a step that cannot ` +
     `work as described, a missing step whose absence only shows up later, and any assumption that has ` +
     `not been checked. Reply with your top 3 concerns, or say plainly that you have none — an empty ` +
-    `answer to be agreeable is worthless here.`,
+    `answer to be agreeable is worthless here.\n` +
+    `Set severity:'blocking' ONLY if building this plan would be a concrete, demonstrable mistake — ` +
+    `the wrong problem, or a step that provably cannot work. THAT ANSWER STOPS THE FLEET BEFORE IT ` +
+    `SPENDS ANYTHING, so it is worth using when it is true and worth withholding when it is taste. ` +
+    `A preference about ordering or style is 'minor' — it will be recorded and read, not obeyed.`,
     'Third-eye')
+  /* ⚠ v36.1 — WHAT ACTUALLY FIRES THIS, SAID PLAINLY. `severity` is not Grok's word. It is an enum
+     filled in by the SONNET COURIER that relayed Grok's plain-text reply, and this file's own v19.3
+     note already concedes that a prompt forbidding a courier from injecting its own opinion "is not
+     a guarantee". Raising a blocker on that basis was already the pre-ship seat's behaviour; making
+     it ABORT THE FLEET raises the stakes of a courier mistake from a note to a kill switch, so the
+     bar has to rise with it. Three conditions now, not one:
+       · reached — silence is not a refusal (a dead transport must not abort every run);
+       · concerns[] non-empty — a veto must carry the WORDS it is vetoing on. A bare enum with no
+         stated objection is exactly what a confused courier emits, and it is worthless to the human
+         who has to decide whether to re-run;
+       · verdict not 'no concerns' — the schema has BOTH a verdict enum and a severity enum, and
+         nothing reconciled them. `verdict:'no concerns'` beside `severity:'blocking'` is a seat
+         contradicting itself; two checks disagreeing IS the finding, and the safe reading of a
+         self-contradictory veto is to let the run continue and let the ledger carry the concern.
+     Raised by the third eye against this very change, which is the seat working as intended. */
+  const _planVeto = planSeat && planSeat.reached && planSeat.severity === 'blocking' &&
+                    (planSeat.concerns || []).length > 0 && planSeat.verdict !== 'no concerns'
+  if (_planVeto) {
+    blocker('THE PLAN SEAT RETURNED A BLOCKING REFUSAL',
+      `plan seat (${planSeat.transport}, relayed by the courier): ` +
+      `${planSeat.concerns.slice(0, 3).join(' · ')}`)
+    log('⛔ ABORTING BEFORE BUILD — the plan seat came back blocking. Nothing was built, ' +
+        'nothing was spent on builders, and the workspace lock is being released.')
+    return bail({
+      refused: 'the plan seat returned a blocking refusal',
+      third_eye_plan_seat: planSeat,
+      /* Deliberately the same SHAPE as the end-of-run thirdEye block, and deliberately marked
+         partial: this exit happens before the run's own ledger consts exist, so it must not look
+         like the full accounting. Naming it `partial_ledger` stops a reader treating the two as
+         the same object. */
+      thirdEye: { partial_ledger: true, seats: THIRD_EYE_SEATS,
+                  reached: THIRD_EYE_SEATS.filter(s => s.reached).length,
+                  attempted: THIRD_EYE_SEATS.filter(s => s.ran).length,
+                  of: THIRD_EYE_SEATS.length },
+      /* ⚠ THE OLD WORDING HERE WAS "an independent model (different family) refused the plan", and
+         that is a claim about the MECHANISM which the mechanism does not support — the enum was
+         written by a same-family courier relaying Grok, not by Grok. Overclaiming the provenance of
+         a veto is the same defect as overclaiming a review. Say what is true: a seat came back
+         blocking, with these words, relayed over this transport. */
+      verdict: 'BLOCKED — the plan seat returned severity:blocking before any work began ' +
+               '(relayed by a courier from the third-eye transport; see third_eye_plan_seat for the ' +
+               'command and raw stdout it evidenced)',
+      fix: 'address the concerns and re-run, or re-run with {thirdEye:false} if you have judged the ' +
+           'objection wrong — but do that deliberately, not by accident',
+    })
+  }
 }
 
 // 3) BUILD + GATE (pipeline, no barrier — each item gates the moment its build lands)
@@ -2910,6 +3118,45 @@ if (USE_GROK && APPLY) {
 // v27.1 — APPLY required: a dry-run that proposed diffs is never shippable. shippable:true used to
 // mean "gates look clean" including dry-runs, which is how a human reads "ready to push" over a
 // run that wrote nothing. Push is already gated on APPLY; the flag must agree.
+/* ── v36 §C6 — THE THIRD-EYE LEDGER IS COMPUTED HERE, ABOVE THE VERDICT, NOT BELOW IT ────────────
+   THE BUG: these four consts used to be declared ~90 lines BELOW `SHIPPABLE`, next to the log line
+   that prints them, and the payload's `thirdEye:{...}` block was assembled further down still. So
+   every fact about the independent reviewer — how many seats were bought, how many answered, whether
+   the panel came up short — was computed AFTER the verdict it should have been able to inform. The
+   field could describe the run; it could never affect it. A dead pre-ship seat was narration.
+   That is this file's own recurring defect (a fact that is true in the payload and absent from the
+   decision), and it was living inside the safeguard machinery again.
+   WHAT MOVED AND WHAT DID NOT: only the DECLARATIONS moved. The log block below still reads these
+   same consts and the payload still reads these same consts — there is deliberately no second count
+   anywhere. Two formulas for one decision is the v18.3 bug, where the optimistic copy bound.
+   WHY SHIPPABLE STILL DOES NOT READ THEM: a silent third eye must not block by itself, and that is
+   unchanged and correct — the transport being down says nothing about whether the work is good, and
+   a machine-wide grok outage would otherwise abort every run on it.
+   ⚠ v36.1 — WHAT THIS MOVE DOES **NOT** BUY, because the first version of this comment claimed it
+   and the third eye caught the claim. It said the move makes the seats that carry a verdict raise
+   their blocker "before this line reads BLOCKERS.length, instead of after". That was false: the
+   pre-ship seat already called blocker() well above SHIPPABLE even in the old layout, and the plan seat
+   never reaches SHIPPABLE at all because it bails. Moving the COUNTS never moved the BLOCKERS.
+   What the move actually buys is narrower and worth stating honestly: the ledger is a fact about
+   the run that is now available at the point the run decides, so any future clause that wants to
+   read it CAN, and a reader of this region no longer has to scroll 90 lines past the verdict to
+   find out whether anything independent ever answered. A fact computed after the decision it
+   describes is the shape this file keeps having to fix; this removes the shape, not a live bug. */
+const TE_ASKED_FOR = THIRD_EYE !== 'off'
+const TE_SPOKE = THIRD_EYE_SEATS.filter(s => s.reached)
+const TE_SILENT = THIRD_EYE_SEATS.filter(s => s.ran && !s.reached)
+/* v36 §C5 — `degraded` WAS ONE BIT FOR N SEATS, AND ONE BIT CANNOT HOLD A PARTIAL PANEL.
+   It read `TE_SPOKE.length === 0`: true only when EVERY seat was silent. So a run where one seat of
+   four answered — the plan seat reached, the skeptic, render-vision and pre-ship seats all dead —
+   reported `degraded:false` and printed "an independent model (different family) reviewed this run".
+   Technically one did. The sentence is read as "this run was independently reviewed", and 1/4 is not
+   that. The worst version is the pre-ship seat being the dead one: the LAST check, the only one that
+   can refuse the final claim, silently absent behind a clean-looking boolean.
+   THE FIX IS TO STOP SUMMARISING N SEATS INTO ONE BIT. degraded is now reached < attempted, and the
+   counts and the seat names ride alongside it so a reader never has to trust the adjective. */
+const TE_ATTEMPTED = THIRD_EYE_SEATS.filter(s => s.ran).length
+const TE_PARTIAL = TE_ASKED_FOR && TE_ATTEMPTED > 0 && TE_SPOKE.length > 0 && TE_SPOKE.length < TE_ATTEMPTED
+const TE_DEGRADED = TE_ASKED_FOR && TE_ATTEMPTED > 0 && TE_SPOKE.length < TE_ATTEMPTED
 const SHIPPABLE = APPLY
   && !BLOCKERS.length && !CEILING_HIT && !trimmedFromPlan.length && !failed.length
   /* v32 §1.1 — TINY COULD NEVER SHIP, AND THE REASON WAS ONE FLAG. This read
@@ -2998,13 +3245,19 @@ if (!APPLY) {
 
 /* v18 — AND IF IT NEVER SPOKE, SAY SO WHERE THE VERDICT IS READ. A third eye that was requested and
    could not be reached is a DEGRADED run, not a clean one. It does not block by itself — the work may
-   be perfectly good — but the summary may never let silence read as approval. */
-const TE_ASKED_FOR = THIRD_EYE !== 'off'
-const TE_SPOKE = THIRD_EYE_SEATS.filter(s => s.reached)
-const TE_SILENT = THIRD_EYE_SEATS.filter(s => s.ran && !s.reached)
+   be perfectly good — but the summary may never let silence read as approval.
+   ⚠ v36 §C6 — THIS LEDGER USED TO BE COMPUTED HERE, AFTER `SHIPPABLE`. It has been MOVED to just
+   above the SHIPPABLE formula; this block now only LOGS what was already computed. The lines below
+   are deliberately left as a read of the same consts rather than a recount — see the §C6 note at
+   the definition site for why a second copy of a decision is the v18.3 bug. */
 if (TE_ASKED_FOR && THIRD_EYE_SEATS.length) {
   log(TE_SPOKE.length
-    ? `👁 THIRD EYE: ${TE_SPOKE.length}/${THIRD_EYE_SEATS.length} seat(s) answered (${[...new Set(TE_SPOKE.map(s => s.transport))].join(', ')}).`
+    // v36.1 — denominator is TE_ATTEMPTED, matching the payload. The human-facing line was still
+    // dividing by THIRD_EYE_SEATS.length while the payload had moved to the honest denominator;
+    // two denominators for one ratio is how a report and its own numbers drift apart.
+    ? `👁 THIRD EYE: ${TE_SPOKE.length}/${TE_ATTEMPTED} seat(s) answered (${[...new Set(TE_SPOKE.map(s => s.transport))].join(', ')})` +
+      `${TE_PARTIAL ? ` — ⚠ PARTIAL PANEL: ${TE_SILENT.length} seat(s) did not answer (${TE_SILENT.map(s => s.seat).join(', ')}). ` +
+        `This run was reviewed by an independent model on SOME questions and by nobody on the rest.` : '.'}`
     : `⚠ THIRD EYE NEVER SPOKE — ${THIRD_EYE_SEATS.length} seat(s) requested, 0 answered. This run had ` +
       `NO independent model reviewing it: ${(TE_SILENT[0] && TE_SILENT[0].reason) || 'no reason recorded'}`)
 }
@@ -3190,12 +3443,34 @@ return emit({
     seats: THIRD_EYE_SEATS,
     reached: TE_SPOKE.length,
     of: THIRD_EYE_SEATS.length,
+    /* v36 §C5 — the numbers a reader needs in order NOT to have to trust the adjective.
+       `of` counts every seat the run declared, including seats skipped before they ran (thirdEye:off
+       pushes a ran:false record). `attempted` counts only the seats that were actually put to a
+       courier, which is the honest denominator for "how much of this run was independently seen". */
+    attempted: TE_ATTEMPTED,
+    silent_seats: TE_SILENT.map(s => ({ seat: s.seat, reason: String(s.reason || '').slice(0, 200) })),
     transports: [...new Set(TE_SPOKE.map(s => s.transport))],
-    degraded: TE_ASKED_FOR && THIRD_EYE_SEATS.length > 0 && TE_SPOKE.length === 0,
+    // v36 §C5 — was `TE_SPOKE.length === 0`: only ALL-silent counted as degraded, so 1-of-4 read clean.
+    degraded: TE_DEGRADED,
+    partial: TE_PARTIAL,
     note: !TE_ASKED_FOR ? 'thirdEye:false — no independent model was asked to review this run'
       : THIRD_EYE === 'claude' ? 'thirdEye:"claude" — a SAME-FAMILY stand-in reviewed this run; it is not an independent eye'
-      : TE_SPOKE.length ? 'an independent model (different family) reviewed this run'
-      : 'the third eye was requested and NEVER ANSWERED — nothing outside Claude reviewed this run',
+      : TE_PARTIAL ? `PARTIAL — an independent model answered ${TE_SPOKE.length} of ${TE_ATTEMPTED} seat(s) (` +
+          `silent: ${TE_SILENT.map(s => s.seat).join(', ')}). The questions those seats carried were reviewed ` +
+          `by NOBODY outside Claude. Do not read this as an independent review of the whole run.`
+      : TE_SPOKE.length ? `an independent model (different family) reviewed this run — all ${TE_ATTEMPTED} seat(s) answered`
+      /* ⚠ v36.1 — THESE TWO SILENCES ARE DIFFERENT AND USED TO SHARE ONE SENTENCE. With
+         TE_ATTEMPTED === 0 no seat was ever opened (reachable: quality:'tiny' skips the plan seat,
+         pre-ship is gated on APPLY, render-vision on there being images, the skeptic seat on a
+         panel of 2+ — a tiny dry run with a thin panel opens none of them). The old text then read
+         "requested and NEVER ANSWERED", which describes a dead transport, beside degraded:false.
+         Nothing failed; nothing was asked. Saying so is the difference between "your third eye is
+         broken" and "this run never bought one". Caught by the third eye on this same change. */
+      : TE_ATTEMPTED === 0
+        ? 'the third eye was configured but NO SEAT WAS EVER OPENED on this run — this quality/flag ' +
+          'combination asked it nothing, so nothing outside Claude reviewed this run. That is not a ' +
+          'transport failure: the third eye was never contacted.'
+        : 'the third eye was requested and NEVER ANSWERED — nothing outside Claude reviewed this run',
   },
   final,
 })

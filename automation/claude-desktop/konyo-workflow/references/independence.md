@@ -31,7 +31,7 @@ claiming a check you didn't run.
 
 | Rung | What it removes | Notes |
 |---|---|---|
-| **1. A person who knows the subject** — the facility administrator, the administrator, a colleague, whoever owns that area | Blind spots Claude structurally cannot have about its own output, plus real knowledge of that building's plans | The strongest MULTI for anything employee-facing, and almost always reachable. Name who. |
+| **1. A person who knows the subject** — whoever actually owns that area | Blind spots Claude structurally cannot have about its own output, plus real knowledge of the situation you are inferring | The strongest MULTI for anything employee-facing, and almost always reachable. Name who. |
 | **2. A different AI, or a cold Claude conversation** | Most of the contamination | You still write what it sees, so independence comes from discipline, not mechanism. Name what reviewed it. |
 | **3. This conversation** | Nothing. **This is SOLO — call it SOLO.** | |
 

@@ -20,7 +20,7 @@ catch.
 
 ## Where the file lives
 
-`SCARS.md` in the **`your-org/claude-memory`** repo, alongside the session-context
+`SCARS.md` in **your own private memory repo**, alongside the session-context
 records. Read it through the GitHub connector before Step 1; commit updates at the end of a
 run.
 
