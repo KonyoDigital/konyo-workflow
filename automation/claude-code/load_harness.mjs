@@ -86,7 +86,7 @@ function fake(schema, key = '', label = '') {
   if (/parallel/.test(k)) return 'parallel'
   if (/cost_of_wrong|cost/.test(k)) return 'high'
   if (/model/.test(k)) return 'opus'
-  if (/file|path/.test(k)) return '/Users/konyo/.claude/workflows/konyo-workflow.js'
+  if (/file|path/.test(k)) return 'src/example.js'
   return `[fake:${key || 'str'}]`
 }
 

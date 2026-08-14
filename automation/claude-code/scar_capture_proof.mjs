@@ -1,6 +1,7 @@
 // Tests the REAL functions, sliced out of the live engine — never a copy. A copy would drift.
 import { readFileSync } from 'node:fs'
-const SRC = readFileSync('/Users/konyo/.claude/workflows/konyo-workflow.js','utf8')
+import { enginePath } from './engine_path.mjs'
+const SRC = readFileSync(enginePath(process.argv[2]), 'utf8')
 const start = SRC.indexOf('const SCARS = []')
 // ⚠ ANCHOR ON A STABLE MARKER. This slice used to end at 'function bail(o) {' — then v32
 // made bail ASYNC and the marker vanished, so indexOf returned -1, the slice ran to the end

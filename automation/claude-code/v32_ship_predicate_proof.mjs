@@ -2,7 +2,8 @@
 // v32 §1.1 — proves TINY can ship, and that the OLD predicate could not. Tests the REAL flag
 // algebra sliced from the engine, never a copy.
 import { readFileSync } from 'node:fs'
-const SRC = readFileSync('/Users/konyo/.claude/workflows/konyo-workflow.js', 'utf8')
+import { enginePath } from './engine_path.mjs'
+const SRC = readFileSync(enginePath(process.argv[2]), 'utf8')
 
 // pull the REAL flag definitions out of the engine so this cannot drift from them
 const grab = re => { const m = SRC.match(re); if (!m) throw new Error('flag not found: ' + re); return m[1] }

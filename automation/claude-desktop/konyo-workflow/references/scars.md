@@ -20,12 +20,19 @@ catch.
 
 ## Where the file lives
 
-`SCARS.md` in the **`karinekonyo/claude-memory`** repo, alongside the session-context
-records. Read it through the GitHub connector before Step 1; commit updates at the end of a
-run.
+`SCARS.md` in **your own memory repo** — the same durable place you keep session-context
+records — not inside the skill folder. Set the repo and path once, write it on the line
+below, and read it there before Step 1; commit updates at the end of a run.
 
-Two reasons it is there and not in the skill folder: a file inside a skill only survives if
-the skill is re-packaged, and the repo is already the durable place. And `session-memory`
+> **My scars live in:** `________________________` *(fill this in once)*
+
+If you connect that repo through the GitHub connector, Claude can read and update the file
+directly. If you have no repo, any single fixed location works — a note file you always
+open, a synced folder. **What matters is that it is ONE file, in a FIXED place, read at a
+FIXED point.**
+
+Two reasons it is not in the skill folder: a file inside a skill only survives if the skill
+is re-packaged, and your memory repo is already the durable place. And session memory
 carries **state** — what was built, what is pending — while scars carry **rules**. Keep them
 separate; a rule buried in a status note is a rule nobody re-reads.
 
@@ -219,6 +226,6 @@ instructions:
 5. **Delete those entries from `SCARS.md`.** Not housekeeping — the file stays short *because*
    things graduate out of it.
 
-That loop is how the workflow gets better at **her** job rather than at jobs in general:
+That loop is how the workflow gets better at **your** job rather than at jobs in general:
 work produces scars → scars accumulate into a territory → the territory becomes a skill →
 the skill makes that work reliable. Nobody can hand you that version; it can only be grown.

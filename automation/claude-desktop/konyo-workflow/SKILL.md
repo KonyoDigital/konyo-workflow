@@ -5,6 +5,21 @@ description: "Finish serious work properly - documents, workbooks, decks, script
 
 # The Konyo Workflow
 
+> ## ⚠ STALE COPY — DO NOT SHIP THIS FILE
+>
+> The maintained Desktop skill is **`ship-skill`**, at
+> <https://github.com/KonyoDigital/ship-skill> (download `ship-skill.skill`).
+>
+> `../INSTALL.md` in this folder already declares that the Desktop copy "is gone rather
+> than left in place, because a stale copy is worse than no copy" — but the copy was never
+> actually removed, so the warning and the folder disagreed and the folder is the one people
+> download. Measured 2026-08-14: this spine is **480 lines** against upstream's **1016**. It
+> is missing roughly half the skill, including the scope boundary, `UNFIXABLE HERE`,
+> tests-as-suspect, scar triage and the MULTI ladder.
+>
+> It is kept here only so old links resolve to something that explains itself. **Anything
+> being packaged for another person must come from the upstream repo.**
+
 A way of finishing work so that "done" means *checked*, not *finished typing*.
 
 Most work fails in one of three ways: it looked right and wasn't, it fixed one instance
@@ -22,9 +37,9 @@ one verdict.
 
 This skill does not tell you how to do the work — it tells you when the work is
 finished. The domain skills are the method; this is the verdict on what they produced.
-For benefits work specifically, `benefits-workflow` is this same discipline with the
-per-deliverable specifics attached — use that one there. Load durable facts from
-`session-memory` rather than recalling them.
+If you build a variant for one kind of work, that variant is this same discipline with the
+per-deliverable specifics attached — use it there and this one everywhere else. Load
+durable facts from your memory file rather than recalling them.
 
 **Two reference files, read only when they apply:**
 - `references/independence.md` — SOLO vs MULTI: how independent the review was, and the
@@ -32,8 +47,8 @@ per-deliverable specifics attached — use that one there. Load durable facts fr
 - `references/deliverables.md` — what "done" means for each KIND of artifact: documents,
   spreadsheets, engines, audits, communications, research. The checks below are universal;
   that file is where the artifact-specific bar lives, so neither list has to be vague.
-  ⚠ A variant should REPLACE it with its own artifact types — this idea came from a variant
-  (Karine's benefits fork) that had one when the base did not.
+  ⚠ A variant should REPLACE it with its own artifact types — this idea came from a domain
+  variant that had one when the base did not.
 - `references/scars.md` — turning a failure into a durable rule, and where the scars
   live. Read it when a run produced one, or at the start of a session to load them.
 
@@ -435,7 +450,7 @@ is verified for this instance, against its source, in this round.**
   ship that item yet, never a reason to copy the neighbouring value.
 
 Where a domain skill names the system of record for a particular field, that skill governs.
-For benefits work the per-field and per-deliverable detail is in `benefits-workflow`.
+If you run a domain variant, its per-field and per-deliverable detail governs there.
 
 
 ## Scaling — and how to ask for more or less

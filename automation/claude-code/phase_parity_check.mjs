@@ -14,8 +14,9 @@
 //
 // Usage: node phase_parity_check.mjs [path]   → exits 1 on any mismatch.
 import { readFileSync } from 'node:fs'
+import { enginePath } from './engine_path.mjs'
 
-const FILE = process.argv[2] || '/Users/konyo/.claude/workflows/konyo-workflow.js'
+const FILE = enginePath(process.argv[2])
 const raw = readFileSync(FILE, 'utf8')
 // STRIP COMMENTS FIRST. The first version of this checker flagged a TEMPLATED TITLE that existed
 // only inside a comment *describing* that very bug — a comment about a defect is textually identical

@@ -7,7 +7,8 @@
 // the engine does. The engine strips the export and wraps the body in an async function. So does this.
 import { readFileSync, writeFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
-const f = process.argv[2] || '/Users/konyo/.claude/workflows/konyo-workflow.js'
+import { enginePath } from './engine_path.mjs'
+const f = enginePath(process.argv[2])
 const out = `/tmp/wrapped_check_${process.pid}.mjs`
 writeFileSync(out, '(async () => {\n' + readFileSync(f, 'utf8').replace('export const meta', 'const meta') + '\n})()\n')
 try {

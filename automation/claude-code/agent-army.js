@@ -7,13 +7,13 @@ export const meta = {
      Renaming is non-destructive: this file is the PUBLIC agent-army engine and stays usable by
      scriptPath or by its own name; nothing in ~/.claude/commands/ ever invoked it by name. */
   name: 'agent-army',
-  description: 'KONYO WORKFLOW (agent-army) — ONE body, four paths (tiny | lean | max | standard), and it RUNS AT LEAN BY DEFAULT. Lean already runs EVERY gate max runs — diverse-lens skeptic panel, render gate with vision, LAW17, LAW19, workspace lock, agent ceiling — at ~62% of the tokens, by buying ONE architect instead of a judge panel, one rework round, and no completeness critic. The third eye (Grok — a DIFFERENT model family) is ON at every quality. Pass {quality:"max"} to add the 3-architect judge panel, Opus builders everywhere and the loop-until-dry completeness critic — worth it when being wrong costs more than tokens. Pass {quality:"tiny"} for a SMALL, ALREADY-KNOWN edit set on a ~15-minute budget: it REQUIRES an explicit items:[{file,instruction}] work list (max 4 items across 3 files, no diagnosis) and refuses without one, then skips the PLANNING hops only. Pass {quality:"standard"} to opt DOWN to the cost-scaled ladder — Haiku/Sonnet build, Fable gating every merge, ONE architect, no completeness critic — for routine, easily reversible work. Pass {thirdEye:false} to run without an independent reviewer. LEAN IS NOT MAX-WITH-FEWER-SAFEGUARDS: a quality flag buys model tier, panel size and extra phases, NEVER a gate. The render gate is a LOOP at every quality — narrow AND wide viewport, each failure handed to a fixer and re-rendered, and the FINAL pass is what blocks.',
+  description: 'KONYO WORKFLOW (agent-army) — ONE body, four paths (tiny | lean | max | standard), and it RUNS AT LEAN BY DEFAULT. Lean already runs EVERY gate max runs — diverse-lens skeptic panel, render gate with vision, LAW17, LAW19, workspace lock, agent ceiling — at ~62% of the tokens, by buying ONE architect instead of a judge panel, one rework round, and no completeness critic. The third eye (an independent reviewer from a DIFFERENT model family — any CLI you point $THIRD_EYE_CLI at; grok/codex/gemini/llm are auto-detected) is ON at every quality, and says so loudly with a fix if none is installed. Pass {quality:"max"} to add the 3-architect judge panel, Opus builders everywhere and the loop-until-dry completeness critic — worth it when being wrong costs more than tokens. Pass {quality:"tiny"} for a SMALL, ALREADY-KNOWN edit set on a ~15-minute budget: it REQUIRES an explicit items:[{file,instruction}] work list (max 4 items across 3 files, no diagnosis) and refuses without one, then skips the PLANNING hops only. Pass {quality:"standard"} to opt DOWN to the cost-scaled ladder — Haiku/Sonnet build, Fable gating every merge, ONE architect, no completeness critic — for routine, easily reversible work. Pass {thirdEye:false} to run without an independent reviewer. LEAN IS NOT MAX-WITH-FEWER-SAFEGUARDS: a quality flag buys model tier, panel size and extra phases, NEVER a gate. The render gate is a LOOP at every quality — narrow AND wide viewport, each failure handed to a fixer and re-rendered, and the FINAL pass is what blocks.',
   whenToUse: 'ANY multi-step task you want orchestrated — it is LEAN unless you say otherwise, because lean already runs every gate and max only buys a judge panel, Opus builders and the completeness critic. It TRIAGES itself first, so a serial diagnosis is sent back to be done directly instead of spawning a fleet, and the ceiling + budget floor still bound every run. Reach for {quality:"tiny"} when you already know the exact edits (file + instruction each) and want them done in ~15 minutes with the gates intact — it is a HOP budget, not an agent budget: wall clock is serial-hops × time-per-hop, so tiny cuts the chain from 11 phases to 4 rather than trimming agents. Reach for {quality:"max"} when the cost of being wrong is high — irreversible edits, data migrations, anything shipping unattended. Opt all the way down with {quality:"standard"} for routine, low-cost-of-wrong, easily reversible work (~10-15x cheaper). Pass {task, quality, thirdEye, apply, maxRounds, dryRounds, budgetFloor, force, skeptics, maxAgents, isolate, items}. items:[{file,instruction}] skips the architect at ANY quality (not only tiny) — an architect that returns items:[] no longer becomes a vacuous green ship. `grok:false` still works as the old name for thirdEye:false; `fast` still resolves to `lean`.',
   phases: [
     { title: 'Preflight',   detail: 'workspace lock — refuse to start if another run is already editing this tree' },
     { title: 'Triage',      detail: 'right-size the run BEFORE spending: shape · parallelism · cost-of-wrong. SKIPPED at quality:"tiny" — the caller supplied the work list', model: 'opus' },
     { title: 'Architect',   detail: 'NOT OPENED at quality:"tiny" (the caller supplied the plan). ONE Opus architect by default (lean/standard); 3 Opus architects (risk / correctness / simplest lenses) + an Opus judge at quality:"max". One owner per file either way.', model: 'opus' },
-    { title: 'Third-eye',   detail: 'NOT OPENED at quality:"tiny" (no plan to review; seats 2-4 still sit). seat 1 of 4 — Grok (a DIFFERENT model family) reviews the chosen plan before a builder spends anything; seats 2-4 sit on the skeptic panel, the render gate and the pre-ship verdict' },
+    { title: 'Third-eye',   detail: 'NOT OPENED at quality:"tiny" (no plan to review; seats 2-4 still sit). seat 1 of 4 — an independent reviewer from a DIFFERENT model family reviews the chosen plan before a builder spends anything; seats 2-4 sit on the skeptic panel, the render gate and the pre-ship verdict' },
     { title: 'Build+Gate',  detail: 'each item built at its architect-assigned tier, sonnet floor (default lean); Opus everywhere at quality:"max", Haiku/Sonnet at quality:"standard". One owner per file, gated immediately, no barrier' },
     { title: 'Adversarial gate', detail: 'THE DEFAULT PATH — diverse-lens Opus skeptics ARE the gate (floor 2, one seat is the third eye); majority-refute kills the change', model: 'opus' },
     { title: 'Rework',      detail: 'failed items escalate one tier up and re-gate, version-per-round' },
@@ -66,7 +66,7 @@ const QUALITY_ASKED = (A && typeof A.quality === 'string') ? A.quality.trim().to
 const QUALITY_ALIAS = { fast: 'lean' }
 const KNOWN_QUALITIES = ['max', 'lean', 'standard', 'tiny']
 const QUALITY_RESOLVED = QUALITY_ALIAS[QUALITY_ASKED] || QUALITY_ASKED
-/* v20 — LEAN IS NOW THE DEFAULT. Konyo, 2026-08-04, having watched a max run open on the D2R
+/* v20 — LEAN IS NOW THE DEFAULT. Konyo, 2026-08-04, having watched a max run open on the
    console queue: "by default make it LEAN". This REVERSES the v18 default (max) — and it reverses
    only the DEFAULT, deliberately nothing else.
 
@@ -88,7 +88,7 @@ const QUALITY = KNOWN_QUALITIES.includes(QUALITY_RESOLVED) ? QUALITY_RESOLVED
 const QUALITY_TYPO = !!(QUALITY_ASKED && !KNOWN_QUALITIES.includes(QUALITY_RESOLVED))
 const QUALITY_DEFAULTED = !QUALITY_ASKED
 /* v19 — LEAN IS MAX WITH ITS EYES OPEN ABOUT TIER, NOT MAX WITH FEWER GATES.
-   Measured on the first real max run (D2R console queue, 2026-08-04): the ceremony everyone assumes
+   Measured on the first real max run (a console UI queue, 2026-08-04): the ceremony everyone assumes
    is the overhead — lock, triage, three architects — took 3.5 minutes of a 36-minute run. Cutting it
    would buy nothing. The time is in BUILDERS and SKEPTICS, and the critical path is whichever agent
    owns the biggest file.
@@ -162,11 +162,20 @@ const RENDERLOOP = (A && A.renderLoop) || (TINYQ ? 2 : MAXQ ? 4 : 3)
    Konyo, 2026-08-04: "grok should be turned on for now until i say turn it off... the whole point
    for the third eye is a different LLM AI with a different point of view." Claude reviewing Claude
    is not a third eye, it is the same eye twice — model diversity is the ONLY thing this phase buys,
-   so a Claude stand-in may never quietly fill a Grok seat.
-     thirdEye: true   (DEFAULT) — the real thing: Grok, a different family, via the CLI
+   so a same-family stand-in may never quietly fill the seat.
+
+   ⚠ THE REQUIREMENT IS A DIFFERENT FAMILY, NOT A PARTICULAR VENDOR. This flag used to be spelled
+   `grok` because one machine had Grok installed; the phase never needed that product. Any CLI
+   that can read a prompt and print an answer can hold the seat — see THIRD_EYE_CLI below for
+   resolution and for what happens when a machine has none.
+     thirdEye: true   (DEFAULT) — the real thing: an independent reviewer from a different family,
+                                  auto-detected ($THIRD_EYE_CLI, then grok/codex/gemini/llm).
+                                  If none is found the seat is EMPTY and the run says so with
+                                  instructions — it is never silently filled.
      thirdEye: false            — off. `grok:false` still works; it is the old name for this flag.
-     thirdEye: 'claude'         — explicit DEGRADED mode: a Claude adversary, LABELLED as a
-                                  same-family stand-in. Opt-in only, never a fallback. */
+     thirdEye: 'claude'         — explicit DEGRADED mode: a same-family adversary, LABELLED as a
+                                  stand-in. Opt-in only, never a fallback. This is the honest
+                                  choice on a machine with only one model family available. */
 const TE_ASKED  = (A && A.thirdEye !== undefined) ? A.thirdEye
                 : (A && A.grok !== undefined)     ? A.grok
                 : true
@@ -252,12 +261,83 @@ function blocker(what, why) {
 // able to read its `return` value directly, so every exit also publishes the payload here. One line,
 // costs nothing, and it means the two entry points can never drift into two implementations again.
 const emit = (o) => { globalThis.__KONYO_RESULT = o; return o }
+
+/* ══ CAPTURE PER ROUND, CARVE PER ARC ════════════════════════════════════════════════════════════
+   "capture per round, carve per arc ... this could really start locking down everything".
+
+   WHAT WAS ALREADY HERE, AND WHAT WAS NOT. A failed gate's reasons ARE handed back to the same
+   item's next attempt (see the rework builder below) — so an item learns from its own failure. But
+   that string is joined, used once and dropped, which leaves three holes:
+     1. ITEM A's failure never reaches ITEM B. In practice sibling items fail the SAME way, because
+        they share a brief and a codebase, so a fleet pays twice for one lesson.
+     2. Nothing survives the ROUND in a structured form — only a sentence, only for one file.
+     3. Nothing survives the RUN at all, so an arc's lessons cannot be carved afterwards.
+
+   THE SPLIT, AND WHY IT IS A SPLIT. CAPTURE is cheap, per-round and automatic. CARVING is not:
+   carving PRUNES shared files that agents load, so doing it mid-run rewrites the rules underneath
+   running agents, and carving from one round is carving from a sample of one — which is how you get
+   a rule that is over-fitted to a single bad afternoon. The carving skill's own floor is THREE scars
+   in one territory, precisely because two is a coincidence. So this layer PROPOSES and never writes.
+
+   ⚠ THE SAFETY LAW, and it is the one that matters: A SCAR NARROWS ATTENTION, IT NEVER SUPPRESSES A
+   GATE. Nothing here may skip a check, lower a bar, or mark a thing already-judged. It only tells
+   the next agent what has already been tried and failed, so it does not spend a round re-deriving
+   it. A scar that could silence a gate would be a cache of a verdict, and a cached verdict is how a
+   resumed run replays a stale refusal in milliseconds while looking like fresh work. ═══════════ */
+const SCARS = []
+function recordScar(o) {
+  // Evidence travels WITH the rule or the rule is an opinion. A scar with no reason is not recorded.
+  if (!o || !o.reason) return
+  SCARS.push({ round: o.round || 1, file: o.file || '', stage: o.stage || 'gate',
+               severity: o.severity || '', reason: String(o.reason).slice(0, 600) })
+}
+/* The territory key. Deliberately CRUDE — lowercased significant words, stopwords dropped. A
+   cleverer clusterer would silently merge distinct failures, and a false cluster is worse than no
+   cluster because it manufactures the third scar that authorises a carve. */
+function scarTerritory(reason) {
+  const stop = new Set(['the','a','an','and','or','but','is','was','it','its','this','that','of','to',
+                        'in','on','for','with','not','no','be','been','has','have','had','at','as',
+                        'by','from','so','if','then','than','which','what','when','they','their'])
+  return String(reason || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/)
+    .filter(w => w.length > 3 && !stop.has(w)).slice(0, 6).sort().join('-')
+}
+/* CARVE CANDIDATES — proposed at ARC END, never applied. Three is the floor, from the carving
+   skill: two scars that look related are usually one scar written twice. */
+function carveCandidates(minN = 3) {
+  const by = new Map()
+  for (const s of SCARS) {
+    const k = scarTerritory(s.reason)
+    if (!k) continue
+    if (!by.has(k)) by.set(k, [])
+    by.get(k).push(s)
+  }
+  return [...by.entries()].filter(([, v]) => v.length >= minN)
+    .map(([k, v]) => ({ territory: k, n: v.length,
+                        files: [...new Set(v.map(s => s.file).filter(Boolean))],
+                        evidence: v.map(s => s.reason).slice(0, 5) }))
+    .sort((a, b) => b.n - a.n)
+}
+/* What the NEXT round is told. Capped hard: a prompt that grows with every failure eventually
+   crowds out the instruction it is attached to, and an agent that reads ten stale scars pays
+   attention to none of them. Newest first, because the most recent round is the most relevant. */
+function scarBriefFor(file, cap = 6) {
+  const others = SCARS.filter(s => s.file !== file).slice(-cap).reverse()
+  if (!others.length) return ''
+  return '\n\nWHAT HAS ALREADY FAILED IN THIS RUN, ON OTHER FILES — do not spend a round ' +
+    're-deriving any of it, and check whether the same mistake is in YOUR file:\n' +
+    others.map(s => `  · [round ${s.round} · ${s.file}] ${s.reason}`).join('\n') +
+    '\nThese are EVIDENCE, not verdicts about your work: they narrow where to look. They never ' +
+    'excuse you from any gate, and none of them means a check can be skipped.'
+}
+
 function bail(o) {
   return emit(Object.assign({
     quality: QUALITY,
     blockers: BLOCKERS,
     agent_errors: SPAWN_ERRORS,
     ceiling: { cap: MAX_AGENTS, spent: SPENT, hit: CEILING_HIT },
+    scars: SCARS,
+    carve_candidates: carveCandidates(),
     verdict: 'ABORTED — the run exited before completing; see error/refused',
     shippable: false,
   }, o))
@@ -298,7 +378,7 @@ const PACE = '\n\nWORK BRISKLY — this run is budgeted, and the budget works in
 // v16 — THE PROXY BAN, attached to EVERY agent prompt beside PACE. Three separate bugs in one day
 // were the same mistake wearing different clothes: checking a cheap stand-in for a fact instead of
 // the fact. (1) `naturalWidth > 0` and "the path resolves" were accepted as proof an IMAGE was
-// correct — art/mephisto_graphic.png contains a soulstone and survived months of green gates.
+// correct — one art file depicted the wrong subject entirely and survived months of green gates.
 // (2) `git rev-parse origin/main` was read as "what GitHub has" — it is a CACHED ref and answers
 // "what I last fetched", so a commit that WAS pushed was reported as unpushed. (3) A gate that
 // returned null was read as a gate that passed. Each proxy was true and each conclusion was false.
@@ -335,7 +415,7 @@ const PROOF = '\n\nVERIFY THE THING, NOT A PROXY FOR IT. Before you assert somet
    THE TRANSPORT THAT WORKS: the Grok CLI at ~/.grok/bin/grok authenticates on its own
    session, independent of that key. Measured working the same day, twice: a plain prompt, and an
    agentic read of a repo (`--cwd`) that ran `git log` and answered correctly. It is ALSO multimodal
-   — asked what art/mephisto_graphic.png depicts, with no hint of what it should be, it answered
+   — asked what the image depicts, with no hint of what it should be, it answered
    "a polished, deep-blue teardrop gemstone", independently confirming the mislabelled boss art.
    That is why seat 4 exists.
    ⚠⚠ BOUND EVERY GROK CALL YOURSELF — THE BASH TIMEOUT DOES NOT REACH IT. `timeout` is not
@@ -356,18 +436,46 @@ const PROOF = '\n\nVERIFY THE THING, NOT A PROXY FOR IT. Before you assert somet
    THE RULE THAT MAKES IT WORTH HAVING: a Claude agent may NEVER fill a Grok seat. If the transport
    is down the seat is reported EMPTY — panel 3 becomes 2, named in the payload — because a panel
    that looks diverse while being an echo is worse than a panel that is honestly short. */
-// Resolve the third-eye CLI instead of hard-coding one machine's home directory.
-// AGENT_ARMY_GROK_CLI wins; otherwise the usual install path; otherwise whatever is
-// on PATH. If none of them exist the run proceeds Claude-only — the third eye is a
-// STRONGER review, never a required dependency (see thirdEye:false).
-// ⚠ NO process, NO require — a Workflow script runs in a sandbox with no Node globals
-// and no filesystem. The previous version used process.env and require('fs') to make the
-// path portable; that was the right INTENT and it made the engine unloadable — it died at
-// `process is not defined` before spawning a single agent.
-//
-// GROK_CLI is only ever interpolated into a shell command an agent runs, so the
-// resolution belongs in the SHELL, where the environment actually exists.
-const GROK_CLI = '"${AGENT_ARMY_GROK_CLI:-$(command -v grok || echo "$HOME/.grok/bin/grok")}"'
+/* ══ THE THIRD EYE IS A ROLE, NOT A VENDOR ══════════════════════════════════════════════════════
+   WHAT WAS WRONG, AND WHY IT ONLY SHOWED UP OFF THIS MACHINE. This constant used to resolve
+   exactly one product — `grok`, then `$HOME/.grok/bin/grok`. On the author's machine that
+   always hits, so the third eye works and every run looks healthy. On ANY OTHER machine both
+   candidates miss, the courier reports reached:false, and the law two paragraphs up correctly
+   refuses to let a Claude agent fill the seat. The result is a gate that is ON BY DEFAULT and
+   PERMANENTLY EMPTY — it never fails, it never fires, and nothing says so. That is the same
+   defect as a gate that always SKIPS: it reads as protection and measures nothing.
+
+   The phase never wanted Grok specifically. It wants A DIFFERENT MODEL FAMILY — an independent
+   reader that did not produce the thing it is judging. Grok is one way to buy that; it is not
+   the definition. So the resolution now walks a list of known second-opinion CLIs and, above
+   all of them, an explicit override.
+
+   RESOLUTION ORDER, most-specific first — all of it in the SHELL, because that is the only
+   place an environment exists (see the sandbox warning below):
+     1. $THIRD_EYE_CLI          — say exactly which binary to use. Any CLI that accepts a
+                                  prompt on a file and prints a plain answer works here.
+     2. $AGENT_ARMY_GROK_CLI    — the previous name. Kept so existing setups do not break.
+     3. the first of a known set found on PATH — grok, codex, gemini, llm
+     4. the conventional Grok install path
+     5. EMPTY STRING — and empty is a real, reportable answer, not a crash. The courier is
+        told to treat it as reached:false with a reason a person can act on.
+
+   ⚠ WHAT MUST NOT CHANGE: an unreachable third eye still leaves the seat EMPTY. It is never
+   quietly filled by a same-family agent, because a panel that looks diverse while being an
+   echo is worse than a panel that is honestly short. If you have no second family available,
+   choose it out loud with thirdEye:'claude' (labelled degraded) or thirdEye:false.
+
+   ⚠ NO process, NO require — a Workflow script runs in a sandbox with no Node globals
+   and no filesystem. An earlier version used process.env and require('fs') to make the
+   path portable; that was the right INTENT and it made the engine unloadable — it died at
+   `process is not defined` before spawning a single agent. This is why the whole resolution
+   is a shell expression interpolated into a command an AGENT runs, never evaluated here. ══ */
+const THIRD_EYE_CLI =
+  '"${THIRD_EYE_CLI:-${AGENT_ARMY_GROK_CLI:-$(command -v grok || command -v codex || ' +
+  'command -v gemini || command -v llm || ' +
+  '([ -x "$HOME/.grok/bin/grok" ] && echo "$HOME/.grok/bin/grok") || echo "")}}"'
+// Legacy name kept so no existing call site changes meaning (same tactic as USE_GROK above).
+const GROK_CLI = THIRD_EYE_CLI
 /* v36 §C3 — THE WRAPPER IS PART OF THE INVOCATION, NOT AN OPTIONAL EXTRA. The block comment above
    explains at length that the Bash tool's timeout kills BASH and not bash's GRANDCHILDREN, and that
    `timeout` is not installed — then the courier prompt used to hand the agent a BARE cli call. The
@@ -412,11 +520,26 @@ function grokHow(question, opts = {}) {
   const cwd = opts.cwd || '.'
   return (
     `TRANSPORT — do this literally, in this order, and report which one answered.\n` +
+    `0. CHECK THERE IS A REVIEWER AT ALL, FIRST. Run:  echo ${THIRD_EYE_CLI}\n` +
+    `   If it prints an EMPTY line, no external reviewer CLI is installed or configured on this ` +
+    `machine. Stop immediately and return reached:false, transport:'none', verdict:'unreachable', ` +
+    `and this exact reason: "no external reviewer CLI found — set $THIRD_EYE_CLI to a binary that ` +
+    `accepts --prompt-file, or install one of grok/codex/gemini/llm, or run with thirdEye:'claude' ` +
+    `(same-family, degraded) or thirdEye:false (off)". Do NOT try the steps below, and do NOT ` +
+    `answer the question yourself — this is the ONE failure a person can actually fix, so it must ` +
+    `arrive as instructions, not as a silent empty seat.\n` +
     `1. CLI FIRST (this is the working path). Write the question below to a temp file with the Write ` +
     `tool (e.g. /tmp/te_$$.txt), then run this with the Bash tool — COPY IT WHOLE, the perl prefix is ` +
     `part of the command, not decoration:\n` +
     `   ${PERL_ALARM} \\\n` +
-    `     ${GROK_CLI} --cwd ${cwd} --prompt-file <file> --no-memory --disable-web-search --output-format plain\n` +
+    `     ${THIRD_EYE_CLI} --cwd ${cwd} --prompt-file <file> --no-memory --disable-web-search --output-format plain\n` +
+    `   ⚠ THOSE FLAGS ARE GROK'S. The binary above is whatever this machine resolved (see step 0), ` +
+    `and a different reviewer takes different flags. If $THIRD_EYE_ARGS is set, use it verbatim in ` +
+    `place of the flags. Otherwise, if the resolved binary is NOT grok, use that tool's own ` +
+    `equivalent of "read the prompt from this file, do not use memory or web search, print plain ` +
+    `text" — and if it cannot read a prompt from a file, pipe the file into it on stdin. Keep the ` +
+    `perl wrapper either way, and report the command you ACTUALLY ran in \`command\`, not this ` +
+    `template. A template echoed back as evidence proves nothing about what executed.\n` +
     `   Why the perl: the Bash tool's timeout kills BASH, not bash's GRANDCHILDREN, so a hung grok is ` +
     `reparented to init and burns a core forever — two were found alive at 3 and 10 days. The perl ` +
     `forks, alarms and SIGTERMs the child. Do NOT use the \`timeout\` binary: it is not installed on ` +
@@ -468,7 +591,7 @@ async function thirdEyeAsk(seat, question, phaseName, opts = {}) {
   }).catch(err => ({ reached: false, transport: 'none', verdict: 'unreachable', concerns: [],
     reason: `the courier agent died: ${err && err.message ? err.message : String(err)}` }))
   /* v19.4 — "THE RUN COULD NOT AFFORD TO ASK" IS NOT "THE TRANSPORT IS DOWN".
-     Measured on the 2026-08-04 D2R run: the pre-ship seat returned
+     Measured on the 2026-08-04 console run: the pre-ship seat returned
      {reached:false, transport:'none', verdict:'unreachable', reason:''} — an EMPTY reason, on a
      schema whose whole point is "the ACTUAL error text, not a guess". Nothing had failed to reach
      Grok. The ceiling was spent (24/24), so spawn() REFUSED the seat and returned null WITHOUT
@@ -852,7 +975,7 @@ function activeLenses() {
      something. An EXPLICIT {skeptics:0} from a human is still honoured — that is a person knowingly
      opting out — and is RECORDED so the report cannot imply a gate that never sat. */
   /* v18 — THE MAX FLOOR IS 2, NOT 1, AND THE REASON IS ARITHMETIC. Measured on the first real v18
-     run (D2R console queue, 2026-08-04): triage read eight already-diagnosed fixes as
+     run (a console UI queue, 2026-08-04): triage read eight already-diagnosed fixes as
      `cost_of_wrong: low` and asked for ZERO skeptics — on a run that re-extracts binary game art
      and restructures a column. The v17 floor caught it, but flooring to ONE leaves a gate that is
      technically able to refuse and practically toothless:
@@ -1045,6 +1168,15 @@ async function buildAndGate(itemsIn, label) {
   )
   res = res.filter(Boolean)
   let r = 1
+  // CAPTURE. Round 1's refusals are recorded before anything is re-attempted, so the round that
+  // follows can be told what the round before it learned. Recording is free; it changes no verdict
+  // and skips no gate.
+  for (const x of res) {
+    if (x.gate && x.gate.verdict === 'rework') {
+      recordScar({ round: 1, file: (x.item || {}).file, stage: 'gate', severity: x.gate.severity,
+                   reason: (x.gate.reasons || [x.gate.reason]).filter(Boolean).join(' | ') })
+    }
+  }
   // ⚠ STALL DETECTION. Without it the only stop reasons are `round-cap` and
   // `budget-floor`, and neither distinguishes a fleet that was CONVERGING and ran out
   // of room from one that STOPPED LEARNING at round two. Those call for opposite
@@ -1085,13 +1217,24 @@ async function buildAndGate(itemsIn, label) {
     const redone = await pipeline(
       failing,
       x => { const esc = { ...x.item, tier: bump(x.item.tier) }
-             return buildAgent(esc, (x.gate.reasons || [x.gate.reason]).filter(Boolean).join(' | ')).then(b => ({ ...b, item: esc })) },
+             /* The item's OWN failure (unchanged) PLUS what its siblings hit this run. The second
+                half is the new part: items that share a brief fail the same way, and paying twice
+                for one lesson is the whole reason this ledger exists. */
+             const own = (x.gate.reasons || [x.gate.reason]).filter(Boolean).join(' | ')
+             return buildAgent(esc, own + scarBriefFor(x.item.file)).then(b => ({ ...b, item: esc })) },
       built => gateFor(built),
       gated => skepticStage(gated)
     )
     const byFile = new Map(res.map(x => [x.item.file, x]))
     for (const x of redone.filter(Boolean)) byFile.set(x.item.file, x)
     res = [...byFile.values()]
+    // capture THIS round's refusals for the round after it (and for the arc-end carve pass).
+    for (const x of redone.filter(Boolean)) {
+      if (x.gate && x.gate.verdict === 'rework') {
+        recordScar({ round: r, file: (x.item || {}).file, stage: 'gate', severity: x.gate.severity,
+                     reason: (x.gate.reasons || [x.gate.reason]).filter(Boolean).join(' | ') })
+      }
+    }
   }
   if (r > round) round = r
   if (res.some(x => x.gate && x.gate.verdict === 'rework') && reworkStop !== 'stalled') {
@@ -1134,7 +1277,7 @@ if (QUALITY_DEFAULTED) log('   (lean is the default — EVERY gate max runs, at 
 // failure escalated with three fresh skeptics — the agent counter climbed 97 → 101 → 108 instead of
 // falling. The contradiction is detectable here in one line, so it is caught here instead of being
 // paid for over two and a half hours.
-// 2026-08-01 — THE GUARD FIRED ON A NEGATION. Konyo's Predicter audit said "Do NOT edit, create or
+// 2026-08-01 — THE GUARD FIRED ON A NEGATION. a project audit said "Do NOT edit, create or
 // delete any file" — a careful dry-run instruction — and the regex matched "create ... file" and
 // refused the whole run. A guard that punishes people for being explicit trains them to be vague.
 // So: strip the NEGATED clauses first, then look for a genuine file-shaped demand in what is left.
@@ -1163,7 +1306,7 @@ if (APPLY) {
      of the declared item paths is deterministic, derivable from strings alone, and
      always inside the tree being edited.
      The previous version asked the lock agent to work this out from a paragraph. One run
-     did it correctly and produced "Users-konyo-kai-achilles"; the very next run, same
+     did it correctly and produced "Users-me-my-project"; the very next run, same
      engine and same instruction, keyed on the shell cwd and locked an entire home
      directory for eight hours over an edit to one repo. A safeguard that depends on an
      agent following prose is a suggestion. */
@@ -2078,7 +2221,7 @@ const reachP = spawn(
 ).catch(() => null)
 // 5) SYNTHESIZE (Opus, once) — ONE final ping
 // ── THE RENDER GATE (v-render, 2026-08-02) ───────────────────────────────────────────────────────
-// A parser cannot see a painted page. Konyo's predicter shipped a MutationObserver loop that froze
+// A parser cannot see a painted page. one project shipped a MutationObserver loop that froze
 // the entire app past a fully green gate — parity, modules, i18n all passing. If the project has a
 // way to drive its own UI, use it, and treat a failure as a ship blocker.
 let renderGate = null
@@ -2150,12 +2293,12 @@ if (APPLY) {
        and checked visually from a user-experience side also?" He was right, and the hole was real:
        every assertion above is STRUCTURAL, and all of them pass on a perfectly rendered picture of
        the WRONG THING. `naturalWidth > 0` proves a file LOADED, not that it shows what its name
-       claims. Real case: art/mephisto_graphic.png contains his SOULSTONE and diablo_graphic.png
+       claims. Real case: one art file contains a different subject than its name implies, and another
        contains a BOOK. Both survived months of green gates, three separate "fixes", and a
        measurement pass that confirmed the correct FILENAME was being served.
        Cheap proxies were tried and PROVEN INSUFFICIENT — do not substitute them for looking:
-       md5 against the whole art corpus found zero duplicates; file size flags Mephisto (10KB vs
-       Andariel 160KB) but misses Diablo (46KB, and it is a book). Only LOOKING works, and agents
+       md5 against the whole art corpus found zero duplicates; file size flags one outlier (10KB vs
+       a 160KB file) but misses another (46KB, and it is the wrong subject). Only LOOKING works, and agents
        are multimodal, so looking is a few seconds of work. */
     `5b. LOOK AT THE PICTURES — THIS IS NOT OPTIONAL WHEN ART, ICONS OR THUMBNAILS CHANGED, and it `
     + `is the one check no geometry assertion can stand in for. For every image surface this change `
@@ -2344,8 +2487,8 @@ if (APPLY) {
        its good for this to be integrated in the konyo workflow too somewhere." It is, and this is
        where. v15 made a Claude agent open the image and say what it depicts \u2014 which is Claude
        checking Claude, on exactly the judgement call that has been wrong the longest here (v1629
-       "fixed" the boss art by pointing at a filename; the picture stayed a soulstone for months).
-       PROVEN, not assumed: asked what art/mephisto_graphic.png depicts with NO hint of what it
+       "fixed" the art by pointing at a filename; the picture stayed wrong for months).
+       PROVEN, not assumed: asked what the image depicts with NO hint of what it
        should be, the Grok CLI answered "a polished, deep-blue teardrop gemstone" \u2014 it found the bug
        cold. Two families agreeing that a picture matches its label is worth far more than one
        saying so; two families DISAGREEING is a signal neither can produce alone. */
@@ -2791,6 +2934,22 @@ if (TE_ASKED_FOR && THIRD_EYE_SEATS.length) {
       `NO independent model reviewing it: ${(TE_SILENT[0] && TE_SILENT[0].reason) || 'no reason recorded'}`)
 }
 
+/* ══ CARVE PER ARC. The proposal, at the only honest moment for it: after every round has finished
+   and before the payload is sealed. It PROPOSES and never writes — carving prunes shared skill files
+   that agents load, and a carve authored from one run is fitted to one afternoon. Three in one
+   territory is the floor; the judgement and the authoring stay the operator's, with the
+   `carving-skill`. Silence here is the honest common case. ══════════════════════════════════════ */
+const CARVE = carveCandidates()
+if (SCARS.length) {
+  log(`SCARS captured this run: ${SCARS.length} (fed forward to later rounds; none of them skipped a gate).`)
+  if (CARVE.length) {
+    log(`🪓 CARVE CANDIDATE${CARVE.length > 1 ? 'S' : ''} — ${CARVE.length} territory/ies hit 3+ times. ` +
+        `Run the carving-skill on: ` + CARVE.map(c => `${c.territory} (x${c.n}${c.files.length ? ', ' + c.files.join(' ') : ''})`).join(' · '))
+  } else {
+    log('No carve candidate — no single territory failed 3+ times. That is a normal, healthy result.')
+  }
+}
+
 const released = await releaseLock()
 const didRelease = !!(released && released.key === 'released')
 if (lock && lock.acquired) {
@@ -2913,6 +3072,8 @@ return emit({
         ') — fewer eyes reviewed this than the seat count claims'
     : (results.length === 0 || passed.length === 0) ? 'EMPTY — no item passed a gate (vacuous green is forbidden)'
     : 'OK',
+  scars: SCARS,
+  carve_candidates: CARVE,
   shippable: SHIPPABLE,   // v23 — the SAME const the Ship phase gated on; never a second formula
   shipped,
   passed: passed.length,

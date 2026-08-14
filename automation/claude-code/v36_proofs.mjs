@@ -3,8 +3,9 @@
    Every block under test is EXTRACTED FROM THE LIVE FILE at run time — never retyped here — so a
    proof cannot pass against a copy of the code while the real code says something else. */
 import { readFileSync } from 'node:fs'
+import { enginePath } from './engine_path.mjs'
 
-const SRC_PATH = process.argv[2] || '/Users/konyo/.claude/workflows/konyo-workflow.js'
+const SRC_PATH = enginePath(process.argv[2])
 const src = readFileSync(SRC_PATH, 'utf8')
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 
