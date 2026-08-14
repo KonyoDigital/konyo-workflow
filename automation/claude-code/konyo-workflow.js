@@ -47,8 +47,29 @@ if (typeof A === 'string') { try { A = JSON.parse(A) } catch { A = { task: A } }
    'cheap', 'quik') resolves to MAX — the failure mode of a misread flag must be an expensive run,
    never a quiet one that the caller believes was maxed. And the fallback is SAID OUT LOUD below:
    a quality you did not ask for is exactly the kind of fact that reads as consent when it is silent. */
+/* ══ v38 — STAKES IS THE CALLER-FACING DIAL; QUALITY IS THE MACHINE TOKEN ═════════════════════════
+   `/Konyo` stopped asking for a cost name and started asking the only question triage cannot answer
+   for itself: what does being wrong cost. It sends `stakes`.
+
+   THIS WAS AN UNJOINED END AND IT FAILED IN THE UNSAFE DIRECTION. The door was rewritten to send
+   `stakes:'irreversible'`; the engine read only `A.quality`; nothing errored. `stakes` fell on the
+   floor, QUALITY_ASKED came back null, and the run resolved to the LEAN DEFAULT — so the flag whose
+   entire purpose is "this is the expensive one, buy the judge panel" silently bought the cheap
+   shape, while the caller believed otherwise. That is the precise danger the v18 typo safeguard
+   exists to prevent, arriving through a door that safeguard never watched.
+
+   ORDER OF PRECEDENCE, and it matters: an explicit `quality` still wins, so every saved invocation
+   and both Grok shippers keep working unchanged. `stakes` only fills the gap when no quality was
+   named. An unrecognised stakes word resolves to MAX and is shouted — same direction as a quality
+   typo, for the same reason: a caller who believes they bought the careful shape must never quietly
+   get the cheap one. ═════════════════════════════════════════════════════════════════════════════ */
+const STAKES_MAP   = { reversible: 'standard', costly: 'lean', irreversible: 'max' }
+const STAKES_ASKED = (A && typeof A.stakes === 'string') ? A.stakes.trim().toLowerCase() : null
+const STAKES_TYPO  = !!(STAKES_ASKED && !STAKES_MAP[STAKES_ASKED])
+const STAKES_QUALITY = STAKES_ASKED ? (STAKES_MAP[STAKES_ASKED] || 'max') : null
 const QUALITY_ASKED = (A && typeof A.quality === 'string') ? A.quality.trim().toLowerCase()
-                    : (typeof globalThis.__KONYO_QUALITY === 'string' ? globalThis.__KONYO_QUALITY : null)
+                    : (STAKES_QUALITY
+                    || (typeof globalThis.__KONYO_QUALITY === 'string' ? globalThis.__KONYO_QUALITY : null))
 /* v19.2 — IT IS CALLED LEAN, BECAUSE IT IS NOT FAST. Two real runs, measured: max took 53.7min and
    1.42M tokens; this path took ~46min and ~540k. That is ~15% quicker and ~62% cheaper — so the name
    "fast" promised the number it is worst at and hid the one it is excellent at. Konyo, watching it:
@@ -1267,6 +1288,17 @@ log(`KONYO WORKFLOW [${QUALITY.toUpperCase()}] · ${mode} · budget floor ${Math
     `max ${MAXROUNDS} rework round(s)` + ((MAXONLY) ? ` · ${DRYROUNDS} dry completeness round(s)` : '') +
     (ISOLATE ? ' · ISOLATE+MERGE' : '') +
     ` · third eye ${THIRD_EYE === 'off' ? 'OFF' : THIRD_EYE === 'claude' ? 'CLAUDE STAND-IN (degraded)' : 'ON (grok)'}`)
+/* v38 — say the stakes translation out loud. A dial that silently becomes a different word is how
+   the door and the engine drifted apart in the first place; printing the mapping means the next
+   disagreement is visible in the first ten lines of a run instead of inferred from a bill. */
+if (STAKES_ASKED && !(A && typeof A.quality === 'string')) {
+  log(`STAKES: "${STAKES_ASKED}" → quality:${STAKES_QUALITY}` +
+      (STAKES_TYPO ? '  ⚠ UNRECOGNISED stakes word — resolved to MAX. A misread dial fails ' +
+                     'EXPENSIVE, never quietly cheap. Known: reversible | costly | irreversible.'
+                   : ''))
+} else if (STAKES_ASKED) {
+  log(`STAKES: "${STAKES_ASKED}" IGNORED — an explicit quality:"${A.quality}" was also passed and wins.`)
+}
 // v18 — a flag we did not understand must never be a silent downgrade.
 if (QUALITY_TYPO) log(`⚠ quality:"${QUALITY_ASKED}" is not a quality this workflow knows ` +
     `(max | lean | standard). Ran at MAX — an unrecognised flag fails EXPENSIVE, never quiet. ` +
@@ -3273,19 +3305,119 @@ if (lock && lock.acquired) {
 // THE RETURN IS A UNION OF BOTH ORIGINALS, NOT A CHOICE BETWEEN THEM. Every field either script
 // used to return is carried here at BOTH qualities. A field a standard run does not earn is
 // returned with an explicit `ran:false` + reason — NEVER a bare null a reader can mistake for a pass.
-/* ══ v31 — CARVE PER ARC. The proposal, at the only honest moment for it: after every round has
-   finished, when the run knows what it actually kept failing at. It PROPOSES and never writes —
-   carving prunes shared skill files that agents load, and a carve authored from one run is fitted
-   to one run. Three scars in one territory is the floor (two is a coincidence); the decision and
-   the authoring stay Konyo's, with the `carving-skill`. Silence here is the honest common case. ══ */
+/* ══ v38 — CARVE PER ARC, AND IT NOW WRITES ═══════════════════════════════════════════════════════
+   v31 captured per round and PROPOSED per arc, and the proposal was where it stopped. Konyo,
+   2026-08-15: "take it from half to full .. it needs to be in there."
+
+   WHY THIS IS NOW SAFE, AND WHAT WAS ACTUALLY UNSAFE. The v31 comment gave one hazard for not
+   writing: carving prunes shared skill files that agents LOAD, so doing it mid-run rewrites the
+   rules underneath running agents. That hazard is real and it is entirely a MID-RUN hazard. Here,
+   every round is finished, every gate has reported, no agent will read a skill file again this run.
+   The dangerous moment and this moment are not the same moment.
+
+   The second objection — a carve from one run is fitted to one run — is answered by the floor, not
+   by refusing to write: THREE scars in one territory, because two is a coincidence. That floor is
+   unchanged.
+
+   WHAT IS STILL NOT AUTOMATIC, DELIBERATELY:
+     * NOTHING IS DELETED. The carving skill prunes its source; this ARCHIVES instead. Carved scars
+       move to SCARS.archive.md. A rule whose evidence was deleted is a rule you cannot argue with
+       later, and that is the one property that makes a wrong auto-rule worse than no rule.
+     * A DRY RUN CARVES NOTHING. apply:false means agents write nothing — a carve is a write.
+     * CAPPED AT TWO PER ARC. Every carved skill's description loads into every future session
+       forever. Unbounded carving is a startup-context leak that nobody is watching.
+     * {carve:false} opts out entirely.
+
+   ⚠ THE SAFETY LAW SURVIVES THE PROMOTION, VERBATIM: A SCAR NARROWS ATTENTION, IT NEVER SUPPRESSES
+   A GATE. A carved skill may tell the next run what has already been tried and failed. It may not
+   skip a check, lower a bar, mark anything already-judged, or cache a verdict. The carve prompt
+   below states this as a hard constraint because it is now writing a file that every future
+   session loads, which makes it the highest-leverage place in this engine to get that wrong. ══ */
+const CARVE_MAX = 2
 const CARVE = carveCandidates()
+let CARVED = { ran: false, reason: 'no carve candidate', written: [] }
 if (SCARS.length) {
   log(`SCARS captured this run: ${SCARS.length} (fed forward to later rounds; none of them skipped a gate).`)
-  if (CARVE.length) {
-    log(`🪓 CARVE CANDIDATE${CARVE.length > 1 ? 'S' : ''} — ${CARVE.length} territory/ies hit 3+ times. ` +
-        `Run /carving-skill on: ` + CARVE.map(c => `${c.territory} (x${c.n}${c.files.length ? ', ' + c.files.join(' ') : ''})`).join(' · '))
-  } else {
+  if (!CARVE.length) {
     log('No carve candidate — no single territory failed 3+ times. That is a normal, healthy result.')
+  } else if (A && A.carve === false) {
+    CARVED = { ran: false, reason: '{carve:false} — proposal only', written: [] }
+    log(`🪓 ${CARVE.length} carve candidate(s), NOT carved ({carve:false}): ` +
+        CARVE.map(c => `${c.territory} (x${c.n})`).join(' · '))
+  } else if (!APPLY) {
+    /* Not a silent skip. A dry run that quietly declined to carve reads exactly like a run that
+       found nothing to carve, and those are opposite facts. */
+    CARVED = { ran: false, reason: 'dry run — apply:false writes nothing, and a carve is a write', written: [] }
+    log(`🪓 ${CARVE.length} carve candidate(s) found but NOT carved — this is a dry run. ` +
+        CARVE.map(c => `${c.territory} (x${c.n})`).join(' · '))
+  } else {
+    const picked = CARVE.slice(0, CARVE_MAX)
+    if (CARVE.length > picked.length) {
+      log(`🪓 ${CARVE.length} candidates, carving the top ${picked.length} — the rest are named ` +
+          `in carve_candidates and were NOT dropped silently: ` +
+          CARVE.slice(picked.length).map(c => `${c.territory} (x${c.n})`).join(' · '))
+    }
+    phase('Carve')
+    const carveResults = await parallel(picked.map(c => () => agent(
+      `Carve a durable skill from a cluster of failures this run kept hitting. You are the LAST\n` +
+      `agent of the arc: every round is finished and no other agent will read a skill file again,\n` +
+      `which is the only moment carving is safe.\n\n` +
+      `TERRITORY: ${c.territory}\n` +
+      `TIMES HIT: ${c.n}\n` +
+      `FILES INVOLVED: ${c.files.join(' ') || '(none recorded)'}\n` +
+      `EVIDENCE — the actual failure reasons, verbatim:\n` +
+      c.evidence.map((e, i) => `  ${i + 1}. ${e}`).join('\n') + '\n\n' +
+      `DO THIS:\n` +
+      `1. Choose a kebab-case slug naming the TERRITORY, not this run (e.g. "stale-version-stamp",\n` +
+      `   not "tuesday-build-failure"). Target ~/.claude/skills/<slug>/SKILL.md.\n` +
+      `2. If that file already EXISTS, read it and MERGE: add only evidence it does not already\n` +
+      `   carry, and raise its hit count. Never duplicate a scar it already records, never rewrite\n` +
+      `   its existing rules to match this run. If it does not exist, write it.\n` +
+      `3. Frontmatter: name (the slug) and a description that says WHEN to load it — the trigger,\n` +
+      `   not a summary. Keep the description under 900 characters: it is truncated at 1536 in\n` +
+      `   Claude Code and near 200 in Desktop, and a truncated description loses its tail silently.\n` +
+      `4. Every rule you write carries its EVIDENCE. A rule with no failure behind it is an opinion,\n` +
+      `   and opinions are what make a skill file stop being worth loading.\n` +
+      `5. ARCHIVE, DO NOT DELETE. Append the carved scars to ~/.konyo-workflow/SCARS.archive.md with\n` +
+      `   this run's version label (${plan.version_label}) and today's date. If they also appear in\n` +
+      `   ~/.konyo-workflow/SCARS.inbox.md, remove them from the INBOX only — the archive is now the\n` +
+      `   record. Deleting evidence is forbidden; a rule you cannot argue with later is worse than\n` +
+      `   no rule.\n\n` +
+      `⚠ HARD CONSTRAINT — A SCAR NARROWS ATTENTION, IT NEVER SUPPRESSES A GATE. What you write may\n` +
+      `tell a future run what has already been tried and failed, so it does not spend a round\n` +
+      `re-deriving it. It may NOT skip a check, lower a bar, mark anything as already-judged, or\n` +
+      `record a verdict that a later run could read instead of re-proving. If you cannot write the\n` +
+      `rule without it reading as permission to skip something, write no rule and say so.\n\n` +
+      `PROOF: after writing, cat the file back and confirm the frontmatter parses and the\n` +
+      `description is under 900 characters. Report the path you wrote and what you actually changed.`,
+      { label: `carve:${c.territory.slice(0, 28)}`, phase: 'Carve', model: 'opus',
+        schema: { type: 'object', additionalProperties: false,
+          required: ['wrote', 'path', 'action', 'summary'],
+          properties: {
+            wrote:   { type: 'boolean', description: 'true only if a SKILL.md was actually written' },
+            path:    { type: 'string' },
+            action:  { type: 'string', enum: ['created', 'merged', 'declined'] },
+            summary: { type: 'string' },
+            archived:{ type: 'boolean' },
+          } } })))
+    const written = carveResults.filter(Boolean).filter(r => r.wrote)
+    CARVED = {
+      ran: true,
+      reason: '',
+      written: written.map(r => ({ path: r.path, action: r.action, summary: r.summary,
+                                   archived: !!r.archived })),
+      declined: carveResults.filter(Boolean).filter(r => !r.wrote)
+        .map(r => ({ action: r.action, summary: r.summary })),
+    }
+    if (written.length) {
+      log(`🪓 CARVED ${written.length} skill(s) — ` +
+          written.map(r => `${r.path} (${r.action})`).join(' · ') +
+          `. Evidence archived, not deleted. Loads at the START of your next session.`)
+    } else {
+      log('🪓 Carve ran and wrote nothing — the agent declined every candidate. That is a legal ' +
+          'outcome, not a failure; a rule that could only read as permission to skip a gate is ' +
+          'one it is supposed to refuse to write.')
+    }
   }
 }
 return emit({
@@ -3293,6 +3425,7 @@ return emit({
   mode,
   scars: SCARS,
   carve_candidates: CARVE,
+  carved: CARVED,   // v38 — what the arc-end carve actually WROTE (or why it did not)
   /* v18 — ONE SHAPE ON BOTH EXIT PATHS. Caught by the completeness critic of the very run that
      built this merge: bail() returned `quality: QUALITY` (the machine token 'max'|'standard') while
      the SUCCESS path returned `quality:` as a PROSE SENTENCE, with the machine value buried in

@@ -100,6 +100,76 @@ if [[ -d "$HOME/.claude" ]]; then
   [[ "$CMD_N" -lt 5 ]] && echo "   ⚠️  only ${CMD_N}/5 commands installed — /Konyo may be missing" || true
 fi
 
+# ---- Scar capture hooks -----------------------------------------------------------------------
+# Inside the workflow, scars are captured every round automatically. In an ordinary Claude Code
+# session nothing was captured at all, so the third time you correct the same thing costs exactly
+# what the first did. These two hooks are the missing capture half: one records correction-shaped
+# turns, the other reports a territory that has been hit three times. Neither carves.
+#
+# Copying the scripts is NOT the install. A hook nobody registers is a script that never runs, and
+# this repo has already shipped that exact defect once (five slash commands, present, documented,
+# and unreachable for anyone who used the one-liner). So the settings merge below is the install.
+if [[ -d "$ROOT/automation/claude-code/hooks" ]]; then
+  mkdir -p "$DEST/hooks"
+  cp "$ROOT/automation/claude-code/hooks/"*.py "$DEST/hooks/" 2>/dev/null || true
+  chmod +x "$DEST/hooks/"*.py 2>/dev/null || true
+  echo "   Scar hooks → $DEST/hooks"
+fi
+
+SETTINGS="${CLAUDE_SETTINGS:-$HOME/.claude/settings.json}"
+if [[ -f "$SETTINGS" ]] && command -v python3 >/dev/null 2>&1; then
+  # Read-modify-write, idempotent, and it REFUSES rather than risks the file: a malformed
+  # settings.json silently disables every setting in it, so a botched merge here would cost far
+  # more than the feature is worth. Validate, back up, write to a temp, then move.
+  KONYO_SETTINGS="$SETTINGS" KONYO_HOOKS_DIR="$DEST/hooks" python3 - <<'PYMERGE' || echo "   ⚠️  hook registration skipped (settings.json untouched)"
+import json, os, shutil, sys
+
+path = os.environ['KONYO_SETTINGS']
+hooks_dir = os.environ['KONYO_HOOKS_DIR']
+try:
+    with open(path, encoding='utf-8') as fh:
+        cfg = json.load(fh)
+except Exception as exc:
+    print('   ⚠️  settings.json unreadable (%s) — not touching it' % exc)
+    sys.exit(1)
+if not isinstance(cfg, dict):
+    sys.exit(1)
+
+WANT = [
+    ('UserPromptSubmit', 'scar_capture.py',
+     'python3 "%s/scar_capture.py" 2>/dev/null || true' % hooks_dir),
+    ('SessionStart', 'scar_cluster.py',
+     'python3 "%s/scar_cluster.py" 2>/dev/null || true' % hooks_dir),
+]
+hooks = cfg.setdefault('hooks', {})
+added = []
+for event, marker, command in WANT:
+    entries = hooks.setdefault(event, [])
+    # Idempotent by MARKER, not by exact string: re-running the installer after the hooks dir
+    # moves must update, never append a second copy that fires twice per turn.
+    if any(marker in h.get('command', '')
+           for entry in entries for h in entry.get('hooks', [])):
+        continue
+    entries.append({'hooks': [{'type': 'command', 'command': command, 'timeout': 5}]})
+    added.append(event)
+
+if not added:
+    print('   Scar hooks already registered in %s' % path)
+    sys.exit(0)
+
+shutil.copyfile(path, path + '.konyo-backup')
+tmp = path + '.konyo-tmp'
+with open(tmp, 'w', encoding='utf-8') as fh:
+    json.dump(cfg, fh, indent=2)
+    fh.write('\n')
+with open(tmp, encoding='utf-8') as fh:      # never move a file we have not re-parsed
+    json.load(fh)
+os.replace(tmp, path)
+print('   Scar hooks registered → %s (%s); backup at %s.konyo-backup'
+      % (path, ', '.join(added), path))
+PYMERGE
+fi
+
 echo "✅ Konyo Workflow installed to $DEST"
 echo "   Give your AI: $DEST/SKILL.md"
 echo "   Which command to run: $DEST/ROUTING.md"
