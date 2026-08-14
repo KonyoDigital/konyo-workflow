@@ -63,9 +63,9 @@ Overrides: `{"force":true}` runs the fleet anyway; `{"skeptics":3}` sets the cou
 every agent. Max on a *planning document* spent ~106 agents and 2.5 hours where a few plus one
 adversarial read found the same holes. Same setting, opposite verdicts — which is why triage exists.
 
-**There is ONE engine.** `konyo-workflow-max.js` was retired at v18 and is kept only as
-`.retired-v18` for history — it is not installed and cannot be invoked. Max is a *quality string on
-the one body*, not a second file.
+**There is ONE engine.** `konyo-workflow-max.js` was retired at v18 and no longer ships in the tree —
+recover it from git history if you ever need it. Max is a *quality string on the one body*, not a
+second file.
 
 | File | What | Use it for |
 |------|------|-----------|

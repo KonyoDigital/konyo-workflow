@@ -9,7 +9,8 @@
 | **`/konyo-workflow-max`** | `konyo-workflow-max.rhai` | **DEPRECATED notice only** — MAX is `{quality:"max"}` on `/Konyo-Grok` |
 
 > **2026-08-07:** The Grok shipper was **audit-only** (read-only laws panel, no builders).
-> That body is retired to `konyo-workflow.rhai.bak-audit-only-2026-08-07`.
+> That body was replaced, not archived in-tree — recover it from git history if you ever
+> need it (`git log -- automation/workflows/konyo-workflow.rhai`).
 > The live script is an **implementer**. **v30** adds meter routing after a measured
 > max run burned 2h+ on a “30 whole-console versions” brief (ceiling + thrash).
 
