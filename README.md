@@ -75,7 +75,7 @@ Not required: Obsidian, a new GitHub org, or foreign names. **Same spirit as a p
 | `install.sh` | Copies into `~/.konyo-workflow/`, plus engines and commands into `~/.claude/` |
 | `docs/SHIP_LAWS.md` | 19 ship laws |
 | `automation/claude-desktop/` | **Claude Desktop bundles** — upload the zip, no terminal, no second AI required. De-identified public builds; the maintained personal copy lives in [ship-skill](https://github.com/KonyoDigital/ship-skill) |
-| `automation/claude-code/` | Claude Code engine (`konyo-workflow.js`) + `commands/` — **`/Konyo` is the one door**; the four old names are retired redirects |
+| `automation/claude-code/` | Claude Code engine (`konyo-workflow.js`) + `commands/` — `/Konyo` (the only door). `/KonyoTiny` `/KonyoLean` `/KonyoMax` `/KonyoCost` are retired redirects |
 | `automation/claude-code/hooks/` | **Scar capture** — records correction-shaped turns in ordinary sessions and reports a territory hit 3 times. Installed *and registered* by `install.sh` |
 | `automation/workflows/` | Optional scripts if your setup can run them |
 

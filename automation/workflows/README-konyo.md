@@ -4,9 +4,9 @@
 
 | Slash | File | Role |
 |-------|------|------|
-| **`/Konyo-Grok`** | `Konyo-Grok.rhai` | **Full implementer** · lean default · `{apply:true}` writes · third-eye = Claude CLI |
+| **`/Konyo-Grok`** | `Konyo-Grok.rhai` | **Full implementer** · one door · stakes default costly · `{apply:true}` writes · third-eye = Claude CLI |
 | **`/konyo-workflow`** | `konyo-workflow.rhai` | **Redirect stub** — returns BLOCKED + re-run args for `/Konyo-Grok` |
-| **`/konyo-workflow-max`** | `konyo-workflow-max.rhai` | **DEPRECATED notice only** — MAX is `{quality:"max"}` on `/Konyo-Grok` |
+| **`/konyo-workflow-max`** | `konyo-workflow-max.rhai` | **DEPRECATED notice only** — there is no max door; use `{stakes:"irreversible"}` on `/Konyo-Grok` |
 
 > **2026-08-07:** The Grok shipper was **audit-only** (read-only laws panel, no builders).
 > That body was replaced, not archived in-tree — recover it from git history if you ever
@@ -30,27 +30,24 @@
 
 
 ```text
-# Lean default, dry-run (propose only — safe) — only when you want the fleet
+# Costly default, dry-run (propose only — safe) — only when you want the fleet
 /Konyo-Grok {"task":"…"}
 
-# Actually edit files (default quality = lean)
+# Actually edit files (unstated stakes = costly)
 /Konyo-Grok {"task":"…","apply":true}
 
-# Max ONLY when being wrong is expensive AND the list is SMALL
-/Konyo-Grok {"task":"…","apply":true,"quality":"max","items":[
+# Irreversible — money, security, trading, live ships. Keep the list SMALL.
+/Konyo-Grok {"task":"…","apply":true,"stakes":"irreversible","items":[
   {"file":"/abs/path","instruction":"…","risk":"high","anchor":"~line N"}
 ]}
 
-# Tiny: known edit set, ~15-minute hop budget, every ship gate kept (max 4 items)
-/Konyo-Grok {"task":"…","apply":true,"quality":"tiny","items":[
+# Known edit set: items[] skips the architect (a plan, not a door)
+/Konyo-Grok {"task":"…","apply":true,"items":[
   {"file":"/abs/path","instruction":"…","risk":"low","anchor":"~line N, symbol"}
 ]}
 
-# Multi-version product arcs: N lean/tiny slices — NOT one max fleet of 30 stamps
-/Konyo-Grok {"task":"Arc slice 1 of 4: …","apply":true,"quality":"lean"}
-
-# Standard cheap ladder
-/Konyo-Grok {"task":"…","apply":true,"quality":"standard"}
+# Cheap to be wrong
+/Konyo-Grok {"task":"…","apply":true,"stakes":"reversible"}
 
 # Push only after shippable (builders never push)
 /Konyo-Grok {"task":"…","apply":true,"push":true}
@@ -62,7 +59,7 @@
 |-----|---------|---------|
 | `task` / `objective` | required | What to ship |
 | `apply` | `false` | `true` = builders edit; `false` = dry-run diffs only |
-| `quality` | `lean` | `lean` · `max` · `standard` · `tiny` (`fast`→`lean`) |
+| `stakes` | `costly` | `reversible` · `costly` · `irreversible` (unrecognised → irreversible) |
 | `force` | `false` | Override triage `direct` |
 | `items` | — | `[{file, instruction, risk?, anchor?}]` — **skips architect at ANY quality** (required for tiny) |
 | `maxItems` | by quality | Hard item cap: **tiny 4 · max 6 · lean 8 · standard 10** (override if you must) |
@@ -73,14 +70,13 @@
 | `maxAgents` | `24` | Hard agent ceiling |
 | `ignoreLock` | `false` | Proceed over a live workspace lock |
 
-## Quality law (identical spirit to Claude)
+## Stakes law (identical spirit to Claude)
 
-- **LEAN (default):** every ship gate runs; one architect; no completeness critic; efficient builders. **Use for volume / multi-stamp arcs.**
-- **MAX:** multi-round rework + completeness critic + deepest prompts. **Use for small high-stakes packages only** (prefer `items[]` ≤6). Not for “ship 30 versions.”
-- **STANDARD:** cheaper ladder; fable-style per-item gate when skeptics=0.
-- **TINY:** skips planning hops only — **never** skips adversarial / LAW17 / LAW18 / LAW19 / lock. Cap 4 items.
+- **COSTLY (default, unstated):** every ship gate runs; one architect; no completeness critic. Daily ships.
+- **IRREVERSIBLE:** multi-round rework + completeness critic + deepest prompts. Small high-stakes packages only. Not for “ship 30 versions.”
+- **REVERSIBLE:** cheaper ladder. Routine work you will review anyway.
 
-`quality` may change **tier depth, panel size, extra phases, item cap** — never whether a safeguard runs.
+`stakes` may change **tier depth, panel size, extra phases, item cap** — never whether a safeguard runs. There is no max/lean/tiny door.
 
 ## v30 meter routing (2026-08-07)
 

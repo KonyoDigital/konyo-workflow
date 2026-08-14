@@ -132,6 +132,15 @@ has "v32 one per distinct flag" 'v32_scar_one_per_distinct_failure'
 has "v32 run not inspect flag" 'v32_run_not_inspect'
 
 echo ""
+echo "v38 STAKES DIAL (2026-08-15) — no max/lean/tiny door"
+has "stakes is the public dial" 'stakes is the public dial'
+has "stakes reversible maps to standard" 'stakes_asked == "reversible"'
+has "stakes irreversible maps to max" 'stakes_asked == "irreversible"'
+has "stakes costly maps to lean" 'stakes_asked == "costly"'
+has "unrecognised stakes fail expensive" "stakes '" 
+has "cut_flag strips door flags" 'fn cut_flag'
+
+echo ""
 echo "v36 GROK-HOST PORTS OF CLAUDE JS v35/v36 (2026-08-14)"
 has "G1 file-shaped items refuse string" 'dry-run with a file-shaped items[] work list'
 has "G1 file_shaped_items counter" 'file_shaped_items'

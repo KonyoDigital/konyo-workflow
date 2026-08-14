@@ -29,7 +29,7 @@ file-shaped deliverable** — see the guard below.)
 node automation/claude-code/v27_empty_plan_proof.mjs
 ```
 
-`/konyo-workflow-max` is retired — use `{quality:"max"}` on the one body.
+`/konyo-workflow-max` is retired. There is no max door — `/Konyo <task> --irreversible`.
 
 ## The cost-scaled one now sizes itself
 
@@ -71,7 +71,7 @@ second file.
 |------|------|-----------|
 | `konyo-workflow.js` | **The engine.** One body, four cost shapes selected by `quality` — `standard` (Haiku bulk · Sonnet build · Fable gate) → `lean` (default) → `max` (Opus everywhere · 3-architect judge panel · 3-skeptic diverse-lens adversarial gate where majority-refute kills a change · loop-until-dry completeness critic). `tiny` cuts planning hops only. | Everything. `standard` ≈ 0.07–0.1x, `lean` ≈ 0.38x, `max` = 1x baseline. |
 | `agent-army.js` | The fleet variant. **Registers the name `konyo-workflow` too** — always invoke by `scriptPath`, never `{name}`. | See [agent-army](https://github.com/KonyoDigital/agent-army). |
-| `commands/` | `/Konyo` — the one door, which derives the cost shape from stakes. Plus `/KonyoLean` `/KonyoMax` `/KonyoCost` `/KonyoTiny` as manual overrides. | Start at `/Konyo`. |
+| `commands/` | `/Konyo` — the only door. `/KonyoLean` `/KonyoMax` `/KonyoCost` `/KonyoTiny` are retired redirects. | Start at `/Konyo`. |
 
 Every quality: one owner per file, a quality gate on every change, optional Grok third-eye, version
 per round, ONE final report. **A quality flag buys model tier, panel size and extra phases — never a

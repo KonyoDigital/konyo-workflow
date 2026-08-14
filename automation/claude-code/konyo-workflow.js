@@ -1,7 +1,7 @@
 export const meta = {
   name: 'konyo-workflow',
-  description: 'KONYO WORKFLOW — ONE body, four paths (tiny | lean | max | standard), and it RUNS AT LEAN BY DEFAULT (his instruction, 2026-08-04). Lean already runs EVERY gate max runs — diverse-lens skeptic panel, render gate with vision, LAW17, LAW19, workspace lock, agent ceiling — at ~62% of the tokens, by buying ONE architect instead of a judge panel, one rework round, and no completeness critic. The third eye (Grok — a DIFFERENT model family) is ON at every quality. Pass {quality:"max"} to add the 3-architect judge panel, Opus builders everywhere and the loop-until-dry completeness critic — worth it when being wrong costs more than tokens. Pass {quality:"tiny"} for a SMALL, ALREADY-KNOWN edit set on a ~15-minute budget: it REQUIRES an explicit items:[{file,instruction}] work list (max 4 items across 3 files, no diagnosis) and refuses without one, then skips the PLANNING hops only. Pass {quality:"standard"} to opt DOWN to the cost-scaled ladder — Haiku/Sonnet build, Fable gating every merge, ONE architect, no completeness critic, ~10-15x cheaper — for routine, easily reversible work. Pass {thirdEye:false} to run without an independent reviewer. LEAN IS NOT MAX-WITH-FEWER-SAFEGUARDS: a quality flag buys model tier, panel size and extra phases, NEVER a gate. The render gate is a LOOP at every quality — narrow AND wide viewport, each failure handed to a fixer and re-rendered, and the FINAL pass is what blocks.',
-  whenToUse: 'ANY multi-step task you want orchestrated — it is LEAN unless you say otherwise, because lean already runs every gate and max only buys a judge panel, Opus builders and the completeness critic. It TRIAGES itself first, so a serial diagnosis is sent back to be done directly instead of spawning a fleet, and the ceiling + budget floor still bound every run. Reach for {quality:"tiny"} when you already know the exact edits (file + instruction each) and want them done in ~15 minutes with the gates intact — it is a HOP budget, not an agent budget: wall clock is serial-hops × time-per-hop, so tiny cuts the chain from 11 phases to 4 rather than trimming agents. Reach for {quality:"max"} when the cost of being wrong is high — irreversible edits, data migrations, anything shipping unattended. Opt all the way down with {quality:"standard"} for routine, low-cost-of-wrong, easily reversible work (~10-15x cheaper). Pass {task, quality, thirdEye, apply, maxRounds, dryRounds, budgetFloor, force, skeptics, maxAgents, isolate, items, maxItems}. items:[{file,instruction}] skips the architect at ANY quality (not only tiny) — an architect that returns items:[] no longer becomes a vacuous green ship. v30 meter routing: quality item caps (tiny4/max6/lean8/standard10), volume-arc heuristic, thrash/tip craft — max is NOT for 30-version volume arcs (use N lean/tiny slices). `grok:false` still works as the old name for thirdEye:false; `fast` still resolves to `lean`.',
+  description: 'KONYO WORKFLOW — ONE door. You set stakes (reversible | costly | irreversible); the engine derives the cost shape. Unstated = costly. Every ship gate always runs — skeptic panel, render+vision, LAW17, LAW19, lock, ceiling. {stakes:"reversible"} is the cheap ladder. {stakes:"irreversible"} buys the judge panel, Opus everywhere and the completeness critic. items[] skips the architect (a plan, not a door). There is no max/lean/tiny door. Pass {thirdEye:false} to drop the independent reviewer. A stakes flag buys model tier, panel size and extra phases, NEVER a gate. The render gate is a LOOP — narrow AND wide, each failure handed to a fixer, and the FINAL pass is what blocks.',
+  whenToUse: 'ANY multi-step task you want orchestrated. It TRIAGES itself first, so a serial diagnosis is sent back to be done directly instead of spawning a fleet. Pass {stakes:"reversible"} when cheap to be wrong (copy edits, contained CSS, mechanical rename). Pass {stakes:"irreversible"} for money, security, trading, migrations, live ships. Omit stakes for the default costly shape. items:[{file,instruction}] skips the architect at any stakes. v38: stakes is the public dial; quality remains the internal shape. v30 meter routing still applies to the derived shape. `grok:false` still works as the old name for thirdEye:false.',
   phases: [
     { title: 'Preflight',   detail: 'workspace lock — refuse to start if another run is already editing this tree' },
     { title: 'Triage',      detail: 'right-size the run BEFORE spending: shape · parallelism · cost-of-wrong. SKIPPED at quality:"tiny" — the caller supplied the work list', model: 'opus' },
@@ -47,29 +47,40 @@ if (typeof A === 'string') { try { A = JSON.parse(A) } catch { A = { task: A } }
    'cheap', 'quik') resolves to MAX — the failure mode of a misread flag must be an expensive run,
    never a quiet one that the caller believes was maxed. And the fallback is SAID OUT LOUD below:
    a quality you did not ask for is exactly the kind of fact that reads as consent when it is silent. */
-/* ══ v38 — STAKES IS THE CALLER-FACING DIAL; QUALITY IS THE MACHINE TOKEN ═════════════════════════
-   `/Konyo` stopped asking for a cost name and started asking the only question triage cannot answer
-   for itself: what does being wrong cost. It sends `stakes`.
+/* ══ v38 — STAKES IS THE PUBLIC DIAL; QUALITY IS THE INTERNAL NAME ═══════════════════════════════
+   Konyo 2026-08-15: "i dont want a max/lean/tiny". The human names what being wrong COSTS — the one
+   question triage cannot answer for itself, because a contained CSS fix and a contained CSS fix on
+   the live console during market hours are the same diff. The engine derives the internal shape
+   (standard|lean|max) so every existing gate keeps keying off QUALITY and nothing downstream moves.
 
-   THIS WAS AN UNJOINED END AND IT FAILED IN THE UNSAFE DIRECTION. The door was rewritten to send
-   `stakes:'irreversible'`; the engine read only `A.quality`; nothing errored. `stakes` fell on the
-   floor, QUALITY_ASKED came back null, and the run resolved to the LEAN DEFAULT — so the flag whose
-   entire purpose is "this is the expensive one, buy the judge panel" silently bought the cheap
-   shape, while the caller believed otherwise. That is the precise danger the v18 typo safeguard
-   exists to prevent, arriving through a door that safeguard never watched.
+   THIS WAS AN UNJOINED END FOR A WHILE, AND IT FAILED IN THE UNSAFE DIRECTION. The door was
+   rewritten to send `stakes`; the engine read only `A.quality`; nothing errored. `stakes` fell on
+   the floor, QUALITY_ASKED came back null, and the run resolved to the LEAN DEFAULT — so the flag
+   whose entire purpose is "this is the expensive one, buy the judge panel" silently bought the
+   cheap shape while the caller believed otherwise. Measured on the shipped engine:
+     before   stakes:"irreversible"  ->  v30 METER: maxItems=8 (quality=lean)
+     after    stakes:"irreversible"  ->  v30 METER: maxItems=6 (quality=max)
 
-   ORDER OF PRECEDENCE, and it matters: an explicit `quality` still wins, so every saved invocation
-   and both Grok shippers keep working unchanged. `stakes` only fills the gap when no quality was
-   named. An unrecognised stakes word resolves to MAX and is shouted — same direction as a quality
-   typo, for the same reason: a caller who believes they bought the careful shape must never quietly
-   get the cheap one. ═════════════════════════════════════════════════════════════════════════════ */
-const STAKES_MAP   = { reversible: 'standard', costly: 'lean', irreversible: 'max' }
-const STAKES_ASKED = (A && typeof A.stakes === 'string') ? A.stakes.trim().toLowerCase() : null
-const STAKES_TYPO  = !!(STAKES_ASKED && !STAKES_MAP[STAKES_ASKED])
-const STAKES_QUALITY = STAKES_ASKED ? (STAKES_MAP[STAKES_ASKED] || 'max') : null
-const QUALITY_ASKED = (A && typeof A.quality === 'string') ? A.quality.trim().toLowerCase()
-                    : (STAKES_QUALITY
-                    || (typeof globalThis.__KONYO_QUALITY === 'string' ? globalThis.__KONYO_QUALITY : null))
+   RESOLVED FROM TWO INDEPENDENT FIXES (2026-08-15), keeping the better half of each:
+     · STAKES WINS over an explicit quality. Konyo's call: stakes is the public dial, quality is
+       plumbing, and a caller who names both means the one they typed at the door.
+     · The leading `--` IS STRIPPED, so `stakes:'--irreversible'` — what a door forwarding
+       $ARGUMENTS naturally produces — does not read as an unknown word and quietly become a typo
+       case. That path is exactly how a dial gets mangled in transit.
+     · An unrecognised stakes word resolves to MAX and is SHOUTED, same direction as a quality typo
+       and for the same reason: a caller who believes they bought the careful shape must never
+       quietly get the cheap one. ════════════════════════════════════════════════════════════════ */
+const STAKES_FLAG = (A && typeof A.stakes === 'string')
+  ? A.stakes.trim().toLowerCase().replace(/^--/, '')
+  : ''
+const QUALITY_FROM_STAKES = { reversible: 'standard', irreversible: 'max', costly: 'lean' }
+const STAKES_KNOWN = ['reversible', 'irreversible', 'costly']
+const STAKES_TYPO = !!(STAKES_FLAG && !STAKES_KNOWN.includes(STAKES_FLAG))
+const QUALITY_FLAG = (A && typeof A.quality === 'string') ? A.quality.trim().toLowerCase()
+                    : (typeof globalThis.__KONYO_QUALITY === 'string' ? globalThis.__KONYO_QUALITY : null)
+const QUALITY_ASKED = STAKES_FLAG
+  ? (QUALITY_FROM_STAKES[STAKES_FLAG] || 'max')
+  : QUALITY_FLAG
 /* v19.2 — IT IS CALLED LEAN, BECAUSE IT IS NOT FAST. Two real runs, measured: max took 53.7min and
    1.42M tokens; this path took ~46min and ~540k. That is ~15% quicker and ~62% cheaper — so the name
    "fast" promised the number it is worst at and hid the one it is excellent at. Konyo, watching it:
@@ -143,7 +154,8 @@ const LEANQ   = QUALITY === 'lean'
    v20 defect exactly: a concept with no name, re-derived at each call site, drifting the moment a
    quality is added. Named once here; adding a fifth quality now touches ONE line. */
 const MAXONLY = MAXQ && !LEANQ && !TINYQ
-const TASK      = typeof A === 'string' ? A : (A && A.task) || ''
+const TASK_RAW  = typeof A === 'string' ? A : (A && A.task) || ''
+const TASK      = String(TASK_RAW).replace(/\s*--(reversible|irreversible|costly)\b/gi, '').trim()
 const APPLY     = !!(A && A.apply)                 // false = dry-run (propose diffs, write nothing). true = agents edit files.
 // Quality-dependent DEFAULTS preserve each original script's default exactly; an explicit caller arg
 // always wins over both.
@@ -1291,24 +1303,22 @@ log(`KONYO WORKFLOW [${QUALITY.toUpperCase()}] · ${mode} · budget floor ${Math
 /* v38 — say the stakes translation out loud. A dial that silently becomes a different word is how
    the door and the engine drifted apart in the first place; printing the mapping means the next
    disagreement is visible in the first ten lines of a run instead of inferred from a bill. */
-if (STAKES_ASKED && !(A && typeof A.quality === 'string')) {
-  log(`STAKES: "${STAKES_ASKED}" → quality:${STAKES_QUALITY}` +
-      (STAKES_TYPO ? '  ⚠ UNRECOGNISED stakes word — resolved to MAX. A misread dial fails ' +
-                     'EXPENSIVE, never quietly cheap. Known: reversible | costly | irreversible.'
-                   : ''))
-} else if (STAKES_ASKED) {
-  log(`STAKES: "${STAKES_ASKED}" IGNORED — an explicit quality:"${A.quality}" was also passed and wins.`)
+if (STAKES_FLAG) {
+  log(`STAKES: "${STAKES_FLAG}" → quality:${QUALITY}` +
+      (QUALITY_FLAG ? `  (an explicit quality:"${QUALITY_FLAG}" was ALSO passed and was OVERRULED — ` +
+                      `stakes is the public dial)` : ''))
 }
 // v18 — a flag we did not understand must never be a silent downgrade.
-if (QUALITY_TYPO) log(`⚠ quality:"${QUALITY_ASKED}" is not a quality this workflow knows ` +
-    `(max | lean | standard). Ran at MAX — an unrecognised flag fails EXPENSIVE, never quiet. ` +
-    `Note this is NOT the default: a bare call runs LEAN.`)
+if (STAKES_TYPO) log(`⚠ stakes:"${STAKES_FLAG}" is not a stakes this workflow knows ` +
+    `(reversible | costly | irreversible). Ran at IRREVERSIBLE — an unrecognised flag fails EXPENSIVE, never quiet.`)
+if (QUALITY_TYPO) log(`⚠ quality:"${QUALITY_FLAG}" is not a quality this workflow knows ` +
+    `(internal: max | lean | standard | tiny). Ran at MAX — an unrecognised flag fails EXPENSIVE, never quiet. ` +
+    `The public dial is stakes, not quality.`)
 /* v20 — say the default out loud on the path that takes it. The old line fired on `!A?.quality`,
    which missed a quality arriving via globalThis.__KONYO_QUALITY; QUALITY_DEFAULTED is the same
    fact computed once, at the site that decided it. */
-if (QUALITY_DEFAULTED) log('   (lean is the default — EVERY gate max runs, at ~62% of the tokens: one architect ' +
-    'instead of a judge panel, one rework round, no completeness critic, low-risk items built at their ' +
-    'architect\'s tier. Pass {quality:"max"} for the judge panel + completeness critic; {quality:"standard"} for the cost-scaled ladder)')
+if (QUALITY_DEFAULTED) log('   (costly is the default — EVERY gate still runs, at ~62% of the tokens: one architect ' +
+    'instead of a judge panel, one rework round, no completeness critic. Pass {stakes:"irreversible"} for the judge panel + completeness critic; {stakes:"reversible"} for the cheap ladder)')
 log(`v30 METER: maxItems=${MAX_ITEMS_CAP} (quality=${QUALITY}) · volumeArcHeuristic=${LOOKS_LIKE_VOLUME_ARC}`)
 if (LOOKS_LIKE_VOLUME_ARC) {
   log('⚠ v30 METER ROUTING: this task reads like a MULTI-VERSION VOLUME arc.')
