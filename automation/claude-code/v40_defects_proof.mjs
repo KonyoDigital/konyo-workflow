@@ -450,7 +450,12 @@ const CHECKS = [
     ok: d => /never passed the gate/.test(d?.result?.verdict || '')
              && !/DEGRADED/.test(d?.result?.verdict || '') },
 
-  { id: 'S2.1', what: 'EVERY bail() exit carries complete:false — v40.10 fixed one call site and left ~12',
+  { id: 'S2.1', what: 'a ceiling bail carries complete:false (ONE exit — see U1.* for the others; this check alone does not prove "every")',
+    /* ⚠ ITS `what` USED TO SAY "EVERY bail() exit" and its fixture reached exactly one — and the
+       one whose CEILING_HIT term happened to still force false. So when §T3 later regressed four
+       OTHER exits to complete:true, this check stayed green and reported ALL GREEN over the
+       regression. A claim that outruns its fixture is the defect this suite polices, in the suite.
+       The claim is now the size of the evidence, and U1.1-U1.3 sample the exits it cannot see. */
     args: { task: 't', apply: true, thirdEye: false, maxAgents: 3 },
     /* bail()'s own comment: "Fixing it at the 13 call sites would be 13 chances to forget the
        14th; it belongs HERE, once." I fixed the 14th and forgot the other 13. */
@@ -471,7 +476,15 @@ const CHECKS = [
   /* ── T-series: third post-ship review. §T1 is the one that mattered — the previous commit's fix
      landed in a copy that does not run. */
 
-  { id: 'T2.1', what: 'the "declined every candidate" lie is gone in the MIXED case too (one died, the rest declined)',
+  { id: 'T2.1', what: 'the "declined every candidate" lie is gone when a carve agent died (single-candidate case — the MIXED case is NOT covered, see below)',
+    /* ⚠ THE CLAIM WAS CUT TO FIT THE FIXTURE. It said "MIXED case (one died, the rest declined)",
+       but `throwAgents:['carve:']` matches EVERY carve label and the run picks one candidate — so
+       `_carveLost === picked.length` and the OLD gate suppressed the lie too. The only clause that
+       made it red pre-fix was `carved.died === 1`, a §T7 field. §T2's actual change (widening the
+       gate from `=== picked.length` to `_carveLost`) REMAINS UNPROVEN: producing a genuine mix
+       needs two carve candidates, which needs two territories each with 3+ scars, and the harness
+       has no way to force that. Recorded as an open gap rather than papered over — an untested
+       change called tested is the thing this suite exists to refuse. */
     args: { task: 't', apply: true, thirdEye: false, quality: 'max', maxRounds: 5, maxAgents: 40,
       __harness: { agentPatch: [{ match: 'skeptic', patch: { refuted: true, severity: 'blocking', reason: 'broken' } }],
                    throwAgents: ['carve:'] } },
@@ -506,8 +519,12 @@ const CHECKS = [
        870000ms — above the Bash tool's 600000 cap, so it clamps and the backstop becomes SHORTER
        than the alarm it backs: the exact strangling §D2 was written to kill, re-entering through
        the escape hatch §D2 added. */
+    /* Anchored on CLAMPED + "SHORTER than the perl alarm", the two facts that must survive any
+       rewording. The first version matched "the backstop is CLAMPED" verbatim and broke the moment
+       §U4 moved the sentence — a guard pinned to prose it does not own. */
     ok: d => (d?.calls || []).some(c => /timeout parameter to 600000/.test(c.prompt || '')
-                                     && /the backstop is CLAMPED/.test(c.prompt || '')) },
+                                     && /CLAMPED/.test(c.prompt || '')
+                                     && /SHORTER than the perl alarm/.test(c.prompt || '')) },
 
   { id: 'T9.1', control: true, what: 'the documented perl command carries a NUMBER, not a shell variable that expands to no timeout at all',
     args: { task: 't', apply: true, thirdEye: false },
@@ -522,6 +539,42 @@ const CHECKS = [
       const src = readFileSync(NEW, 'utf8')
       return !/\(\$st >> 8\)\);' \$GROK_TIMEOUT_S/.test(src) && /\(\$st >> 8\)\);' 420/.test(src)
     } },
+
+  /* ── U1.*: one check per bail SHAPE, because §T3 regressed exactly the ones no fixture reached. */
+  { id: 'U1.1', what: 'the earliest bail of all (no task) is complete:false — §T3 had made it true',
+    args: { task: '', apply: true },
+    ok: d => d?.result?.complete === false && d?.result?.error === 'no task' },
+
+  { id: 'U1.2', what: "a ceiling bail BEFORE a plan exists is complete:false — the exact exit §S2's comment named, which §T3 reinstated",
+    args: { task: 't', apply: true, thirdEye: false, __harness: { nullAgents: ['architect'] } },
+    ok: d => d?.result?.complete === false && d?.result?.error === 'ceiling' },
+
+  { id: 'U1.3', what: 'an empty plan after the one-owner filter is complete:false (a failed architect is not a finished codebase)',
+    args: { task: 't', apply: true, thirdEye: false, __harness: { architectItems: [{ instruction: 'x', tier: 'sonnet', risk: 'low', kind: 'code' }] } },
+    ok: d => d?.result?.complete === false && /empty plan after filter/.test(d?.result?.error || '') },
+
+  { id: 'U1.4', control: true, what: 'the NOOP exit still overrides to complete:true — the fix must not flatten the one exit that knows better',
+    args: { task: 't', apply: true, thirdEye: false, __harness: { architectItems: [], architectSummary: 'already complete' } },
+    ok: d => d?.result?.complete === true },
+
+  { id: 'U3.1', what: 'a NON-NUMERIC grokTimeoutSeconds cannot produce `alarm NaN` (which perl reads as alarm 0 — NO timeout at all)',
+    args: { task: 't', apply: true, grokTimeoutSeconds: '12m' },
+    /* Measured pre-fix: the courier prompt emitted `…($st >> 8));' NaN \`, plus "timeout parameter
+       to NaN" and thirdEye.timeout_budget_s:"12m". agent-army was hardened in §T1; this engine was
+       not — the fix had landed in one copy only, which is §T1's own failure repeated. */
+    ok: d => d?.result?.thirdEye?.timeout_budget_s === 420
+             && !(d?.calls || []).some(c => /NaN/.test(c.prompt || '')) },
+
+  { id: 'U6.1', what: 'carve failures are not blamed on the ceiling unless the ceiling was actually hit',
+    args: { task: 't', apply: true, thirdEye: false, quality: 'max', maxRounds: 5, maxAgents: 40,
+      __harness: { agentPatch: [{ match: 'skeptic', patch: { refuted: true, severity: 'blocking', reason: 'broken' } }],
+                   nullAgents: ['carve:'] } },
+    /* `_carveLost - _carveDied` called every non-throwing null "REFUSED BY THE CEILING (nothing was
+       wrong with them)". agent() can resolve null without throwing, and on such a run CEILING_HIT
+       is false — a confidently wrong attribution in the field a reader uses to decide what to chase. */
+    ok: d => d?.result?.ceiling?.hit === false
+             && d?.result?.carved?.refused_by_ceiling === 0
+             && d?.result?.carved?.unknown_cause === 1 },
 
   { id: 'D3.1', what: 'BUILD_SCHEMA carries provides/consumes so a seam is a declared fact',
     args: TRIM_ARGS,

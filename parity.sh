@@ -16,7 +16,7 @@
 # Every one was silent. The repos were not behind because anyone decided they should be;
 # they were behind because nothing ever compared them. This is the comparing.
 #
-# ⚠ DIRECTION IS PER FILE AND IS NOT OBVIOUS. Two of these flow UP and two flow DOWN, and
+# ⚠ DIRECTION IS PER FILE AND IS NOT OBVIOUS. They do NOT all flow the same way — read each line, do not assume, and
 # guessing wrong destroys work in whichever direction you guessed:
 #
 #   konyo-workflow.js     install -> repo   AUTHORED AT THE INSTALL. That is what the

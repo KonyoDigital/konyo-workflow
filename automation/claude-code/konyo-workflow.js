@@ -423,7 +423,20 @@ async function bail(o) {
        trimmed nothing. A caller on the v40 contract reported an incomplete sweep it could not name,
        for a run the engine had just called already-complete. Derived from the same facts the
        success path uses, so the two agree; `o` still overrides for exits that know better. */
-    complete: !CEILING_HIT && !((globalThis.__plannedFiles || []).length) && !o.refused,
+    /* v40.13 §U1 — BACK TO A BLANKET false, WITH ONE EXPLICIT OVERRIDE. This is the third revision
+       of this single line and the story is worth keeping, because the middle one was mine being
+       too clever:
+         §S2  made it a blanket `false`. Correct, but it then contradicted the noop verdict.
+         §T3  replaced it with a derivation (`!CEILING_HIT && !plannedFiles.length && !o.refused`)
+              — and that REINSTATED THE EXACT DEFECT §S2 FIXED. Measured: `{task:""}` →
+              `complete:true`; `bail({error:'ceiling'})` → `complete:true`, which is the very exit
+              §S2's own comment named as its reason for existing. `plannedFiles.length === 0` cannot
+              tell "planned nothing because there was nothing to do" from "died before it could
+              plan", and I asked it to.
+       A bail IS an incomplete run unless the exit itself knows otherwise. The one exit that does —
+       the architect-returned-no-work noop — says so explicitly, and that is the whole mechanism.
+       Simple default, explicit exception, no inference. Found by the fourth post-ship review. */
+    complete: false,
     not_swept: (globalThis.__plannedFiles || []).slice(),
     planned_items: (globalThis.__plannedN ?? null),
   }, o))
@@ -617,7 +630,14 @@ const GROK_MCP_PREFIX = 'mcp__grok-mcp__'
    tool's own timeout to a HARDCODED 180000ms "as a backstop". A backstop shorter than the thing it
    backs is a second, tighter clock: raising the perl alarm alone would have changed nothing,
    because bash would still have been killed at 180s. Both now derive from ONE number. */
-const GROK_TIMEOUT_S = (A && A.grokTimeoutSeconds) || 420
+/* v40.13 §U3 — COERCED AT THE SOURCE. `(A && A.grokTimeoutSeconds) || 420` passed a non-numeric
+   value straight through, and line ~703's guard fell back to the RAW value, defeating its own
+   Number(). Measured with {grokTimeoutSeconds:"12m"}: the courier prompt emitted
+   `…($st >> 8));' NaN \` — and perl's `alarm NaN` is `alarm 0`, i.e. NO TIMEOUT AT ALL: the
+   reparented-grok-burns-a-core-forever case, reachable through the very escape hatch §D2 added and
+   §T9 hardened the documentation for. agent-army.js was hardened in §T1 and this copy was not —
+   the fix landed in one engine only, which is the same one-copy failure as §T1 itself. */
+const GROK_TIMEOUT_S = Math.max(30, Number((A && A.grokTimeoutSeconds) || 420) || 420)
 const perlAlarm = (secs) => `perl -e 'my $t=shift; my $p=fork; die unless defined $p; if(!$p){exec @ARGV; exit 127} ` +
   `$SIG{ALRM}=sub{kill "TERM",$p; waitpid($p,0); exit 142}; alarm $t; waitpid($p,0); ` +
   `my $st=$?; alarm 0; exit(($st & 127) ? 128+($st & 127) : ($st >> 8));' ${secs}`
@@ -700,7 +720,8 @@ function grokHow(question, opts = {}) {
   const cwd = opts.cwd || '.'
   // v40 §D2 — the seat's own budget. ONE number drives the perl alarm, the Bash backstop and the
   // sentence that tells the courier what exit 142 means, so they cannot disagree again.
-  const tmo = Math.max(30, Number(opts.timeoutS || GROK_TIMEOUT_S) || GROK_TIMEOUT_S)
+  // GROK_TIMEOUT_S is already coerced at its declaration (§U3), so this fallback is numeric.
+  const tmo = Math.max(30, Number(opts.timeoutS) || GROK_TIMEOUT_S)
   /* v40.11 §T5 — THE BASH TOOL'S OWN TIMEOUT MAXES OUT AT 600000ms, and this backstop is derived
      from an alarm the caller can raise without limit. The engine itself suggests
      {grokTimeoutSeconds:840} when a seat times out mid-review (see the courier log below), which
@@ -723,14 +744,18 @@ function grokHow(question, opts = {}) {
     `forks, alarms and SIGTERMs the child, so nothing can outlive the call. Do NOT use the \`timeout\` ` +
     `binary: it is not installed on this Mac and the command would die with command-not-found.\n` +
     `   Also set the Bash tool's OWN timeout parameter to ${backstopMs} as a backstop — belt and ` +
-    ((tmo + 30) * 1000 > BASH_TIMEOUT_MAX
-      ? `⚠ NOTE: your ${tmo}s alarm would need ${(tmo + 30) * 1000}ms, but the Bash tool caps at ` +
-        `${BASH_TIMEOUT_MAX}ms — the backstop is CLAMPED and is shorter than the perl alarm. The perl ` +
-        `wrapper is still the real bound; do not treat the Bash timeout as the limit here. `
-      : '') +
     `braces, not a replacement for the wrapper. ⚠ It is DERIVED from the alarm above (+30s) on purpose: ` +
     `this line used to say a hardcoded 180000, so a longer alarm would have been strangled by a shorter ` +
     `backstop and the fix would have changed nothing.\n` +
+    /* v40.13 §U4 — APPENDED AFTER that sentence, not spliced into it. The first cut inserted this
+       between "belt and" and "braces", and the +30s clause that followed then asserted the backstop
+       WAS alarm+30s at the exact moment it was not. A warning that breaks the sentence it qualifies
+       and is contradicted two clauses later is worse than no warning. */
+    ((tmo + 30) * 1000 > BASH_TIMEOUT_MAX
+      ? `   ⚠ EXCEPT ON THIS RUN: your ${tmo}s alarm would need ${(tmo + 30) * 1000}ms and the Bash ` +
+        `tool caps at ${BASH_TIMEOUT_MAX}ms, so the backstop above is CLAMPED and is SHORTER than the ` +
+        `perl alarm. The perl wrapper is the real bound here — do not read the Bash timeout as the limit.\n`
+      : '') +
     `   EXIT 142 MEANS THE ALARM FIRED — grok TIMED OUT. That is a real verdict: report it as ` +
     `reached:false / verdict:'unreachable' with reason 'grok timed out after ${tmo}s ` +
     `(perl alarm, exit 142)'. It is NEVER agreement and never "no concerns".\n` +
@@ -4257,18 +4282,31 @@ if (SCARS.length) {
        different facts") while the reason string said "died, or the ceiling refused them". A reader
        seeing lost:2 still had to guess which failure to chase. Found by the third post-ship review. */
     const _carveDied = Math.max(0, SPAWN_ERRORS.length - (CARVE_FENCE ? CARVE_FENCE.errors : 0))
-    const _carveRefused = Math.max(0, _carveLost - _carveDied)
+    /* v40.13 §U6 — DO NOT NAME A CAUSE THAT WAS NOT MEASURED. This was `_carveLost - _carveDied`,
+       which called every non-throwing falsy result "REFUSED BY THE CEILING (nothing was wrong with
+       them — the run could not afford the seat)". spawn() does return null on a ceiling refusal,
+       but agent() can also resolve null without throwing (a model returning nothing, a schema that
+       fails to validate). On such a run CEILING_HIT is false and the payload still blamed the
+       ceiling — a confidently wrong attribution in the field a reader uses to decide what to chase,
+       inside the fix whose own comment cites v19.4 for not conflating causes. It is only a ceiling
+       refusal if the ceiling was actually hit; the rest is an UNKNOWN cause, and says so. */
+    const _carveUnaccounted = Math.max(0, _carveLost - _carveDied)
+    const _carveRefused = CEILING_HIT ? _carveUnaccounted : 0
+    const _carveUnknown = CEILING_HIT ? 0 : _carveUnaccounted
     const written = carveResults.filter(Boolean).filter(r => r.wrote)
     CARVED = {
       ran: true,
       reason: _carveLost
         ? `${_carveLost} of ${picked.length} carve agent(s) never returned — NOT declined. ` +
           `${_carveDied} DIED (see agent_errors); ${_carveRefused} were REFUSED BY THE CEILING ` +
-          `(nothing was wrong with them — the run could not afford the seat).`
+          `(nothing was wrong with them — the run could not afford the seat)` +
+          (_carveUnknown ? `; ${_carveUnknown} returned NOTHING for an unmeasured reason — the ceiling ` +
+                           `was NOT hit, so do not chase it there.` : '.')
         : '',
       lost: _carveLost,
       died: _carveDied,
       refused_by_ceiling: _carveRefused,
+      unknown_cause: _carveUnknown,
       written: written.map(r => ({ path: r.path, action: r.action, summary: r.summary,
                                    archived: !!r.archived })),
       declined: carveResults.filter(Boolean).filter(r => !r.wrote)

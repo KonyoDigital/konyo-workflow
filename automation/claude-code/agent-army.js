@@ -446,7 +446,16 @@ function grokHow(question, opts = {}) {
     `forks, alarms and SIGTERMs the child. Do NOT use the \`timeout\` binary: it is not installed on ` +
     `this Mac and the command would die with command-not-found.\n` +
     `   Also set the Bash tool's OWN timeout parameter to ${GROK_BACKSTOP_MS} as a backstop, not a ` +
-    `replacement — it is DERIVED from the alarm (+30s, capped at ${BASH_TIMEOUT_MAX}ms).\n` +
+    `replacement — it is DERIVED from the alarm (+30s).\n` +
+    /* v40.13 §U7 — SAY SO WHEN THE CLAMP BINDS. konyo-workflow.js warns explicitly; this copy only
+       mentioned the cap in passing, so a courier handed 600000 for a 900s alarm was told it was
+       alarm+30s with nothing saying the backstop is now SHORTER than the wrapper it backs. Same
+       one-copy asymmetry as §U3, caught in the same review. */
+    ((GROK_TIMEOUT_S + 30) * 1000 > BASH_TIMEOUT_MAX
+      ? `   ⚠ CLAMPED ON THIS RUN: your ${GROK_TIMEOUT_S}s alarm would need ` +
+        `${(GROK_TIMEOUT_S + 30) * 1000}ms and the Bash tool caps at ${BASH_TIMEOUT_MAX}ms, so the ` +
+        `backstop is SHORTER than the perl alarm. The perl wrapper is the real bound.\n`
+      : '') +
     `   EXIT 142 MEANS THE ALARM FIRED — grok TIMED OUT. Report that as reached:false / ` +
     `verdict:'unreachable'. It is NEVER agreement and never "no concerns".\n` +
     `   ⚠ Put the COMPLETE command in \`command\` — do NOT clip it. The perl prefix is ~243 characters, ` +
