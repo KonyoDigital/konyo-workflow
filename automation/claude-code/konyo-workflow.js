@@ -2173,7 +2173,14 @@ plan = await spawn(
   `never micro-stamp a version per one-liner. This is NOT a licence to inflate the fleet — more ` +
   `outcomes per item, not more items.\n` +
   `\nTASK: ${TASK}`,
-  { model: 'opus', effort: 'high', phase: 'Architect', schema: PLAN_SCHEMA }
+/* v40.3 — NAMED. Seven agents ran unlabelled, identified only by their PHASE. For a phase with one
+   agent that is merely terse; for the render phase it is ambiguous, because the gate AND its fixer
+   share the phase and each can run up to RENDERLOOP times, so the progress tree, the journal and
+   any sweep see one indistinguishable pile. Two costs already paid: the handoff that commissioned
+   this arc had to reverse-engineer which journal row was which seat from the SHAPE OF ITS RESULT
+   KEYS, and the null-agent sweep could not target the render fixer separately from the render gate
+   at all — an agent that cannot be named cannot be tested alone. */
+  { model: 'opus', effort: 'high', label: 'architect', phase: 'Architect', schema: PLAN_SCHEMA }
 )
 if (plan === null) { log('CEILING: no budget for the plan.'); return bail({ error: 'ceiling' }) }
 }
@@ -2646,7 +2653,7 @@ if (ISOLATE) {
       `Report applied[] and failed[] honestly. A patch you did not apply MUST appear in failed[] — ` +
       `this is the only record that work existed, and a silent drop means a builder's change is gone ` +
       `with the worktree that held it.\n\nPATCHES:\n${bundle}`,
-      { model: 'opus', effort: 'high', phase: 'Merge', schema: {
+      { model: 'opus', effort: 'high', label: 'merge:apply', phase: 'Merge', schema: {
           type: 'object', additionalProperties: false,
           required: ['applied', 'failed', 'notes'],
           properties: {
@@ -2717,7 +2724,7 @@ if (MAXONLY) {
       `\nWhat is MISSING to fully and correctly satisfy the task? Look for: an untouched file that also needs the fix, ` +
       `an edge case no item covered, a claim not yet verified, a follow-on the changes now require. ` +
       `If nothing material is missing, done=true with empty missing[]. Only list REAL, actionable gaps (one owner per file).`,
-      { model: 'opus', effort: 'medium', phase: 'Completeness', schema: CRITIC_SCHEMA }
+      { model: 'opus', effort: 'medium', label: `completeness:round${critRound}`, phase: 'Completeness', schema: CRITIC_SCHEMA }
     // v14 — this used to be `.catch(() => ({ done:true, missing:[] }))`: a critic FAILURE converted
     // into "nothing is missing", which incremented `dry` and declared the run complete.
     ).catch(() => null)
@@ -2840,7 +2847,7 @@ const reachP = spawn(
   `5. Report only seams you actually verified as dead, with the evidence. A false positive here ` +
   `sends someone deleting live code, so if you cannot prove it is dead, do not list it.\n` +
   `Do NOT fix anything. Report.` + SEAM_LEADS,
-  { model: 'opus', effort: 'high', phase: 'Reachability', schema: {
+  { model: 'opus', effort: 'high', label: 'law19:reachability', phase: 'Reachability', schema: {
       type: 'object', additionalProperties: false,
       required: ['checked', 'dead', 'tests_added', 'tests_proven_run', 'notes'],
       properties: {
@@ -2955,7 +2962,7 @@ if (APPLY) {
     `nothing. Fulfil with route.fulfill({status:200, body:''}) instead of aborting, and pass ` +
     `{ animations: 'disabled' }. A capture that times out is a FAILURE, never "visual checks skipped". ` +
     `Never bind a port the user's own app uses; kill anything you start.`,
-    { effort: 'medium', phase: 'Render gate', schema: {
+    { effort: 'medium', label: `render:gate:pass${_rp}`, phase: 'Render gate', schema: {
         type: 'object', additionalProperties: false,
         // 'notes' is REQUIRED because the synthesizer prompt below reads renderGate.notes — a field
         // the reader depends on but the schema does not demand is the same bug in another costume.
@@ -3097,7 +3104,7 @@ if (APPLY) {
     `· If you cannot fix one, that is a fine answer: list it in unfixable[] with the reason. An ` +
     `honest miss costs a blocker; a fake fix costs the next render pass AND the trust in it.\n` +
     `Report exactly what you changed — the next render pass is told your answer and re-checks it.`,
-    { effort: TINYQ ? 'medium' : 'high', phase: 'Render gate', model: MAXQ ? 'opus' : undefined,
+    { effort: TINYQ ? 'medium' : 'high', label: `render:fix:pass${_rp}`, phase: 'Render gate', model: MAXQ ? 'opus' : undefined,
       schema: { type: 'object', additionalProperties: false,
         required: ['changed', 'what', 'files', 'unfixable'],
         properties: {
@@ -3356,7 +3363,7 @@ if (APPLY) {
     `applicable=false is permitted ONLY for a run that produces no version stamp at all (pure ` +
     `diagnosis / dry analysis) and REQUIRES na_evidence naming what was inspected. ` +
     `N/A without evidence is a FAIL.`,
-    { effort: 'medium', phase: 'Fat version bar', schema: {
+    { effort: 'medium', label: 'law17:fat-version-bar', phase: 'Fat version bar', schema: {
         type: 'object', additionalProperties: false,
         required: ['applicable', 'passes', 'kind', 'outcomes', 'reason'],
         properties: {
@@ -3481,7 +3488,7 @@ const final = TINYQ ? _tinyFinal() : await spawn(
   `Anything you write of the form "no issues found in X" is FORBIDDEN for any trimmed file: nothing ` +
   `looked at it. Absence of a finding where nothing searched is not evidence of absence.\n` +
   `\nWrite the single final report: headline is the ONE-line ping Konyo reads.`,
-  { model: 'opus', effort: 'high', phase: 'Synthesize', schema: FINAL_SCHEMA },
+  { model: 'opus', effort: 'high', label: 'synthesize:report', phase: 'Synthesize', schema: FINAL_SCHEMA },
   true                                // reserved: a run that cannot afford its own report reports nothing
 )
 // A missing synthesis is not a quiet detail: passed/failed are then raw counts nobody reviewed.

@@ -165,6 +165,41 @@ const CHECKS = [
     ok: d => Array.isArray(d?.nulledAgents) && d.nulledAgents.length === 1
              && d.nulledAgents[0].label === 'triage' },
 
+  /* ── D7: seven agents ran unlabelled, identified only by phase. Cost paid twice: the handoff had
+     to reverse-engineer journal rows from result-key SHAPES, and the null sweep could not target
+     the render FIXER apart from the render GATE — they share a phase and both were anonymous. */
+  { id: 'D7.1', what: 'EVERY agent in a full run carries a label (7 were anonymous, incl. the render gate and its fixer)',
+    args: { task: 't', apply: true, thirdEye: false, isolate: true, stakes: 'irreversible' },
+    /* ⚠ `!!c.label` WAS NOT THE TEST. load_harness substitutes the literal string '(unlabelled)'
+       for a missing label so its census reads nicely — and that string is TRUTHY, so the check
+       passed on the pre-fix engine, which has six anonymous agents. The assertion was reading the
+       instrument's DISPLAY PLACEHOLDER instead of the value, which is source-reading-guard's exact
+       shape: asserting on a rendering rather than on the thing rendered. */
+    ok: d => Array.isArray(d?.calls) && d.calls.length > 10
+             && d.calls.every(c => c.label && c.label !== '(unlabelled)') },
+
+  { id: 'D7.2', what: 'the render FIXER can now be killed on its own — proving its death path, which was untestable',
+    args: { task: 't', apply: true, thirdEye: false, __harness: {
+      agentPatch: [{ match: 'render:gate', patch: { passed: false, failures: ['header overlaps nav at 375px'], pre_existing: [] } }],
+      nullAgents: ['render:fix'] } },
+    // RED on the old engine because 'render:fix' matched nothing there: the fixer ran, the loop
+    // exhausted its passes, and `stopped` read 'ran out of passes' instead.
+    ok: d => d?.result?.render_loop?.stopped === 'the fixer did not return'
+             && (d?.nulledAgents || []).length === 1 },
+
+  { id: 'D7.3', control: true, what: 'a dead render fixer still BLOCKS and never converges (behaviour preserved, now proven)',
+    args: { task: 't', apply: true, thirdEye: false, __harness: {
+      agentPatch: [{ match: 'render:gate', patch: { passed: false, failures: ['header overlaps nav at 375px'], pre_existing: [] } }],
+      nullAgents: ['render:fix'] } },
+    ok: d => d?.result?.render_loop?.converged === false
+             && d?.result?.shippable === false
+             && (d?.result?.blockers || []).some(b => /RENDER GATE FAILED/.test(b.what || '')) },
+
+  { id: 'D7.4', control: true, what: 'agentPatch reports what it matched — a patch matching nothing must not read as a behaviour that held',
+    args: { task: 't', apply: true, thirdEye: false, __harness: {
+      agentPatch: [{ match: 'no-such-agent-anywhere', patch: { passed: false } }] } },
+    ok: d => Array.isArray(d?.patchedAgents) && d.patchedAgents.length === 0 },
+
   { id: 'D3.1', what: 'BUILD_SCHEMA carries provides/consumes so a seam is a declared fact',
     args: TRIM_ARGS,
     ok: d => (d?.calls || []).some(c => /build:/.test(c.label || '')) && d?.result?.seams !== undefined },

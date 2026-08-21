@@ -38,7 +38,8 @@ let src = readFileSync(SCRIPT, 'utf8')
 src = src.replace(/^export const meta/m, 'const meta')
 
 const calls = []
-const nulledAgents = []     // v40 — what __harness.nullAgents actually matched (see the note at the match site)
+const nulledAgents = []
+const patchedAgents = []    // v40.3 — what __harness.agentPatch actually matched     // v40 — what __harness.nullAgents actually matched (see the note at the match site)
 const phases = []
 const logs = []
 
@@ -145,6 +146,28 @@ globalThis.agent = async (prompt, opts = {}) => {
   }
   if (opts.schema) {
     let v = fake(opts.schema, '', rec.label)
+    /* v40.3 — FORCE FIELDS ONTO A NAMED AGENT'S RETURN. The faker always produces a HAPPY result,
+       so whole regions of the engine are unreachable from a test purely because nothing ever fails:
+       the render-loop FIXER only spawns when the render gate reports a failure, and no harness run
+       had ever produced one, so the fixer had never executed once in any proof. "Never tested" and
+       "tested and fine" look identical from a green suite.
+         __harness.agentPatch: [{ match: 'phase:Render gate', patch: { passed: false, failures: ['x'] } }]
+       `match` uses the same grammar as nullAgents (substring of label, or 'phase:<Phase>'), and
+       patched agents are recorded in `patchedAgents` for the same reason nullAgents has a
+       denominator: a matcher that matches nothing must not read as a behaviour that held. */
+    if (Array.isArray(H.agentPatch)) {
+      for (const ap of H.agentPatch) {
+        const m = String(ap && ap.match || '')
+        const hit = m.startsWith('phase:')
+          ? String(rec.phase || '') === m.slice(6)
+          : m && String(rec.label || '').includes(m)
+        if (hit && ap.patch && typeof ap.patch === 'object') {
+          if (!v || typeof v !== 'object') v = {}
+          Object.assign(v, ap.patch)
+          patchedAgents.push({ match: m, label: rec.label || null, phase: rec.phase || null })
+        }
+      }
+    }
     // triage drives the whole run — force the expensive path so every phase is exercised,
     // unless the harness overrides it.
     if (isTriage(rec, v)) {
@@ -269,7 +292,7 @@ if (process.env.HARNESS_DUMP) {
     const { writeFileSync } = await import('node:fs')
     writeFileSync(process.env.HARNESS_DUMP, JSON.stringify({
       ok: !err, error: err ? String(err && err.message || err) : null,
-      result: result ?? null, logs, phases, nulledAgents,
+      result: result ?? null, logs, phases, nulledAgents, patchedAgents,
       calls: calls.map(c => ({ label: c.label, phase: c.phase, model: c.model, prompt: c.prompt })),
     }))
   } catch (e) { say('HARNESS_DUMP FAILED: ' + e.message) }
