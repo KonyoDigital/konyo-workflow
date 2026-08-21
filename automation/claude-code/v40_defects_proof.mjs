@@ -334,6 +334,33 @@ const CHECKS = [
     ok: d => typeof d?.result?.planned_items === 'number'
              && (d.result.passed + d.result.failed + (d.result.not_swept || []).length) === d.result.planned_items },
 
+  /* ── D16: the TOKEN BUDGET, reachable for the first time via __harness.budget. */
+  { id: 'D16.1', what: 'a budget AT OR BELOW the floor is announced BEFORE the spend — no rework or completeness round could ever open',
+    args: { task: 't', apply: true, thirdEye: false, __harness: { budget: { total: 50000, spent: 0 } } },
+    /* budgetOK() is `remaining() > FLOOR` and FLOOR is 120k, so a 50k target is false at its FIRST
+       evaluation and stays false forever: the dial looks configured and the branch it guards can
+       never run. [[feedback_threshold_above_the_ceiling]] pointed at the token dial. */
+    ok: d => d?.result?.budget?.below_floor?.total === 50000
+             && d?.result?.budget?.floor === 120000
+             && (d?.logs || []).some(l => /BUDGET BELOW THE FLOOR/.test(l)) },
+
+  { id: 'D16.2', control: true, what: 'a budget ABOVE the floor is not warned about (must not fire on correct runs)',
+    args: { task: 't', apply: true, thirdEye: false, __harness: { budget: { total: 500000, spent: 0 } } },
+    ok: d => d?.result?.budget?.below_floor === null
+             && !(d?.logs || []).some(l => /BUDGET BELOW THE FLOOR/.test(l)) },
+
+  { id: 'D16.3', control: true, what: '{budgetFloor:N} lowers the bar deliberately, and then a small budget is fine',
+    args: { task: 't', apply: true, thirdEye: false, budgetFloor: 10000, __harness: { budget: { total: 50000, spent: 0 } } },
+    ok: d => d?.result?.budget?.below_floor === null && d?.result?.shippable === true },
+
+  { id: 'D16.4', control: true, what: 'a budget that runs out mid-run names the budget as the reason in BOTH loops',
+    args: { task: 't', apply: true, thirdEye: false, quality: 'max', __harness: {
+      budget: { total: 500000, spent: 400000 },
+      agentPatch: [{ match: 'skeptic', patch: { refuted: true, severity: 'blocking', reason: 'broken' } }] } },
+    ok: d => d?.result?.rework?.stopped_because === 'budget-floor'
+             && /budget floor/.test(d?.result?.completeness?.stoppedBecause || '')
+             && d?.result?.shippable === false },
+
   { id: 'D3.1', what: 'BUILD_SCHEMA carries provides/consumes so a seam is a declared fact',
     args: TRIM_ARGS,
     ok: d => (d?.calls || []).some(c => /build:/.test(c.label || '')) && d?.result?.seams !== undefined },

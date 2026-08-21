@@ -1582,6 +1582,26 @@ async function buildAndGate(itemsIn, label) {
 globalThis.__infeasible = null
 globalThis.__skepticFloored = false
 globalThis.__skepticsOptedOut = false
+/* ── v40.7 §B2 — A BUDGET AT OR BELOW THE FLOOR BUYS NOTHING, AND NOBODY WAS TOLD ───────────────
+   budgetOK() is `!budget.total || budget.remaining() > FLOOR`, and FLOOR is 120k at max/lean.
+   So a caller passing {budget:{total:50000}} has a floor they can NEVER clear: budgetOK() is false
+   at its very first evaluation and stays false forever. The rework loop opens ZERO rounds, the
+   completeness critic never runs, and the only trace is `stopped_because:'budget-floor'` in the
+   payload after the money is spent. Measured: total 50k on a max run → rounds:1,
+   rework:'budget-floor', completeness stopped at 'budget floor reached'.
+   This is [[feedback_threshold_above_the_ceiling]] — a threshold above the ceiling is an ABSENT
+   one — pointed at the token dial: the number looks configured, the branch it guards can never run.
+   It does NOT refuse: a deliberately tiny budget is a legitimate way to say "one pass only". It
+   refuses to let that be a SURPRISE, which is the same job the FEASIBILITY block does for agents.
+   Announced here, before a single agent is bought. */
+if (budget.total && budget.total <= FLOOR) {
+  log(`⚠⚠ BUDGET BELOW THE FLOOR — total ${Math.round(budget.total / 1000)}k, floor ${Math.round(FLOOR / 1000)}k.`)
+  log(`   budgetOK() is false from its FIRST evaluation and can never become true, so this run will`)
+  log(`   open NO rework round and NO completeness round whatever happens. It is not a budget that`)
+  log(`   runs out — it is one that was never above the line.`)
+  log(`   Raise {budget} above ${Math.round(FLOOR / 1000)}k, or lower it deliberately with {budgetFloor:N}.`)
+  globalThis.__budgetBelowFloor = { total: budget.total, floor: FLOOR }
+}
 log(`KONYO WORKFLOW [${QUALITY.toUpperCase()}] · ${mode} · budget floor ${Math.round(FLOOR/1000)}k · ` +
     /* v20 — THE BANNER ADVERTISED A PHASE THE RUN WOULD NEVER BUY. This was gated on MAXQ
        (`max || lean`) while the completeness loop is gated on `MAXONLY`, so every LEAN run
@@ -3212,7 +3232,12 @@ if (APPLY) {
     log(`⚠ RENDER LOOP STOPPED: ${renderLoop.stopped}`)
     break
   }
-  if (budget.total && budget.remaining() < FLOOR) {
+  /* v40.7 §B1 — TWO FORMULAS FOR ONE FLOOR, DISAGREEING AT THE BOUNDARY. budgetOK() is
+     `remaining() > FLOOR`; this said `remaining() < FLOOR`. At remaining() === FLOOR exactly they
+     give OPPOSITE answers: the rework and completeness loops stop, and this one carries on. One
+     line each, both defensible read alone, and no reader could have told you which of them the run
+     obeyed. That is the v18.3 shape at its smallest, so it calls the one predicate now. */
+  if (!budgetOK()) {
     renderLoop.stopped = `budget — ${Math.round(budget.remaining() / 1000)}k left, under the ${Math.round(FLOOR / 1000)}k floor`
     log(`⚠ RENDER LOOP STOPPED: ${renderLoop.stopped}`)
     break
@@ -4167,7 +4192,10 @@ return emit({
      defect this ledger exists to kill, just pointed at the bill instead of the work. */
   tokens_spent: budget.spent(),
   budget: { target: budget.total, spent: budget.spent(),
-            remaining: budget.total ? budget.remaining() : null },
+            remaining: budget.total ? budget.remaining() : null,
+            floor: FLOOR,
+            // v40.7 §B2 — set when the target was at or below the floor, i.e. no round could open.
+            below_floor: globalThis.__budgetBelowFloor || null },
   ceiling: { cap: MAX_AGENTS, spent: SPENT, hit: CEILING_HIT, hitDuringCompleteness: CEILING_HIT,
              trimmedFromPlan, complete: !CEILING_HIT && !trimmedFromPlan.length },
   // v13 — the one field that answers "is this safe to have shipped". Every fact below was already
