@@ -390,8 +390,11 @@ const CHECKS = [
     args: { task: 't', apply: true, thirdEye: false, maxAgents: 12 },
     /* `RUN_COMPLETE` was a const fixed ~400 lines above the payload literal, so a Ship-phase
        ceiling refusal emitted `complete:true` beside `ceiling:{hit:true, complete:false}`. */
-    ok: d => d?.result?.complete === false
-             && d?.result?.complete === d?.result?.ceiling?.complete
+    ok: d => d?.result?.complete === false && d?.result?.ceiling?.hit === true
+             /* ⚠ NOT `complete === ceiling.complete` — the post-ship review pointed out both sides
+                are the SAME incompletenessNow() call, so that clause could never fail. Assert the
+                VALUE against the run's actual state instead. A check whose two sides cannot
+                disagree is the defect this whole suite exists to refuse, written into the suite. */
              && /INCOMPLETE/.test(d?.result?.verdict || '') },
 
   { id: 'R3.1', what: 'the feasibility record keeps the PLAN size and trimmed/survived — it was clobbered by the block below it',
@@ -409,13 +412,55 @@ const CHECKS = [
        The raw fact is preserved as ceiling.hit and named as ceiling.carve_hit_ceiling. */
     ok: d => /never passed the gate/.test(d?.result?.verdict || '')
              && d?.result?.ceiling?.carve_hit_ceiling === true
-             && d?.result?.ceiling?.hit === true
-             && d?.result?.complete === d?.result?.ceiling?.complete },
+             && d?.result?.ceiling?.hit === true && d?.result?.complete === true
+             /* ⚠ NOT `complete === ceiling.complete` — the post-ship review pointed out both sides
+                are the SAME incompletenessNow() call, so that clause could never fail. Assert the
+                VALUE against the run's actual state instead. A check whose two sides cannot
+                disagree is the defect this whole suite exists to refuse, written into the suite. */ },
 
   { id: 'R8.1', what: 'the {strictScope:true} refusal carries `complete:false` — the one exit that is ABOUT incompleteness omitted it',
     args: { task: 't', apply: true, thirdEye: false, strictScope: true, __harness: { architectItems: Array.from({ length: 12 }, (_, i) => ({ file: `tv/f${i}.py`, instruction: 'c', tier: 'sonnet', risk: 'low', kind: 'code' })) } },
     ok: d => d?.result?.complete === false && d?.result?.planned_items === 12
              && (d?.result?.not_swept || []).length === 8 },
+
+  /* ── S1..S7: second post-ship review. §S1 is a REGRESSION this arc introduced. */
+
+  { id: 'S1.1', what: 'a carve agent that DIED is not reported as one that declined (v40.10 logged "declined every candidate" for a crash)',
+    args: { task: 't', apply: true, thirdEye: false, quality: 'max', maxRounds: 5, maxAgents: 40,
+      __harness: { agentPatch: [{ match: 'skeptic', patch: { refuted: true, severity: 'blocking', reason: 'broken' } }],
+                   throwAgents: ['carve:'] } },
+    /* §R4 correctly stopped carve rewriting an already-graded verdict — and removed the LAST signal
+       that carve died without replacing it. carveResults.filter(Boolean) then dropped the null from
+       both `written` and `declined`, so the run reported ran:true / written:[] / declined:[] and
+       logged that the agent had declined. It had crashed. */
+    ok: d => d?.result?.carved?.lost === 1
+             && /never returned/.test(d?.result?.carved?.reason || '')
+             && !(d?.logs || []).some(l => /declined every candidate/.test(l)) },
+
+  { id: 'S1.2', control: true, what: 'the §R4 fence still holds — a dead carve agent does not flip an already-graded verdict to DEGRADED',
+    args: { task: 't', apply: true, thirdEye: false, quality: 'max', maxRounds: 5, maxAgents: 40,
+      __harness: { agentPatch: [{ match: 'skeptic', patch: { refuted: true, severity: 'blocking', reason: 'broken' } }],
+                   throwAgents: ['carve:'] } },
+    ok: d => /never passed the gate/.test(d?.result?.verdict || '')
+             && !/DEGRADED/.test(d?.result?.verdict || '') },
+
+  { id: 'S2.1', what: 'EVERY bail() exit carries complete:false — v40.10 fixed one call site and left ~12',
+    args: { task: 't', apply: true, thirdEye: false, maxAgents: 3 },
+    /* bail()'s own comment: "Fixing it at the 13 call sites would be 13 chances to forget the
+       14th; it belongs HERE, once." I fixed the 14th and forgot the other 13. */
+    ok: d => d?.result?.complete === false && Array.isArray(d?.result?.not_swept) },
+
+  { id: 'S6.1', what: "ceiling.hitDuringCompleteness reports the completeness loop's OWN exit, not a plain alias of `hit`",
+    args: { task: 't', apply: true, thirdEye: false, maxAgents: 12 },
+    /* It was `hitDuringCompleteness: CEILING_HIT`. On a run whose ceiling was exhausted by the
+       POST-REPORT carve spawns it told a reader the completeness critic hit the ceiling — a loop
+       that at lean/standard/tiny never runs at all. [[label_outlived_referent]] */
+    ok: d => d?.result?.ceiling?.hit === true && d?.result?.ceiling?.hitDuringCompleteness === false },
+
+  { id: 'S7.1', control: true, what: 'an agent can now THROW, so agent_errors and the DEGRADED rung are reachable from a test at all',
+    args: { task: 't', apply: true, thirdEye: false, __harness: { throwAgents: ['law19:reach'] } },
+    ok: d => (d?.thrownAgents || []).length === 1
+             && (d?.result?.agent_errors || []).length === 1 },
 
   { id: 'D3.1', what: 'BUILD_SCHEMA carries provides/consumes so a seam is a declared fact',
     args: TRIM_ARGS,

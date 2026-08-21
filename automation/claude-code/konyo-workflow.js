@@ -407,6 +407,18 @@ async function bail(o) {
     carve_candidates: carveCandidates(),
     verdict: 'ABORTED — the run exited before completing; see error/refused',
     shippable: false,
+    /* v40.11 §S2 — `complete` DEFAULTS HERE, not at one call site. v40.10 §R8 added it to the
+       strictScope refusal only, leaving ~12 other bail() exits returning `complete: undefined` —
+       including `error:'ceiling'` (the run spent its whole cap before it even had a plan) and the
+       workspace-lock refusal. A caller written to the v40 contract (`if (result.complete === false)`)
+       read a ceiling-aborted run as NOT incomplete. This file's own comment fourteen lines above
+       says exactly why that was wrong: "Fixing it at the 13 call sites would be 13 chances to
+       forget the 14th; it belongs HERE, once." I fixed the 14th and forgot the other 13.
+       EVERY bail() IS an incomplete run BY DEFINITION — it is the exit taken when the run stopped
+       before finishing — so `false` is the correct default, and `o` still overrides it. */
+    complete: false,
+    not_swept: [],
+    planned_items: (globalThis.__plannedN ?? null),
   }, o))
 }
 
@@ -1608,6 +1620,14 @@ globalThis.__renderExcusals = null
 globalThis.__plannedN = null
 globalThis.__planSiblings = null
 globalThis.__lockCheck = null
+/* v40.11 §S4 — the v40.10 sweep for these stopped two symbols short, and one of the two is the
+   worst of the set. `__v30CallerTrimmed` is set at the plan and cleared only INSIDE
+   `if (Array.isArray(...) && .length)`, so any abnormal exit between those points leaves it
+   populated — and the next run in the same engine process MERGES the previous run's filenames into
+   `trimmedFromPlan`. The result is a "THE SWEEP WAS NOT COMPLETE — N PLANNED ITEM(S) WERE NEVER
+   RUN" blocker naming files this run never planned, with complete:false and a PARTIAL verdict
+   attached. A stale value does not just misreport here; it fabricates a defect. */
+globalThis.__v30CallerTrimmed = null
 /* ── v40.7 §B2 — A BUDGET AT OR BELOW THE FLOOR BUYS NOTHING, AND NOBODY WAS TOLD ───────────────
    budgetOK() is `!budget.total || budget.remaining() > FLOOR`, and FLOOR is 120k at max/lean.
    So a caller passing {budget:{total:50000}} has a floor they can NEVER clear: budgetOK() is false
@@ -2381,7 +2401,10 @@ const PLANNED_FILES = items.map(i => i.file)
    the assertion proving the rewrite was complete then matched ITS OWN PROSE — source-reading-guard,
    caught in the act of writing the fix for it.) */
 globalThis.__plannedN = items.length
-globalThis.__plannedFiles = PLANNED_FILES.slice()
+/* v40.11 §S5 — `__plannedFiles` was written here and read NOWHERE, and the comment above it said
+   "Nothing else uses them" out loud. That is the provided-with-no-consumer shape §R6 deleted
+   PERL_ALARM for in the previous commit: the sweep for it stopped one symbol short of its twin.
+   PLANNED_FILES itself stays — it is the local the trim compares against. */
 if (globalThis.__triage && globalThis.__triage.est_agents) {
   const cap = Math.max(1, Math.min(24, globalThis.__triage.est_agents))
   if (items.length > cap) {
@@ -4173,19 +4196,42 @@ if (SCARS.length) {
             archived:{ type: 'boolean' },
           } } },
         true)))          // reserved: see the v40.8 note above — counted and capped, but allowed after the holdback
+    /* ── v40.11 §S1 — A CARVE AGENT THAT DIED IS NOT A CARVE AGENT THAT DECLINED ─────────────────
+       `carveResults.filter(Boolean)` drops a null — and spawn() returns null both when the agent
+       dies and when the ceiling refuses it — so a run where BOTH carve agents died reported
+       `carved:{ran:true, written:[], declined:[]}` and logged "the agent declined every candidate.
+       That is a legal outcome, not a failure". They did not decline. They crashed.
+       ⚠ THIS COMMIT'S OWN §R4 MADE IT WORSE, WHICH IS WHY IT IS FIXED HERE. Before the fence, a
+       dead carve agent at least forced `DEGRADED — some agents died`. §R4 correctly stopped carve
+       from rewriting an already-graded verdict — and in doing so removed the LAST signal without
+       replacing it. The ceiling half of that fence got `ceiling.carve_hit_ceiling` precisely so the
+       difference is named instead of hidden; the death half needs the same, and now has it. */
+    const _carveLost = carveResults.filter(x => !x).length
     const written = carveResults.filter(Boolean).filter(r => r.wrote)
     CARVED = {
       ran: true,
-      reason: '',
+      reason: _carveLost
+        ? `${_carveLost} of ${picked.length} carve agent(s) never returned (died, or the ceiling refused them) — NOT declined`
+        : '',
+      lost: _carveLost,
       written: written.map(r => ({ path: r.path, action: r.action, summary: r.summary,
                                    archived: !!r.archived })),
       declined: carveResults.filter(Boolean).filter(r => !r.wrote)
         .map(r => ({ action: r.action, summary: r.summary })),
     }
+    if (_carveLost) {
+      log(`🪓⚠ ${_carveLost} of ${picked.length} carve agent(s) NEVER RETURNED — they did not decline, ` +
+          `they died or were refused by the ceiling. Recorded as carved.lost; the verdict is ` +
+          `deliberately NOT flipped (see §R4), because this is post-report bookkeeping about a ` +
+          `SKILL FILE, not about the work that already shipped.`)
+    }
     if (written.length) {
       log(`🪓 CARVED ${written.length} skill(s) — ` +
           written.map(r => `${r.path} (${r.action})`).join(' · ') +
           `. Evidence archived, not deleted. Loads at the START of your next session.`)
+    } else if (_carveLost === picked.length) {
+      log(`🪓⚠ Carve wrote nothing because NONE of its ${picked.length} agent(s) returned. This is ` +
+          `not a decline and must not be read as one.`)
     } else {
       log('🪓 Carve ran and wrote nothing — the agent declined every candidate. That is a legal ' +
           'outcome, not a failure; a rule that could only read as permission to skip a gate is ' +
@@ -4302,7 +4348,13 @@ return emit({
      cap and ceiling.spent counts it). `complete` uses the verdict-scoped view, so it agrees with
      the top-level `complete` and the verdict rather than contradicting them. `carve_hit_ceiling`
      names the difference instead of hiding it. */
-  ceiling: { cap: MAX_AGENTS, spent: SPENT, hit: CEILING_HIT, hitDuringCompleteness: CEILING_HIT,
+  /* v40.11 §S6 — `hitDuringCompleteness` was a plain alias of `hit`, and its NAME asserted
+     something the value could not support: on a run whose ceiling was exhausted by the POST-REPORT
+     carve spawns it told a reader the completeness critic hit the ceiling — a loop that at
+     lean/standard/tiny never runs at all. [[label_outlived_referent]]. It is kept (callers may read
+     it) but now carries the truth: the completeness loop's OWN ceiling exit, not a copy of `hit`. */
+  ceiling: { cap: MAX_AGENTS, spent: SPENT, hit: CEILING_HIT,
+             hitDuringCompleteness: critStop === 'ceiling',
              carve_hit_ceiling: !!(CARVE_FENCE && CEILING_HIT && !CARVE_FENCE.ceilingHit),
              trimmedFromPlan, complete: incompletenessNow().complete },
   // v13 — the one field that answers "is this safe to have shipped". Every fact below was already

@@ -14,6 +14,8 @@
 //     architectItems: [] | [...],     // force architect/judge plan items (v27 empty-plan proof)
 //     architectSummary: string,       // summary when forcing empty items
 //     triage: { ... },                // override triage fields
+//     throwAgents: ['carve:'],         // labels whose agent THROWS — the only way to populate
+//                                     // SPAWN_ERRORS and reach the DEGRADED rung
 //     nullAgents: ['lock:acquire'],   // labels (substring) whose spawn() returns null — proves the
 //                                     // "agent died / ceiling refused" branches, which return null
 //                                     // WITHOUT throwing and are therefore silent by construction
@@ -39,6 +41,7 @@ src = src.replace(/^export const meta/m, 'const meta')
 
 const calls = []
 const nulledAgents = []
+const thrownAgents = []     // v40.11 — what __harness.throwAgents actually matched
 const patchedAgents = []    // v40.3 — what __harness.agentPatch actually matched     // v40 — what __harness.nullAgents actually matched (see the note at the match site)
 const phases = []
 const logs = []
@@ -167,6 +170,19 @@ globalThis.agent = async (prompt, opts = {}) => {
      identical output. Measured while sweeping: nulling 'architect:judge' at quality=lean, which
      buys no judge at all, reported a clean shippable run and read as a silent safeguard bypass.
      nulledAgents is the denominator; a sweep that does not check it is proving nothing. */
+  /* v40.11 §S7 — MAKE AN AGENT **THROW**, which nothing could do before. spawn() populates
+     SPAWN_ERRORS only in its `.catch`, and the harness stub could return null (nullAgents) but
+     never reject — so `agent_errors`, the verdict ladder's `DEGRADED — some agents died` rung and
+     VERDICT_SPAWN_ERRORS() were unreachable from EVERY proof in the suite. A dead agent and a
+     ceiling-refused one are different facts (that is v19.4's whole lesson) and only one of them was
+     testable. Found by the post-ship review of the commit that added the fence. */
+  if (Array.isArray(H.throwAgents) && H.throwAgents.some(n =>
+        String(n).startsWith('phase:')
+          ? String(rec.phase || '') === String(n).slice(6)
+          : String(rec.label || '').includes(n))) {
+    thrownAgents.push({ label: rec.label || null, phase: rec.phase || null })
+    throw new Error(`harness: forced failure of ${rec.label || rec.phase || 'agent'}`)
+  }
   if (Array.isArray(H.nullAgents)) {
     const hit = H.nullAgents.find(n =>
       String(n).startsWith('phase:')
@@ -336,7 +352,7 @@ if (process.env.HARNESS_DUMP) {
     const { writeFileSync } = await import('node:fs')
     writeFileSync(process.env.HARNESS_DUMP, JSON.stringify({
       ok: !err, error: err ? String(err && err.message || err) : null,
-      result: result ?? null, logs, phases, nulledAgents, patchedAgents,
+      result: result ?? null, logs, phases, nulledAgents, patchedAgents, thrownAgents,
       calls: calls.map(c => ({ label: c.label, phase: c.phase, model: c.model, prompt: c.prompt })),
     }))
   } catch (e) { say('HARNESS_DUMP FAILED: ' + e.message) }
