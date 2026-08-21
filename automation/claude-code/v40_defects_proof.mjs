@@ -373,6 +373,50 @@ const CHECKS = [
              && (d?.calls || []).every(c => /WORK BRISKLY/.test(c.prompt || ''))
              && d?.result?.ceiling?.spent === (d?.calls || []).length },
 
+  /* ── R1..R8: findings from the POST-SHIP REVIEW of the v40 branch. Four of them are the same
+     defect class the whole arc was about — a fact computed before or after the decision it
+     describes — introduced by the fixes for it. */
+
+  { id: 'R1.1', what: 'the incompleteness blocker is raised BEFORE the report, so the synthesiser actually sees it',
+    args: { task: 't', apply: true, thirdEye: false, __harness: { architectItems: Array.from({ length: 12 }, (_, i) => ({ file: `tv/f${i}.py`, instruction: 'c', tier: 'sonnet', risk: 'low', kind: 'code' })) } },
+    /* It used to fire ~200 lines below `const final = …`: the synthesiser's prompt literally read
+       `BLOCKERS (0): none` while the payload emitted THE SWEEP WAS NOT COMPLETE, so v40's own rule
+       ("a non-empty blockers list forces the headline to LEAD with BLOCKED") was evaluated against
+       a list empty by construction. */
+    ok: d => (d?.calls || []).some(c => /^synthesize/.test(c.label || '') && /BLOCKERS \(1\):/.test(c.prompt))
+             && (d?.result?.blockers || []).some(b => /SWEEP WAS NOT COMPLETE/.test(b.what)) },
+
+  { id: 'R2.1', what: 'top-level `complete` AGREES with ceiling.complete when the Ship phase hits the ceiling',
+    args: { task: 't', apply: true, thirdEye: false, maxAgents: 12 },
+    /* `RUN_COMPLETE` was a const fixed ~400 lines above the payload literal, so a Ship-phase
+       ceiling refusal emitted `complete:true` beside `ceiling:{hit:true, complete:false}`. */
+    ok: d => d?.result?.complete === false
+             && d?.result?.complete === d?.result?.ceiling?.complete
+             && /INCOMPLETE/.test(d?.result?.verdict || '') },
+
+  { id: 'R3.1', what: 'the feasibility record keeps the PLAN size and trimmed/survived — it was clobbered by the block below it',
+    args: { task: 't', apply: true, thirdEye: false, quality: 'standard', maxAgents: 20, __harness: { architectItems: Array.from({ length: 12 }, (_, i) => ({ file: `tv/f${i}.py`, instruction: 'c', tier: 'sonnet', risk: 'low', kind: 'code' })) } },
+    ok: d => d?.result?.infeasible?.items === 12
+             && (d?.result?.infeasible?.trimmed || []).length === 8
+             && d?.result?.infeasible?.survived === 4 },
+
+  { id: 'R4.1', what: 'a CARVE agent refused by the ceiling cannot retroactively rewrite an already-graded verdict',
+    args: { task: 't', apply: true, thirdEye: false, quality: 'max', maxRounds: 5, maxAgents: 32,
+      __harness: { agentPatch: [{ match: 'skeptic', patch: { refuted: true, severity: 'blocking', reason: 'broken' } }] } },
+    /* v40.8 routed Carve through spawn() to make it COUNT (right, and kept). But spawn() also sets
+       CEILING_HIT, which the verdict ladder reads at emit — so post-report bookkeeping flipped the
+       verdict to "UNVERIFIED — the agent ceiling stopped the run early" on work already pushed.
+       The raw fact is preserved as ceiling.hit and named as ceiling.carve_hit_ceiling. */
+    ok: d => /never passed the gate/.test(d?.result?.verdict || '')
+             && d?.result?.ceiling?.carve_hit_ceiling === true
+             && d?.result?.ceiling?.hit === true
+             && d?.result?.complete === d?.result?.ceiling?.complete },
+
+  { id: 'R8.1', what: 'the {strictScope:true} refusal carries `complete:false` — the one exit that is ABOUT incompleteness omitted it',
+    args: { task: 't', apply: true, thirdEye: false, strictScope: true, __harness: { architectItems: Array.from({ length: 12 }, (_, i) => ({ file: `tv/f${i}.py`, instruction: 'c', tier: 'sonnet', risk: 'low', kind: 'code' })) } },
+    ok: d => d?.result?.complete === false && d?.result?.planned_items === 12
+             && (d?.result?.not_swept || []).length === 8 },
+
   { id: 'D3.1', what: 'BUILD_SCHEMA carries provides/consumes so a seam is a declared fact',
     args: TRIM_ARGS,
     ok: d => (d?.calls || []).some(c => /build:/.test(c.label || '')) && d?.result?.seams !== undefined },

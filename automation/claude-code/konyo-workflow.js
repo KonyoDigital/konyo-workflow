@@ -530,8 +530,12 @@ const PROOF = '\n\nVERIFY THE THING, NOT A PROXY FOR IT. Before you assert somet
    alarms, and SIGTERMs the child, so nothing can outlive the call:
      perl -e 'my $t=shift; my $p=fork; die unless defined $p; if(!$p){exec @ARGV; exit 127}
        $SIG{ALRM}=sub{kill "TERM",$p; waitpid($p,0); exit 142}; alarm $t; waitpid($p,0);
-       my $st=$?; alarm 0; exit(($st & 127) ? 128+($st & 127) : ($st >> 8));' 180 \
+       my $st=$?; alarm 0; exit(($st & 127) ? 128+($st & 127) : ($st >> 8));' $GROK_TIMEOUT_S \
        /Users/konyo/.grok/bin/grok --cwd ... --prompt-file ...
+     ⚠ v40.10 — THAT NUMBER WAS A LITERAL 180 UNTIL THE POST-SHIP REVIEW FOUND IT, two lines above
+     the lines §D2 edited. The whole point of §D2 is that 180s was killing live, mid-review Grok
+     seats; a reader copying the documented command reproduced the exact cut-off the change exists
+     to remove. The real value is GROK_TIMEOUT_S (default 420, {grokTimeoutSeconds:N} overrides).
    Exit 142 means the seat TIMED OUT, which is a real verdict — report it as unreachable, never as
    agreement. Kill the grok PID you spawned; never `MAXMIN=0 reap -f` (that matches the live TUI).
    `reap` (~/.local/bin/reap) with no `-f` lists true orphans after a run ends oddly; `reap -f`
@@ -594,9 +598,13 @@ const GROK_TIMEOUT_S = (A && A.grokTimeoutSeconds) || 420
 const perlAlarm = (secs) => `perl -e 'my $t=shift; my $p=fork; die unless defined $p; if(!$p){exec @ARGV; exit 127} ` +
   `$SIG{ALRM}=sub{kill "TERM",$p; waitpid($p,0); exit 142}; alarm $t; waitpid($p,0); ` +
   `my $st=$?; alarm 0; exit(($st & 127) ? 128+($st & 127) : ($st >> 8));' ${secs}`
-// Kept under its old name AND derived from the same function: it is quoted in prompts, in SCARS.md
-// and in the courier instructions, and two spellings of one command is how a safeguard drifts.
-const PERL_ALARM = perlAlarm(GROK_TIMEOUT_S)
+/* v40.10 — DELETED, BECAUSE IT HAD NO READERS. When §D2 split this into perlAlarm(secs), the only
+   consumer (grokHow) switched to perlAlarm(tmo) and this constant kept being COMPUTED and never
+   used. Its own comment claimed it was "quoted in prompts and in the courier instructions", which
+   had stopped being true in the same commit that wrote the comment — a stale claim guarding a dead
+   symbol. That is precisely the provided-with-no-consumer shape LAW19 blocks on, sitting inside the
+   engine that runs LAW19. Found by the post-ship review. perlAlarm(GROK_TIMEOUT_S) is one call away
+   for anyone who needs the default spelling. */
 /* v40 §D2b — WHY A SEAT WAS SILENT IS A DIFFERENT FACT FROM THAT IT WAS SILENT, and until now
    only the second one reached the payload. `silent_seats` carried a 200-char prose `reason`, which
    a human can read and no caller can branch on. These kinds are that same fact, typed. */
@@ -1582,6 +1590,24 @@ async function buildAndGate(itemsIn, label) {
 globalThis.__infeasible = null
 globalThis.__skepticFloored = false
 globalThis.__skepticsOptedOut = false
+/* v40.10 — THE v40 ARC ADDED SIX MORE OF THESE AND RESET NONE OF THEM. Every one is only ever SET,
+   so on a second run in the same engine process a dry run reported "THE LOCK AGENT NEVER RETURNED
+   and this run wrote to the tree anyway", a run whose LAW19 traced twelve symbols reported
+   law19_traced_nothing:true, and a healthy budget reported the PREVIOUS run's below_floor record.
+   `__triage` is the sharpest: it was never reset either, so a run whose triage agent DIES after an
+   earlier successful run reports the earlier run's sizing and the "THIS RUN WAS NEVER SIZED"
+   record never surfaces at all — the stale value actively hides the new fact.
+   Found by the post-ship review. It is the same defect as everything else in this arc — a value
+   that is true of a DIFFERENT run presented as this one's — committed in the fixes for it. */
+globalThis.__lockUnestablished = false
+globalThis.__triageFailed = false
+globalThis.__triage = null
+globalThis.__budgetBelowFloor = null
+globalThis.__law19Vacuous = false
+globalThis.__renderExcusals = null
+globalThis.__plannedN = null
+globalThis.__planSiblings = null
+globalThis.__lockCheck = null
 /* ── v40.7 §B2 — A BUDGET AT OR BELOW THE FLOOR BUYS NOTHING, AND NOBODY WAS TOLD ───────────────
    budgetOK() is `!budget.total || budget.remaining() > FLOOR`, and FLOOR is 120k at max/lean.
    So a caller passing {budget:{total:50000}} has a floor they can NEVER clear: budgetOK() is false
@@ -2449,11 +2475,16 @@ if (STRICT_SCOPE && trimmedFromPlan.length) {
       `choose for you.`)
   log(`  NOT SWEPT: ${trimmedFromPlan.join(', ')}`)
   log(`  Re-run with {maxAgents:${_need}} to sweep all ${PLANNED_N}, or narrow the brief yourself.`)
+  /* v40.10 — CARRY `complete`. A caller written to the v40 contract branches on
+     `result.complete === false`, and this exit — whose entire purpose is "this sweep will not be
+     complete" — returned `undefined` for it. The one refusal that is ABOUT incompleteness was the
+     one that did not say so in the field that means it. */
   return bail({ error: 'strict-scope',
     verdict: `REFUSED — the plan needs ~${_need} agents and the cap is ${MAX_AGENTS}; ` +
              `{strictScope:true} refuses to pick which ${trimmedFromPlan.length} item(s) to drop`,
-    planned: PLANNED_N, would_run: items.length, not_swept: trimmedFromPlan.slice(),
-    need_max_agents: _need })
+    complete: false,
+    planned: PLANNED_N, planned_items: PLANNED_N, would_run: items.length,
+    not_swept: trimmedFromPlan.slice(), need_max_agents: _need })
 }
 /* v21.1 — COUNT THE TIERS THAT WILL ACTUALLY BE BOUGHT, NOT THE ONES THAT WERE ASKED FOR.
    v20 fixed the GATING of the parenthetical (it no longer claims quality=max on a lean run) and
@@ -2518,7 +2549,15 @@ if (LOOKS_LIKE_VOLUME_ARC && MAXONLY) {
     log(`⚠ THIS PLAN CANNOT FULLY FINISH inside the ceiling. It will do the most valuable work first ` +
         `and report what it could not reach — it will NOT quietly claim completeness.`)
     log(`  To let it finish, re-run with {maxAgents:${worst}}. To keep the ceiling, expect a partial run.`)
-    globalThis.__infeasible = { worst, cap: MAX_AGENTS, items: items.length, skeptics: skeptN }
+    /* v40.10 — MERGE, DO NOT CLOBBER. This overwrote the §D1a record eight lines above whenever the
+       POST-TRIM worst also exceeded the cap (reachable at standard, which skips the plan-level
+       trim). The trimmed/survived facts vanished and `items` — meaning PLAN SIZE — was replaced by
+       the survivor count, so the payload said `items:4` for a 12-item plan and the synthesizer read
+       the clobbered copy. Two writers, one key, and the later one won by accident. */
+    globalThis.__infeasible = Object.assign({}, globalThis.__infeasible || {},
+      { worst_after_trim: worst, cap: MAX_AGENTS, items_running: items.length, skeptics: skeptN })
+    if (globalThis.__infeasible.items == null) globalThis.__infeasible.items = PLANNED_N
+    if (globalThis.__infeasible.worst == null) globalThis.__infeasible.worst = worst
   }
 }
 
@@ -3614,6 +3653,33 @@ if (LOG_PASS && APPLY) {
    It is assembled from the SAME fields the payload uses, so the headline cannot disagree with
    `blockers`/`shippable` the way a prose summary can — which is the exact failure v20 found when a
    synthesizer was handed "wentDry=false, stoppedBecause=(went dry)" for a loop that never ran. */
+/* ── v40.10 §R1 — RAISED **BEFORE** THE REPORT IS WRITTEN, WHICH IS THE WHOLE POINT ─────────────
+   These two blockers used to sit ~200 lines BELOW `const final = …`, i.e. after the report had
+   already been synthesised. The consequences, both reproduced by the post-ship review:
+     · The synthesiser's prompt literally said `BLOCKERS (0): none` on a run whose payload then
+       emitted `THE SWEEP WAS NOT COMPLETE — 8 PLANNED ITEM(S)`. So v40's own strengthened rule —
+       "a NON-EMPTY blockers list forces the headline to LEAD with BLOCKED" — was being evaluated
+       against a list that was EMPTY BY CONSTRUCTION at that moment.
+     · `_tinyFinal()` reads BLOCKERS directly and exists precisely so the headline cannot disagree
+       with blockers/shippable. It disagreed: verdict `BLOCKED — … 2 of 3 planned item(s) were
+       NEVER SWEPT` beside headline `1 item(s) built and gated clean` and `follow_ups: []`.
+   A fact computed after the decision it should inform is the defect this entire arc is about, and
+   it was introduced by the fix for it. Nothing about the blockers changed — only WHEN they fire,
+   which is now before anything reads BLOCKERS. */
+const NOT_SWEPT = trimmedFromPlan.slice()
+if (NOT_SWEPT.length) {
+  blocker('THE SWEEP WAS NOT COMPLETE — ' + NOT_SWEPT.length + ' PLANNED ITEM(S) WERE NEVER RUN',
+    `the plan had ${globalThis.__plannedN ?? '?'} item(s) and ${NOT_SWEPT.length} ` +
+    `were trimmed to fit the ${MAX_AGENTS}-agent cap, so THIS RUN DID NOT COVER ITS OWN BRIEF. ` +
+    `Never swept: ${NOT_SWEPT.join(', ')}. Any conclusion of the form "nothing was found in X" is ` +
+    `unsupported for these files — nothing looked. Re-run with a higher {maxAgents}, or with ` +
+    `{strictScope:true} to be refused up front rather than trimmed from the back.`)
+}
+if (CEILING_HIT && !NOT_SWEPT.length) {
+  blocker('THE AGENT CEILING STOPPED THIS RUN EARLY',
+    `${SPENT}/${MAX_AGENTS} agents were spent and further spawns were refused, so an unknown amount ` +
+    `of the closing work — gates included — never ran. What is reported is what fitted, not what was asked.`)
+}
 const _tinyFinal = () => ({
   version_label: (plan && plan.version_label) || 'v-tiny-r1',
   headline: BLOCKERS.length
@@ -3823,28 +3889,42 @@ if (USE_GROK && APPLY) {
    and is computed once, below; raising a blocker for the same facts cannot make it more permissive.
    Two formulas for one decision is the v18.3 bug and this deliberately is not one — the blocker
    changes what is REPORTED, not what is ALLOWED. */
-const NOT_SWEPT = trimmedFromPlan.slice()
-const RUN_COMPLETE = !CEILING_HIT && !NOT_SWEPT.length
-if (NOT_SWEPT.length) {
-  blocker('THE SWEEP WAS NOT COMPLETE — ' + NOT_SWEPT.length + ' PLANNED ITEM(S) WERE NEVER RUN',
-    `the plan had ${globalThis.__plannedN ?? '?'} item(s) and ${NOT_SWEPT.length} ` +
-    `were trimmed to fit the ${MAX_AGENTS}-agent cap, so THIS RUN DID NOT COVER ITS OWN BRIEF. ` +
-    `Never swept: ${NOT_SWEPT.join(', ')}. Any conclusion of the form "nothing was found in X" is ` +
-    `unsupported for these files — nothing looked. Re-run with a higher {maxAgents}, or with ` +
-    `{strictScope:true} to be refused up front rather than trimmed from the back.`)
-}
-if (CEILING_HIT && !NOT_SWEPT.length) {
-  blocker('THE AGENT CEILING STOPPED THIS RUN EARLY',
-    `${SPENT}/${MAX_AGENTS} agents were spent and further spawns were refused, so an unknown amount ` +
-    `of the closing work — gates included — never ran. What is reported is what fitted, not what was asked.`)
-}
-const INCOMPLETE_SUFFIX = NOT_SWEPT.length
+/* v40.10 §R2 — EVALUATED AT EMIT, NOT SNAPSHOTTED HERE. `RUN_COMPLETE` used to be a const fixed at
+   this line, but `ceiling.complete` and `verdict` are evaluated in the payload literal ~400 lines
+   below — AFTER the Ship spawn and the Carve spawns, either of which can set CEILING_HIT. Measured
+   at {maxAgents:12}: the Ship spawn was refused at 10/12 and the payload emitted `complete: true`
+   beside `ceiling:{hit:true, complete:false}` and a SHIP DID NOT RUN blocker. The new top-level
+   `complete` is the field v40 tells callers to branch on, and on that path it was the optimistic
+   one — a fact computed before the events that change it, which is this arc's whole subject,
+   committed in the fix for it. Found by the post-ship review. */
+/* ── v40.10 §R4 — CARVE MUST NOT RETROACTIVELY REWRITE A SHIPPED RUN'S VERDICT ──────────────────
+   v40.8 routed Carve through spawn() so it would finally COUNT against the ceiling — right, and the
+   accounting stays. But spawn() also sets CEILING_HIT on refusal and pushes to SPAWN_ERRORS on
+   death, and BOTH are read by the verdict ladder at emit — long after SHIPPABLE, `shipped`, the
+   report and the incompleteness clause were computed. So a carve agent dying could flip an
+   already-PUSHED clean run to `DEGRADED — some agents died` with `shippable:true` and
+   `shipped.pushed:true` sitting beside it, and a carve refusal could flip it to `UNVERIFIED — the
+   agent ceiling stopped the run early`. Carve is post-report BOOKKEEPING; its own failure is a fact
+   about the carve, not about the work that already shipped.
+   THE SNAPSHOT IS TAKEN AFTER SHIP AND BEFORE CARVE, deliberately — a Ship-phase ceiling refusal
+   SHOULD still reach the verdict (that is §R2), and only Carve is fenced off. Carve's own outcome
+   is reported in `carved`, and its agents still count in `ceiling.spent`. */
+let CARVE_FENCE = null            // set just before the Carve phase; null until then
+const VERDICT_CEILING_HIT = () => CARVE_FENCE ? CARVE_FENCE.ceilingHit : CEILING_HIT
+const VERDICT_SPAWN_ERRORS = () => CARVE_FENCE ? SPAWN_ERRORS.slice(0, CARVE_FENCE.errors) : SPAWN_ERRORS
+const incompletenessNow = () => {
+  const ceilingHit = VERDICT_CEILING_HIT()
+  return {
+    complete: !ceilingHit && !NOT_SWEPT.length,
+    suffix: NOT_SWEPT.length
   ? ` · ⚠ INCOMPLETE: ${NOT_SWEPT.length} of ${globalThis.__plannedN ?? '?'} ` +
     `planned item(s) were NEVER SWEPT (${NOT_SWEPT.slice(0, 6).join(', ')}` +
     `${NOT_SWEPT.length > 6 ? `, +${NOT_SWEPT.length - 6} more` : ''}) — this is NOT a clean sweep with findings`
-  : CEILING_HIT
-  ? ` · ⚠ INCOMPLETE: the agent ceiling (${SPENT}/${MAX_AGENTS}) stopped the run early — closing gates may never have run`
-  : ''
+      : ceilingHit
+      ? ` · ⚠ INCOMPLETE: the agent ceiling (${SPENT}/${MAX_AGENTS}) stopped the run early — closing gates may never have run`
+      : '',
+  }
+}
 const TE_ASKED_FOR = THIRD_EYE !== 'off'
 const TE_SPOKE = THIRD_EYE_SEATS.filter(s => s.reached)
 const TE_SILENT = THIRD_EYE_SEATS.filter(s => s.ran && !s.reached)
@@ -4028,6 +4108,8 @@ if (SCARS.length) {
           `in carve_candidates and were NOT dropped silently: ` +
           CARVE.slice(picked.length).map(c => `${c.territory} (x${c.n})`).join(' · '))
     }
+    // v40.10 §R4 — fence the verdict off from carve's own accounting (see the note above).
+    CARVE_FENCE = { ceilingHit: CEILING_HIT, errors: SPAWN_ERRORS.length }
     phase('Carve')
     /* ── v40.8 — THE CARVE PHASE SPAWNED OUTSIDE THE CEILING, AND OUTSIDE EVERY PROMPT RULE ───────
        This called the raw `agent()` instead of `spawn()`. Nothing in the surrounding 40 lines of
@@ -4216,8 +4298,13 @@ return emit({
             floor: FLOOR,
             // v40.7 §B2 — set when the target was at or below the floor, i.e. no round could open.
             below_floor: globalThis.__budgetBelowFloor || null },
+  /* v40.10 §R2/§R4 — `hit` is the RAW fact (carve included, because carve really did exhaust the
+     cap and ceiling.spent counts it). `complete` uses the verdict-scoped view, so it agrees with
+     the top-level `complete` and the verdict rather than contradicting them. `carve_hit_ceiling`
+     names the difference instead of hiding it. */
   ceiling: { cap: MAX_AGENTS, spent: SPENT, hit: CEILING_HIT, hitDuringCompleteness: CEILING_HIT,
-             trimmedFromPlan, complete: !CEILING_HIT && !trimmedFromPlan.length },
+             carve_hit_ceiling: !!(CARVE_FENCE && CEILING_HIT && !CARVE_FENCE.ceilingHit),
+             trimmedFromPlan, complete: incompletenessNow().complete },
   // v13 — the one field that answers "is this safe to have shipped". Every fact below was already
   // in the payload before; none of it reached the summary, so a capped run with skipped gates read
   // as a clean one.
@@ -4228,11 +4315,11 @@ return emit({
   // standard run must not be marked unshippable for a loop it never bought — but `completeness.ran`
   // above says so out loud, so it cannot be mistaken for a loop that ran and went dry.
   verdict: (BLOCKERS.length ? 'BLOCKED — see blockers[]'
-    : CEILING_HIT ? 'UNVERIFIED — the agent ceiling stopped the run early'
+    : VERDICT_CEILING_HIT() ? 'UNVERIFIED — the agent ceiling stopped the run early'
     : (MAXONLY && (dry < DRYROUNDS || unbuiltGaps.length)) ? 'UNVERIFIED — the completeness critic never went dry (' + (critStop || 'gaps raised but never built') + ')'
     : trimmedFromPlan.length ? 'PARTIAL — ' + trimmedFromPlan.length + ' item(s) were trimmed from the plan to fit the ceiling'
     : failed.length ? 'INCOMPLETE — ' + failed.length + ' item(s) never passed the gate'
-    : SPAWN_ERRORS.length ? 'DEGRADED — some agents died; their work is missing, not failed'
+    : VERDICT_SPAWN_ERRORS().length ? 'DEGRADED — some agents died; their work is missing, not failed'
     /* v21 — an EMPTY SEAT IS A DEAD AGENT, and it was the only one of the two that did not reach the
        verdict. A panel that came up short reviewed the change with fewer eyes than the report claims;
        that is degraded, not clean. It sits BELOW the other clauses on purpose — it never masks a
@@ -4241,8 +4328,8 @@ return emit({
         THIN_PANELS.slice(0, 3).map(t => `${t.file}: ${t.cast}/${t.panel} vote(s) cast`).join('; ') +
         ') — fewer eyes reviewed this than the seat count claims'
     : (results.length === 0 || passed.length === 0) ? 'EMPTY — no item passed a gate (vacuous green is forbidden)'
-    : 'OK') + INCOMPLETE_SUFFIX,   // v40 §D1c — a ternary picks ONE rung; incompleteness is not an alternative to being blocked
-  complete: RUN_COMPLETE,          // v40 §D1c — top-level, because nested under `ceiling` is where nobody looked
+    : 'OK') + incompletenessNow().suffix,   // v40 §D1c — a ternary picks ONE rung; incompleteness is not an alternative to being blocked
+  complete: incompletenessNow().complete,  // v40 §D1c — top-level, because nested under `ceiling` is where nobody looked
   not_swept: NOT_SWEPT,
   planned_items: (globalThis.__plannedN ?? null),
   /* v32 §(c2) — THE ONE AUDIT ITEM I COULD NOT REPRODUCE UNTIL I LOOKED AT THE ORDERING.
