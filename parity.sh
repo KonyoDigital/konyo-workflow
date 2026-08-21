@@ -16,7 +16,7 @@
 # Every one was silent. The repos were not behind because anyone decided they should be;
 # they were behind because nothing ever compared them. This is the comparing.
 #
-# ⚠ DIRECTION IS PER FILE AND IS NOT OBVIOUS. Two of these flow UP and two flow DOWN, and
+# ⚠ DIRECTION IS PER FILE AND IS NOT OBVIOUS. They do NOT all flow the same way — read each line, do not assume, and
 # guessing wrong destroys work in whichever direction you guessed:
 #
 #   konyo-workflow.js     install -> repo   AUTHORED AT THE INSTALL. That is what the
@@ -28,7 +28,19 @@
 #                                           repo names, and copying over it undoes that
 #                                           silently while looking like a version bump.
 #   konyo-workflow-max    public -> local   the published copy is the maintained one.
-#   agent-army.js         public -> install SEPARATE PRODUCT, authored in its own repo.
+#   agent-army.js         install -> repo   ⚠ CORRECTED 2026-08-21. This line used to read
+#                                           `public -> install  SEPARATE PRODUCT, authored in its
+#                                           own repo`, which CONTRADICTS the pair() call below —
+#                                           the one that actually runs and actually reports drift,
+#                                           and which says `live install is authored`. Two
+#                                           directions for one file, inside the script whose entire
+#                                           job is catching exactly that. It cost a real fix: a
+#                                           v40.11 change was authored into the repo copy on the
+#                                           strength of this comment, where it did nothing at
+#                                           runtime and would have been reverted by the next sync.
+#                                           The header now matches the code. If the TRUE direction
+#                                           is the other one, change the pair() call and this line
+#                                           TOGETHER — never one of them.
 #                                           agent-army.js is NOT konyo-workflow.js.
 #
 # Report only. It deliberately does not auto-sync: the .rhai hop needs a 3-way merge and

@@ -14,6 +14,11 @@
 //     architectItems: [] | [...],     // force architect/judge plan items (v27 empty-plan proof)
 //     architectSummary: string,       // summary when forcing empty items
 //     triage: { ... },                // override triage fields
+//     throwAgents: ['carve:'],         // labels whose agent THROWS — the only way to populate
+//                                     // SPAWN_ERRORS and reach the DEGRADED rung
+//     nullAgents: ['lock:acquire'],   // labels (substring) whose spawn() returns null — proves the
+//                                     // "agent died / ceiling refused" branches, which return null
+//                                     // WITHOUT throwing and are therefore silent by construction
 //     exitOnThrow: true,              // default true — process.exit(1) if the script throws
 //   }
 //
@@ -35,6 +40,9 @@ let src = readFileSync(SCRIPT, 'utf8')
 src = src.replace(/^export const meta/m, 'const meta')
 
 const calls = []
+const nulledAgents = []
+const thrownAgents = []     // v40.11 — what __harness.throwAgents actually matched
+const patchedAgents = []    // v40.3 — what __harness.agentPatch actually matched     // v40 — what __harness.nullAgents actually matched (see the note at the match site)
 const phases = []
 const logs = []
 
@@ -86,7 +94,22 @@ function fake(schema, key = '', label = '') {
   if (/parallel/.test(k)) return 'parallel'
   if (/cost_of_wrong|cost/.test(k)) return 'high'
   if (/model/.test(k)) return 'opus'
-  if (/file|path/.test(k)) return '/Users/konyo/.claude/workflows/konyo-workflow.js'
+  /* v40.5 — A HAPPY FIXTURE MUST BE A **COHERENT** ONE. Every file/path field used to return one
+     hardcoded path regardless of which agent was asking, so a builder told "you own a.js" returned
+     files_touched:['/Users/konyo/.claude/workflows/konyo-workflow.js'] — a build result that
+     contradicts its own brief. That went unnoticed for as long as nothing compared the two; the
+     moment the engine gained a real ownership check (v40.5 §B) it correctly failed the FIXTURE,
+     and the tiny baseline stopped shipping. The engine was right and the fixture was nonsense.
+     A fixture that is internally inconsistent makes every proof built on it accidental: it can
+     fail a correct engine, and it can pass a broken one for the same reason.
+     Build/rework labels carry their file as `build:<tier>:<file>` / `rework:<tier>:<file>`, so the
+     coherent answer is available — use it, and fall back to the old constant only when the label
+     names no file. */
+  if (/file|path/.test(k)) {
+    const m = String(label || '').match(/^(?:build|rework):[^:]*:(.+)$/)
+    if (m && m[1]) return m[1]
+    return '/Users/konyo/.claude/workflows/konyo-workflow.js'
+  }
   return `[fake:${key || 'str'}]`
 }
 
@@ -104,7 +127,21 @@ function isArchitectPlan(rec, opts, v) {
 }
 
 globalThis.args = ARGS
-globalThis.budget = { total: null, spent: () => 0, remaining: () => Infinity }
+/* v40.6 — THE TOKEN BUDGET WAS UNREACHABLE FROM A TEST. total:null / remaining:Infinity means
+   every `if (budget.total && budget.remaining() < FLOOR)` branch in the engine is dead in every
+   proof — the render loop's budget stop, the completeness loop's budgetOK(), the whole cost-aware
+   half of the engine. Same shape as the render fixer before agentPatch: never tested and tested-
+   and-fine are indistinguishable from a green suite.
+     __harness.budget: { total: 500000, spent: 480000 }
+   `spent` may also be a number that GROWS per agent via `spentPerAgent`, so a loop can be watched
+   crossing the floor rather than starting beyond it. */
+const _hb = (H.budget && typeof H.budget === 'object') ? H.budget : null
+let _spentTokens = _hb ? Number(_hb.spent || 0) : 0
+globalThis.budget = _hb
+  ? { total: Number(_hb.total) || null,
+      spent: () => _spentTokens,
+      remaining: () => Math.max(0, (Number(_hb.total) || 0) - _spentTokens) }
+  : { total: null, spent: () => 0, remaining: () => Infinity }
 globalThis.phase = (t) => { phases.push(t) }
 globalThis.log = (m) => { logs.push(String(m)) }
 globalThis.workflow = async () => { throw new Error('HARNESS: nested workflow() called — that is banned') }
@@ -121,6 +158,38 @@ globalThis.agent = async (prompt, opts = {}) => {
     prompt: prompt || '',
   }
   calls.push(rec)
+  if (_hb && Number(_hb.spentPerAgent)) _spentTokens += Number(_hb.spentPerAgent)
+  /* v40 — FORCE A SPECIFIC AGENT TO RETURN NULL, which is what the engine sees when an agent DIES
+     or the ceiling refuses the seat. spawn() returns null WITHOUT throwing in both cases, so every
+     `if (result && ...)` branch is skipped silently — the engine's most-repeated defect shape, and
+     until now the harness had no way to exercise it. `__harness.nullAgents: ['lock:acquire']`
+     matches on a substring of the agent LABEL. */
+  /* ⚠ COUNT WHAT WAS ACTUALLY NULLED. A pattern that matches NO agent nulls nothing, and the run
+     then looks exactly like a run whose missing agent did no harm — "this safeguard's absence is
+     harmless" and "this agent does not exist in this configuration" are opposite facts producing
+     identical output. Measured while sweeping: nulling 'architect:judge' at quality=lean, which
+     buys no judge at all, reported a clean shippable run and read as a silent safeguard bypass.
+     nulledAgents is the denominator; a sweep that does not check it is proving nothing. */
+  /* v40.11 §S7 — MAKE AN AGENT **THROW**, which nothing could do before. spawn() populates
+     SPAWN_ERRORS only in its `.catch`, and the harness stub could return null (nullAgents) but
+     never reject — so `agent_errors`, the verdict ladder's `DEGRADED — some agents died` rung and
+     VERDICT_SPAWN_ERRORS() were unreachable from EVERY proof in the suite. A dead agent and a
+     ceiling-refused one are different facts (that is v19.4's whole lesson) and only one of them was
+     testable. Found by the post-ship review of the commit that added the fence. */
+  if (Array.isArray(H.throwAgents) && H.throwAgents.some(n =>
+        String(n).startsWith('phase:')
+          ? String(rec.phase || '') === String(n).slice(6)
+          : String(rec.label || '').includes(n))) {
+    thrownAgents.push({ label: rec.label || null, phase: rec.phase || null })
+    throw new Error(`harness: forced failure of ${rec.label || rec.phase || 'agent'}`)
+  }
+  if (Array.isArray(H.nullAgents)) {
+    const hit = H.nullAgents.find(n =>
+      String(n).startsWith('phase:')
+        ? String(rec.phase || '') === String(n).slice(6)
+        : String(rec.label || '').includes(n))
+    if (hit) { nulledAgents.push({ pattern: hit, label: rec.label || null, phase: rec.phase || null }); return null }
+  }
   if (opts.schema) {
     let v = fake(opts.schema, '', rec.label)
     // triage drives the whole run — force the expensive path so every phase is exercised,
@@ -143,6 +212,42 @@ globalThis.agent = async (prompt, opts = {}) => {
           : (v.summary || 'harness plan'))
       v.why = v.why || 'harness'
       v.items = Array.isArray(H.architectItems) ? H.architectItems : []
+    }
+    /* ── v40.4 — FORCE FIELDS ONTO A NAMED AGENT'S RETURN. APPLIED **LAST**, AND THAT IS THE FIX.
+       WHY IT EXISTS: the faker only ever produces a HAPPY result, so whole regions of the engine
+       are unreachable from a test purely because nothing ever fails. The render-loop FIXER only
+       spawns when the render gate reports a failure, and no harness run had ever produced one, so
+       the fixer had never executed in any proof. "Never tested" and "tested and fine" look
+       identical from a green suite.
+         __harness.agentPatch: [{ match: 'law17:fat', patch: { applicable: true, passes: false } }]
+       `match` uses the same grammar as nullAgents (substring of label, or 'phase:<Phase>').
+       ⚠ WHY THE POSITION MATTERS, MEASURED: this block first sat immediately after fake(), ABOVE
+       the built-in triage and architect overrides — and `isTriage` does Object.assign(v, {tier:
+       'max', ...}) unconditionally. So a caller patching triage to tier:'direct' (the refusal that
+       bails a whole run with "spawning nothing") had that value silently overwritten by the
+       harness, the run fanned out anyway, and the sweep recorded it as "triage:direct does not
+       stop the run" — a FALSE FINDING about a safeguard that works perfectly. Worse,
+       `patchedAgents` said the patch had matched, because it HAD: "the patch was applied" and "the
+       patch had an effect" are different facts, and the instrument was reporting the first while
+       the second was false. That is precisely the defect class this whole arc is about, in the tool
+       built to find it. The caller's explicit intent is the most specific instruction in the file
+       and must therefore be applied LAST. */
+    if (Array.isArray(H.agentPatch)) {
+      for (const ap of H.agentPatch) {
+        const m = String(ap && ap.match || '')
+        const hit = m.startsWith('phase:')
+          ? String(rec.phase || '') === m.slice(6)
+          : m && String(rec.label || '').includes(m)
+        if (hit && ap.patch && typeof ap.patch === 'object') {
+          if (!v || typeof v !== 'object') v = {}
+          Object.assign(v, ap.patch)
+          /* Record the value AFTER assignment, so a later reader can see what the agent actually
+             returned rather than what was requested — the two diverged once already. */
+          patchedAgents.push({ match: m, label: rec.label || null, phase: rec.phase || null,
+            applied: JSON.parse(JSON.stringify(ap.patch)),
+            effective: Object.fromEntries(Object.keys(ap.patch).map(k => [k, v[k]])) })
+        }
+      }
     }
     return v
   }
@@ -234,6 +339,23 @@ if (result && typeof result === 'object') {
     agents: calls.length,
     phases,
   }))
+}
+
+/* v40 — FULL, UNTRIMMED DUMP FOR PROOF SCRIPTS. The pretty payload above is clipped at 3000 chars
+   and every long string at 300, which is right for a human and useless for an assertion: a proof
+   that greps the trimmed view is asserting on the FORMATTER, not on the run. Env-gated so nothing
+   about the normal output changes. HARNESS_DUMP=<path> writes {calls, logs, result} verbatim —
+   calls[] carries every prompt, which is the only way to prove a prompt-level safeguard reaches
+   the agent that needs it. */
+if (process.env.HARNESS_DUMP) {
+  try {
+    const { writeFileSync } = await import('node:fs')
+    writeFileSync(process.env.HARNESS_DUMP, JSON.stringify({
+      ok: !err, error: err ? String(err && err.message || err) : null,
+      result: result ?? null, logs, phases, nulledAgents, patchedAgents, thrownAgents,
+      calls: calls.map(c => ({ label: c.label, phase: c.phase, model: c.model, prompt: c.prompt })),
+    }))
+  } catch (e) { say('HARNESS_DUMP FAILED: ' + e.message) }
 }
 
 const exitOnThrow = H.exitOnThrow !== false
