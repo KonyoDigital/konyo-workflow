@@ -124,7 +124,21 @@ function isArchitectPlan(rec, opts, v) {
 }
 
 globalThis.args = ARGS
-globalThis.budget = { total: null, spent: () => 0, remaining: () => Infinity }
+/* v40.6 — THE TOKEN BUDGET WAS UNREACHABLE FROM A TEST. total:null / remaining:Infinity means
+   every `if (budget.total && budget.remaining() < FLOOR)` branch in the engine is dead in every
+   proof — the render loop's budget stop, the completeness loop's budgetOK(), the whole cost-aware
+   half of the engine. Same shape as the render fixer before agentPatch: never tested and tested-
+   and-fine are indistinguishable from a green suite.
+     __harness.budget: { total: 500000, spent: 480000 }
+   `spent` may also be a number that GROWS per agent via `spentPerAgent`, so a loop can be watched
+   crossing the floor rather than starting beyond it. */
+const _hb = (H.budget && typeof H.budget === 'object') ? H.budget : null
+let _spentTokens = _hb ? Number(_hb.spent || 0) : 0
+globalThis.budget = _hb
+  ? { total: Number(_hb.total) || null,
+      spent: () => _spentTokens,
+      remaining: () => Math.max(0, (Number(_hb.total) || 0) - _spentTokens) }
+  : { total: null, spent: () => 0, remaining: () => Infinity }
 globalThis.phase = (t) => { phases.push(t) }
 globalThis.log = (m) => { logs.push(String(m)) }
 globalThis.workflow = async () => { throw new Error('HARNESS: nested workflow() called — that is banned') }
@@ -141,6 +155,7 @@ globalThis.agent = async (prompt, opts = {}) => {
     prompt: prompt || '',
   }
   calls.push(rec)
+  if (_hb && Number(_hb.spentPerAgent)) _spentTokens += Number(_hb.spentPerAgent)
   /* v40 — FORCE A SPECIFIC AGENT TO RETURN NULL, which is what the engine sees when an agent DIES
      or the ceiling refuses the seat. spawn() returns null WITHOUT throwing in both cases, so every
      `if (result && ...)` branch is skipped silently — the engine's most-repeated defect shape, and

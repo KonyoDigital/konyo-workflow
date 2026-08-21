@@ -3002,6 +3002,10 @@ function provenPreExisting(gate) {
   }
   return { accepted, rejected, set: new Set(accepted.map(a => a.failure)) }
 }
+/* v40.6 §I2 — ONE PREDICATE FOR "WAS THAT NULL A REFUSAL RATHER THAN A DEATH". Read at the moment
+   the null is observed, because SPENT moves under this loop: the reachability gate runs
+   concurrently with the render gate by design. */
+const ceilingRefusedNow = () => CEILING_HIT || SPENT >= Math.max(1, MAX_AGENTS - RESERVE_COST)
 let renderGate = null
 /* v26 — the loop's own ledger. Reported verbatim so nobody has to infer how many attempts it took,
    and so a run that CONVERGED reads differently from one that simply ran out of passes. */
@@ -3162,7 +3166,20 @@ if (APPLY) {
   const _rClean = !!(renderGate && renderGate.available && renderGate.passed
                      && !_rWrong.length && !_rfOwn.length)
 
-  if (!renderGate) { renderLoop.stopped = 'the gate did not return'; break }
+  /* v40.6 §I2 — "DID NOT RETURN" WAS TWO OPPOSITE FACTS AGAIN. spawn() returns null both when an
+     agent DIES and when the ceiling REFUSES the seat, without throwing — the v19.4 lesson the third
+     eye already learned ("the run could not afford to ask" is not "the transport is down"), never
+     applied here. It matters because this loop has its OWN ceiling guard below at
+     MAX_AGENTS-RESERVE_COST-RENDER_ITER_COST, while spawn() refuses at MAX_AGENTS-RESERVE_COST: the
+     two bounds are different numbers, other phases spend concurrently (reachability runs alongside
+     this loop by design), so spawn's bound CAN bite between this loop's checks. When it does, the
+     loop reported a dead agent and a reader goes hunting a crash that never happened. */
+  if (!renderGate) {
+    renderLoop.stopped = ceilingRefusedNow()
+      ? `ceiling — the re-render was refused at ${SPENT}/${MAX_AGENTS} agents (NOT an agent crash)`
+      : 'the gate did not return'
+    break
+  }
   if (!renderGate.available) { renderLoop.stopped = 'no UI verification in this project'; break }
   if (_rClean) {
     renderLoop.converged = true
@@ -3182,8 +3199,15 @@ if (APPLY) {
   }
   /* Bounds BEFORE opening a correction, because a fixer + a re-render is two more agents and the
      last two are reserved for the report and the lock release. A loop that eats its own reserve
-     leaves the tree locked for the full 180-minute TTL, which is far worse than an unfixed defect. */
-  if (SPENT >= Math.max(1, MAX_AGENTS - 4)) {
+     leaves the tree locked for the full 180-minute TTL, which is far worse than an unfixed defect.
+     v40.6 — THE `4` WAS A FOURTH COPY OF THE RESERVE, WRITTEN AS A LITERAL. The reasoning is right
+     (one iteration costs 2 agents, and RESERVE_COST=2 must survive it) but the arithmetic was
+     frozen: spawn() holds MAX_AGENTS-2, the completeness loop holds MAX_AGENTS-2, the plan trim
+     reads RESERVE_COST, and this held 4 — correct today only because RESERVE_COST happens to be 2.
+     Moving RESERVE_COST would have moved three of the four and left this one behind, which is the
+     v18.3 shape (two formulas for one decision) waiting for a one-character edit. Derived now. */
+  const RENDER_ITER_COST = 2               // one correction = 1 fixer + 1 re-render
+  if (SPENT >= Math.max(1, MAX_AGENTS - RESERVE_COST - RENDER_ITER_COST)) {
     renderLoop.stopped = `ceiling — ${SPENT}/${MAX_AGENTS} agents spent, correction not affordable`
     log(`⚠ RENDER LOOP STOPPED: ${renderLoop.stopped}`)
     break
@@ -3264,7 +3288,9 @@ if (APPLY) {
      like the loop tried again. */
   if (!_fix || !_fix.changed) {
     renderLoop.stopped = _fix ? 'the fixer changed nothing — re-rendering would print the same result'
-                              : 'the fixer did not return'
+      : ceilingRefusedNow()
+        ? `ceiling — the fixer was refused at ${SPENT}/${MAX_AGENTS} agents (NOT an agent crash)`
+        : 'the fixer did not return'
     log(`⚠ RENDER LOOP STOPPED: ${renderLoop.stopped}`)
     break
   }

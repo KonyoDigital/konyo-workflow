@@ -299,6 +299,41 @@ const CHECKS = [
       { match: 'law19:reach', patch: { checked: 12, dead: [], tests_added: 0, tests_proven_run: true } }] } },
     ok: d => d?.result?.law19_traced_nothing === false && d?.result?.shippable === true },
 
+  /* ── D13/D14/D15: SAFEGUARD INTERACTION — two safeguards each correct alone that disagree when
+     they fire together. This is where the engine's own v18.3 scar came from. */
+
+  { id: 'D13.1', what: "a CEILING refusal of the re-render is named as a ceiling, not as an agent crash (live at maxAgents 7-9)",
+    args: { task: 't', apply: true, thirdEye: false, maxAgents: 9, __harness: { agentPatch: [{ match: 'render:gate', patch: { passed: false, failures: ['overlap'], pre_existing: [] } }],
+      nullAgents: ['render:fix'] } },
+    /* The render loop guards at MAX_AGENTS-RESERVE_COST-RENDER_ITER_COST while spawn() refuses at
+       MAX_AGENTS-RESERVE_COST — different numbers — and reachability spends concurrently with this
+       loop by design, so spawn's bound CAN bite between the loop's own checks. Pre-fix that read
+       'the gate did not return', sending a reader after a crash that never happened. */
+    ok: d => /ceiling — the re-render was refused/.test(d?.result?.render_loop?.stopped || '')
+             && /NOT an agent crash/.test(d?.result?.render_loop?.stopped || '') },
+
+  { id: 'D13.2', control: true, what: 'a genuinely dead fixer at a comfortable cap still reports a death, not a ceiling',
+    args: { task: 't', apply: true, thirdEye: false, __harness: { agentPatch: [{ match: 'render:gate', patch: { passed: false, failures: ['overlap'], pre_existing: [] } }], nullAgents: ['render:fix'] } },
+    ok: d => d?.result?.render_loop?.stopped === 'the fixer did not return' },
+
+  { id: 'D13.3', control: true, what: "the render loop's own guard still fires first when IT is the binding bound",
+    args: { task: 't', apply: true, thirdEye: false, maxAgents: 12, __harness: { agentPatch: [{ match: 'render:gate', patch: { passed: false, failures: ['overlap'], pre_existing: [] } }], nullAgents: ['render:fix'] } },
+    ok: d => /correction not affordable/.test(d?.result?.render_loop?.stopped || '') },
+
+  { id: 'D14.1', control: true, what: "the TOKEN BUDGET stop is reachable at all and names the budget as the bound (every such branch was dead in every proof)",
+    args: { task: 't', apply: true, thirdEye: false, __harness: {
+      budget: { total: 500000, spent: 495000 }, agentPatch: [{ match: 'render:gate', patch: { passed: false, failures: ['overlap'], pre_existing: [] } }] } },
+    ok: d => /^budget — /.test(d?.result?.render_loop?.stopped || '')
+             && d?.result?.budget?.remaining === 5000 },
+
+  { id: 'D15.1', what: 'the trim ledger is ARITHMETICALLY whole: planned_items === items run + not_swept, across three independent trim sources',
+    args: { task: 't', apply: true, thirdEye: false, __harness: {
+      architectItems: Array.from({ length: 20 }, (_, i) => ({ file: `tv/f${i}.py`, instruction: `c${i}`, tier: 'sonnet', risk: 'low', kind: 'code' })) } },
+    // the triage cap, the ceiling trim and the v30 item cap all write ONE ledger; if their union
+    // did not account for every planned item the report would be quietly short.
+    ok: d => typeof d?.result?.planned_items === 'number'
+             && (d.result.passed + d.result.failed + (d.result.not_swept || []).length) === d.result.planned_items },
+
   { id: 'D3.1', what: 'BUILD_SCHEMA carries provides/consumes so a seam is a declared fact',
     args: TRIM_ARGS,
     ok: d => (d?.calls || []).some(c => /build:/.test(c.label || '')) && d?.result?.seams !== undefined },
