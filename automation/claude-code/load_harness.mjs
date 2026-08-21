@@ -146,28 +146,6 @@ globalThis.agent = async (prompt, opts = {}) => {
   }
   if (opts.schema) {
     let v = fake(opts.schema, '', rec.label)
-    /* v40.3 — FORCE FIELDS ONTO A NAMED AGENT'S RETURN. The faker always produces a HAPPY result,
-       so whole regions of the engine are unreachable from a test purely because nothing ever fails:
-       the render-loop FIXER only spawns when the render gate reports a failure, and no harness run
-       had ever produced one, so the fixer had never executed once in any proof. "Never tested" and
-       "tested and fine" look identical from a green suite.
-         __harness.agentPatch: [{ match: 'phase:Render gate', patch: { passed: false, failures: ['x'] } }]
-       `match` uses the same grammar as nullAgents (substring of label, or 'phase:<Phase>'), and
-       patched agents are recorded in `patchedAgents` for the same reason nullAgents has a
-       denominator: a matcher that matches nothing must not read as a behaviour that held. */
-    if (Array.isArray(H.agentPatch)) {
-      for (const ap of H.agentPatch) {
-        const m = String(ap && ap.match || '')
-        const hit = m.startsWith('phase:')
-          ? String(rec.phase || '') === m.slice(6)
-          : m && String(rec.label || '').includes(m)
-        if (hit && ap.patch && typeof ap.patch === 'object') {
-          if (!v || typeof v !== 'object') v = {}
-          Object.assign(v, ap.patch)
-          patchedAgents.push({ match: m, label: rec.label || null, phase: rec.phase || null })
-        }
-      }
-    }
     // triage drives the whole run — force the expensive path so every phase is exercised,
     // unless the harness overrides it.
     if (isTriage(rec, v)) {
@@ -188,6 +166,42 @@ globalThis.agent = async (prompt, opts = {}) => {
           : (v.summary || 'harness plan'))
       v.why = v.why || 'harness'
       v.items = Array.isArray(H.architectItems) ? H.architectItems : []
+    }
+    /* ── v40.4 — FORCE FIELDS ONTO A NAMED AGENT'S RETURN. APPLIED **LAST**, AND THAT IS THE FIX.
+       WHY IT EXISTS: the faker only ever produces a HAPPY result, so whole regions of the engine
+       are unreachable from a test purely because nothing ever fails. The render-loop FIXER only
+       spawns when the render gate reports a failure, and no harness run had ever produced one, so
+       the fixer had never executed in any proof. "Never tested" and "tested and fine" look
+       identical from a green suite.
+         __harness.agentPatch: [{ match: 'law17:fat', patch: { applicable: true, passes: false } }]
+       `match` uses the same grammar as nullAgents (substring of label, or 'phase:<Phase>').
+       ⚠ WHY THE POSITION MATTERS, MEASURED: this block first sat immediately after fake(), ABOVE
+       the built-in triage and architect overrides — and `isTriage` does Object.assign(v, {tier:
+       'max', ...}) unconditionally. So a caller patching triage to tier:'direct' (the refusal that
+       bails a whole run with "spawning nothing") had that value silently overwritten by the
+       harness, the run fanned out anyway, and the sweep recorded it as "triage:direct does not
+       stop the run" — a FALSE FINDING about a safeguard that works perfectly. Worse,
+       `patchedAgents` said the patch had matched, because it HAD: "the patch was applied" and "the
+       patch had an effect" are different facts, and the instrument was reporting the first while
+       the second was false. That is precisely the defect class this whole arc is about, in the tool
+       built to find it. The caller's explicit intent is the most specific instruction in the file
+       and must therefore be applied LAST. */
+    if (Array.isArray(H.agentPatch)) {
+      for (const ap of H.agentPatch) {
+        const m = String(ap && ap.match || '')
+        const hit = m.startsWith('phase:')
+          ? String(rec.phase || '') === m.slice(6)
+          : m && String(rec.label || '').includes(m)
+        if (hit && ap.patch && typeof ap.patch === 'object') {
+          if (!v || typeof v !== 'object') v = {}
+          Object.assign(v, ap.patch)
+          /* Record the value AFTER assignment, so a later reader can see what the agent actually
+             returned rather than what was requested — the two diverged once already. */
+          patchedAgents.push({ match: m, label: rec.label || null, phase: rec.phase || null,
+            applied: JSON.parse(JSON.stringify(ap.patch)),
+            effective: Object.fromEntries(Object.keys(ap.patch).map(k => [k, v[k]])) })
+        }
+      }
     }
     return v
   }

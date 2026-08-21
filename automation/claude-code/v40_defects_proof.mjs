@@ -200,6 +200,54 @@ const CHECKS = [
       agentPatch: [{ match: 'no-such-agent-anywhere', patch: { passed: false } }] } },
     ok: d => Array.isArray(d?.patchedAgents) && d.patchedAgents.length === 0 },
 
+  /* ── D8: a render gate could excuse its OWN failure with a one-character proof string.
+     v33 lets a gate subtract failures it proves were already broken — right, and its own comment
+     names the risk ("the easiest claim a gate can make and the hardest to check"). The test was
+     `String(p.proof||'').trim()`, i.e. non-empty. Reachable only via agentPatch, because the
+     failing-gate path had never been exercised: the faker only produces happy results. */
+  { id: 'D8.1', what: "a ONE-CHARACTER proof no longer excuses a render failure (it shipped before)",
+    args: { task: 't', apply: true, thirdEye: false, __harness: { agentPatch: [{ match: 'render:gate',
+      patch: { passed: true, failures: ['header overlaps nav at 375px'], pre_existing: [{ failure: 'header overlaps nav at 375px', proof: 'x' }] } }] } },
+    ok: d => d?.result?.shippable === false
+             && (d?.result?.render_excusals?.rejected || []).length === 1 },
+
+  { id: 'D8.2', what: 'a proof that merely repeats the failure text is refused',
+    args: { task: 't', apply: true, thirdEye: false, __harness: { agentPatch: [{ match: 'render:gate',
+      patch: { passed: true, failures: ['header overlaps nav at 375px'], pre_existing: [{ failure: 'header overlaps nav at 375px', proof: 'header overlaps nav at 375px' }] } }] } },
+    ok: d => d?.result?.shippable === false
+             && /repeats the failure/.test((d?.result?.render_excusals?.rejected || [{}])[0]?.why || '') },
+
+  { id: 'D8.3', what: 'a long, confident CLAIM that names nothing checkable is refused (length alone is not evidence)',
+    args: { task: 't', apply: true, thirdEye: false, __harness: { agentPatch: [{ match: 'render:gate',
+      patch: { passed: true, failures: ['header overlaps nav at 375px'], pre_existing: [{ failure: 'header overlaps nav at 375px',
+        proof: 'I am confident this problem existed previously and is definitely not something our change introduced' }] } }] } },
+    ok: d => d?.result?.shippable === false
+             && /names nothing checkable/.test((d?.result?.render_excusals?.rejected || [{}])[0]?.why || '') },
+
+  { id: 'D8.4', control: true, what: 'a REAL proof naming a git ref is still accepted and still ships (no over-blocking)',
+    args: { task: 't', apply: true, thirdEye: false, __harness: { agentPatch: [{ match: 'render:gate',
+      patch: { passed: true, failures: ['header overlaps nav at 375px'], pre_existing: [{ failure: 'header overlaps nav at 375px',
+        proof: 'present on origin/main at a1b2c3d before this run; verified with git stash && re-render' }] } }] } },
+    ok: d => d?.result?.shippable === true
+             && (d?.result?.render_excusals?.accepted || []).length === 1 },
+
+  { id: 'D8.5', what: 'what the render gate excused itself for reaches the PAYLOAD, not just a log line',
+    args: { task: 't', apply: true, thirdEye: false, __harness: { agentPatch: [{ match: 'render:gate',
+      patch: { passed: true, failures: ['header overlaps nav at 375px'], pre_existing: [{ failure: 'header overlaps nav at 375px', proof: 'x' }] } }] } },
+    ok: d => d?.result?.render_excusals && Array.isArray(d.result.render_excusals.accepted)
+             && Array.isArray(d.result.render_excusals.rejected) },
+
+  /* ── D9: the instrument again. agentPatch first ran BEFORE the harness's own triage override,
+     which Object.assigns tier:'max' unconditionally — so patching triage to 'direct' was silently
+     clobbered and the sweep recorded "triage:direct does not stop the run", a FALSE FINDING about
+     a safeguard that works perfectly. patchedAgents said it matched, because it had: "applied" and
+     "had an effect" are different facts. */
+  { id: 'D9.1', control: true, what: "agentPatch survives the harness's own overrides — triage patched to 'direct' now REFUSES the run",
+    args: { task: 't', apply: true, thirdEye: false, __harness: {
+      agentPatch: [{ match: 'triage', patch: { tier: 'direct', why: 'one root cause, do it serially' } }] } },
+    ok: d => d?.result?.refused === 'triage says direct'
+             && (d?.patchedAgents || []).every(x => JSON.stringify(x.applied) === JSON.stringify(x.effective)) },
+
   { id: 'D3.1', what: 'BUILD_SCHEMA carries provides/consumes so a seam is a declared fact',
     args: TRIM_ARGS,
     ok: d => (d?.calls || []).some(c => /build:/.test(c.label || '')) && d?.result?.seams !== undefined },

@@ -2865,6 +2865,64 @@ const reachP = spawn(
 // A parser cannot see a painted page. Konyo's predicter shipped a MutationObserver loop that froze
 // the entire app past a fully green gate — parity, modules, i18n all passing. If the project has a
 // way to drive its own UI, use it, and treat a failure as a ship blocker.
+/* ── v40.4 — "PROVEN PRE-EXISTING" WAS ONE NON-EMPTY CHARACTER ──────────────────────────────────
+   v33 lets a render gate subtract failures it can prove were ALREADY broken, so a ship is not
+   blocked by a defect it did not cause. That is right, and its own comment names the risk exactly:
+   "it was already broken" is the easiest claim a gate can make and the hardest to check. The test
+   it settled on was `String(p.proof || '').trim()` — non-empty.
+   MEASURED with __harness.agentPatch (the failing-gate path had never been exercised, because the
+   faker only ever produces happy results): a gate returning
+     passed:true, failures:['header overlaps nav'],
+     pre_existing:[{failure:'header overlaps nav', proof:'x'}]
+   ships. Verdict OK, zero blockers. ONE CHARACTER disarms the render gate for that failure — and
+   the render gate is the only thing in this engine that has actually LOOKED at the UI.
+   A string test can only ever ask "did you write something?" [[source-reading-guard]]. This asks a
+   narrow further question: does the proof NAME SOMETHING CHECKABLE — a ref, a command, a baseline,
+   a prior state? It is still not cryptographic and a determined fabricator can still write a
+   plausible sentence; what it closes is the any-keystroke hole, and the failure it catches is the
+   LIKELY one — a gate reaching for the cheapest way past its own finding.
+   ⚠ A REJECTED PROOF IS ANNOUNCED. Silently downgrading an excuse back to a failure would make the
+   gate's own report disagree with the verdict for reasons nobody could see, which is this file's
+   signature defect wearing the opposite mask.
+   ⚠ ONE FUNCTION, TWO CALLERS. This logic previously existed TWICE — once inside the render loop
+   for the convergence test and once below it for the blocker — as two identical copies, with a
+   comment on each saying they must narrow by the same rule. Two copies of one decision is the
+   v18.3 bug this file already carries a scar for; they agreed today and nothing kept them agreeing.
+   Now they call this. */
+function provenPreExisting(gate) {
+  const raw = (gate && Array.isArray(gate.pre_existing)) ? gate.pre_existing : []
+  const accepted = [], rejected = []
+  for (const p of raw) {
+    const failure = String((p && p.failure) || '').trim()
+    const proof = String((p && p.proof) || '').trim()
+    if (!failure) continue
+    if (!proof) { rejected.push({ failure, proof, why: 'no proof given at all' }); continue }
+    // Not the failure text handed back as its own evidence.
+    if (proof.toLowerCase() === failure.toLowerCase()) {
+      rejected.push({ failure, proof, why: 'the proof merely repeats the failure text' }); continue
+    }
+    /* Does it name something a person could go and check? Deliberately broad — the aim is to
+       refuse a keystroke, not to adjudicate wording. */
+    /* ⚠ THE FIRST CUT OF THIS LIST ACCEPTED THE CLAIM AS ITS OWN EVIDENCE. It included
+       `already (broken|failing|present)`, `unchanged`, `untouched` and `before this run` — which
+       are the very assertion being made, not anything supporting it. So "this was already broken
+       before we started, honestly" passed: 52 characters and a keyword, proving nothing. That is
+       the same defect as the third eye's timeout regex accepting a bare "timeout" (v40), and it was
+       written into the guard built to stop exactly this. Caught by its own test table.
+       What remains points at something a PERSON CAN GO AND CHECK: a ref, a command, a sha, a
+       version, an issue, a date, or an explicit baseline/reproduction. */
+    const NAMES_EVIDENCE = /\b(git|stash|checkout|commit|sha|HEAD|origin\/|branch|tag|revert|bisect|baseline|reproduc(e|ed|es|ible)|v\d|#\d|20\d\d-\d\d|[0-9a-f]{7,40})\b/i
+    if (proof.length < 30 || !NAMES_EVIDENCE.test(proof)) {
+      rejected.push({ failure, proof,
+        why: proof.length < 30
+          ? `the proof is ${proof.length} character(s) — too short to name evidence`
+          : 'the proof names nothing checkable (no ref, commit, command, baseline or prior state)' })
+      continue
+    }
+    accepted.push({ failure, proof })
+  }
+  return { accepted, rejected, set: new Set(accepted.map(a => a.failure)) }
+}
 let renderGate = null
 /* v26 — the loop's own ledger. Reported verbatim so nobody has to infer how many attempts it took,
    and so a run that CONVERGED reads differently from one that simply ran out of passes. */
@@ -3020,10 +3078,8 @@ if (APPLY) {
   /* v33 — the convergence test and the blocker must narrow by the SAME rule, or the loop stops for
      a failure the blocker excuses (or worse, converges on one it does not). Two formulas for one
      decision is the v18.3 bug this file already carries a scar for. */
-  const _rPre = new Set(((renderGate && Array.isArray(renderGate.pre_existing)) ? renderGate.pre_existing : [])
-    .filter(p => p && String(p.failure || '').trim() && String(p.proof || '').trim())
-    .map(p => String(p.failure).trim()))
-  const _rfOwn = _rf.filter(f => !_rPre.has(String(f).trim()))
+  const _rPreEval = provenPreExisting(renderGate)
+  const _rfOwn = _rf.filter(f => !_rPreEval.set.has(String(f).trim()))
   const _rClean = !!(renderGate && renderGate.available && renderGate.passed
                      && !_rWrong.length && !_rfOwn.length)
 
@@ -3148,13 +3204,17 @@ if (APPLY) {
      a `proof` string; without one it stays a real failure, because "it was already broken" is the
      easiest claim a gate can make and the hardest to check. The subtraction is by exact wording, so
      a gate cannot excuse a failure it did not also list. */
-  const _preOK = ((renderGate && Array.isArray(renderGate.pre_existing)) ? renderGate.pre_existing : [])
-    .filter(p => p && String(p.failure || '').trim() && String(p.proof || '').trim())
-  const _preSet = new Set(_preOK.map(p => String(p.failure).trim()))
+  const _preEval = provenPreExisting(renderGate)
+  const _preSet = _preEval.set
   const _allFails = (renderGate && Array.isArray(renderGate.failures)) ? renderGate.failures : []
   const _finalFails = _allFails.filter(f => !_preSet.has(String(f).trim()))
+  globalThis.__renderExcusals = { accepted: _preEval.accepted, rejected: _preEval.rejected }
   if (_preSet.size) log(`   ↩ ${_preSet.size} failure(s) proven PRE-EXISTING and excluded from the block ` +
     `(${_allFails.length - _finalFails.length} matched by wording; ${_finalFails.length} remain as this ship's).`)
+  if (_preEval.rejected.length) {
+    log(`   ⚠ ${_preEval.rejected.length} pre-existing claim(s) REFUSED — they stay as this ship's failures:`)
+    _preEval.rejected.slice(0, 5).forEach(r => log(`     · "${String(r.failure).slice(0, 70)}" — ${r.why}`))
+  }
   if (renderGate && renderGate.available && (!renderGate.passed || _finalFails.length)) {
     // `.failures` is guarded: a truncated agent return used to throw a TypeError at top level here,
     // AFTER the entire run had finished, destroying the report it was about to write.
@@ -4048,6 +4108,9 @@ return emit({
   },
   /* v40 §D3 — the seam ledger. `unjoined` is a LEAD LIST the fleet produced about itself, not a
      verdict; LAW19's `dead` is the verdict. Both are reported so they can be compared. */
+  /* v40.4 — WHAT THE RENDER GATE EXCUSED ITSELF FOR, and what was refused. A subtraction that
+     decides whether a UI defect blocks a ship belongs in the payload, not only in a log line. */
+  render_excusals: globalThis.__renderExcusals || { accepted: [], rejected: [] },
   seams: SEAMS,
   render_gate: renderGate,
   /* v26 — the loop, reported rather than inferred. `converged:true` means a render came back clean;
