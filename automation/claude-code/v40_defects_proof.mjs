@@ -361,6 +361,17 @@ const CHECKS = [
              && /budget floor/.test(d?.result?.completeness?.stoppedBecause || '')
              && d?.result?.shippable === false },
 
+  /* ── D17: the Carve phase spawned via the raw agent(), outside spawn(). */
+  { id: 'D17.1', what: 'the CARVE agent is COUNTED by the ceiling and carries PACE/PROOF (it was spent invisibly)',
+    args: { task: 't', apply: true, thirdEye: false, quality: 'max', maxRounds: 5, maxAgents: 40,
+      __harness: { agentPatch: [{ match: 'skeptic', patch: { refuted: true, severity: 'blocking', reason: 'still broken' } }] } },
+    /* MEASURED: pre-fix, 33 agents ran and ceiling.spent reported 32 — the carve agent was invisible
+       to the counter, so the ledger a caller reads to size the next run was off by one per carve.
+       It also missed the proxy ban, on the one agent that WRITES A FILE EVERY FUTURE SESSION LOADS. */
+    ok: d => (d?.calls || []).some(c => /^carve:/.test(c.label || ''))
+             && (d?.calls || []).every(c => /WORK BRISKLY/.test(c.prompt || ''))
+             && d?.result?.ceiling?.spent === (d?.calls || []).length },
+
   { id: 'D3.1', what: 'BUILD_SCHEMA carries provides/consumes so a seam is a declared fact',
     args: TRIM_ARGS,
     ok: d => (d?.calls || []).some(c => /build:/.test(c.label || '')) && d?.result?.seams !== undefined },

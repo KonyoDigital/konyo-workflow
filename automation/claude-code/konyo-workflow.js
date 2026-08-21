@@ -4029,7 +4029,26 @@ if (SCARS.length) {
           CARVE.slice(picked.length).map(c => `${c.territory} (x${c.n})`).join(' · '))
     }
     phase('Carve')
-    const carveResults = await parallel(picked.map(c => () => agent(
+    /* ── v40.8 — THE CARVE PHASE SPAWNED OUTSIDE THE CEILING, AND OUTSIDE EVERY PROMPT RULE ───────
+       This called the raw `agent()` instead of `spawn()`. Nothing in the surrounding 40 lines of
+       reasoning explains the choice, and every other spawn in the file goes through spawn() — it
+       reads as an oversight rather than a decision, so it is treated as one.
+       WHAT THE BYPASS COST, and the first item is the serious one:
+         · IT DID NOT COUNT. spawn() is where SPENT is incremented, and this engine's own rule is
+           "COUNT THE SPAWNS. Check at the moment of spending, which is the only place a ceiling can
+           hold." Up to CARVE_MAX agents were spent without the ceiling seeing them, so
+           `ceiling.spent` in the payload UNDER-REPORTED the true agent count of the run — a wrong
+           number on the exact ledger a caller reads to size the next run.
+         · NO PACE and NO PROOF. spawn() appends both to every prompt; the proxy ban in particular
+           ("VERIFY THE THING, NOT A PROXY FOR IT") was missing from the one agent that WRITES A
+           FILE EVERY FUTURE SESSION LOADS — the highest-leverage place in the engine to get wrong,
+           as the comment above this block says in so many words.
+         · NO SPAWN_ERRORS. A carve agent that died was invisible.
+       `reserved: true` on purpose: carve runs AFTER the report and after releaseLock, so the
+       ordinary MAX_AGENTS-2 holdback is already consumed by design and a plain spawn() would refuse
+       it on most runs. Reserved lets it use the full cap — it is still COUNTED and still absolutely
+       bounded by MAX_AGENTS, which is the property that was missing. */
+    const carveResults = await parallel(picked.map(c => () => spawn(
       `Carve a durable skill from a cluster of failures this run kept hitting. You are the LAST\n` +
       `agent of the arc: every round is finished and no other agent will read a skill file again,\n` +
       `which is the only moment carving is safe.\n\n` +
@@ -4070,7 +4089,8 @@ if (SCARS.length) {
             action:  { type: 'string', enum: ['created', 'merged', 'declined'] },
             summary: { type: 'string' },
             archived:{ type: 'boolean' },
-          } } })))
+          } } },
+        true)))          // reserved: see the v40.8 note above — counted and capped, but allowed after the holdback
     const written = carveResults.filter(Boolean).filter(r => r.wrote)
     CARVED = {
       ran: true,
