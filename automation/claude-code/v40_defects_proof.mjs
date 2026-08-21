@@ -114,6 +114,30 @@ const CHECKS = [
     ok: d => (d?.result?.skeptics?.thin_panels || []).every(t => 'empty_seats' in t)
              && (d?.result?.skeptics?.thin_panels || []).length > 0 },
 
+  /* ── D5: found by sweeping for this file's OWN signature defect (a fact true in the run and
+     absent from the decision), not from the handoff. spawn() returns null when an agent dies or the
+     ceiling refuses it, every lock branch was `if (lock && ...)`, and the run then EDITED A SHARED
+     TREE UNPROTECTED with one warning line and no blocker. `__harness.nullAgents` was added to make
+     that branch reachable at all — it had never been testable. */
+  { id: 'D5.1', what: 'a dead LOCK agent + apply:true BLOCKS (it wrote to a shared tree with no lock)',
+    args: { task: 't', apply: true, __harness: { nullAgents: ['lock:acquire'] } },
+    ok: d => (d?.result?.blockers || []).some(b => /NO WORKSPACE LOCK/i.test(b.what || ''))
+             && d?.result?.shippable === false },
+
+  { id: 'D5.2', what: 'the payload distinguishes "no lock needed" from "the lock failed and we wrote anyway"',
+    args: { task: 't', apply: true, __harness: { nullAgents: ['lock:acquire'] } },
+    ok: d => d?.result?.lock?.unestablished === true && /NEVER RETURNED/.test(d?.result?.lock?.why || '') },
+
+  { id: 'D5.3', what: 'a DRY-RUN is not blocked for a lock it never needed (the fix must not fire on correct runs)',
+    args: { task: 't' },
+    ok: d => !(d?.result?.blockers || []).some(b => /NO WORKSPACE LOCK/i.test(b.what || ''))
+             && /no lock was attempted/.test(d?.result?.lock?.why || '') },
+
+  { id: 'D5.4', what: '{ignoreLock:true} still suppresses the blocker — the flag IS the human saying proceed unlocked',
+    args: { task: 't', apply: true, ignoreLock: true, __harness: { nullAgents: ['lock:acquire'] } },
+    ok: d => !(d?.result?.blockers || []).some(b => /NO WORKSPACE LOCK/i.test(b.what || ''))
+             && d?.result?.lock?.unestablished === true },
+
   { id: 'D3.1', what: 'BUILD_SCHEMA carries provides/consumes so a seam is a declared fact',
     args: TRIM_ARGS,
     ok: d => (d?.calls || []).some(c => /build:/.test(c.label || '')) && d?.result?.seams !== undefined },

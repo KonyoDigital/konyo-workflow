@@ -1764,7 +1764,41 @@ if (APPLY) {
       log(`   lock cross-check: ${inside.length}/${declared.length} absolute path(s) named in the task live under the locked tree.`)
     }
   }
-  if (!lock) log(`⚠ Preflight lock could not be established — proceeding UNLOCKED (no tree is protected).`)
+  /* ── v40 §D5 — "THE LOCK AGENT NEVER ANSWERED" WAS A LOG LINE AND NOTHING ELSE ────────────────
+     Found sweeping for this file's own signature defect: a fact that is true in the run and absent
+     from the DECISION. Every branch above is `if (lock && ...)`, and spawn() returns null WITHOUT
+     throwing when an agent dies or the ceiling refuses the seat — so a run whose lock agent never
+     came back skipped the refusal, skipped the acquired-log, skipped the tree cross-check (which
+     needs LOCKED_TREE and therefore silently does nothing), printed ONE warning line, and then
+     EDITED A SHARED TREE WITH NO LOCK. The payload said `lock: null`, which is the identical value
+     a dry run produces — so a caller could not tell "no lock was needed" from "the lock failed and
+     we wrote anyway".
+     THIS IS THE ONE PLACE THAT COSTS SOMEBODY ELSE'S WORK. Every other unreported fact in this file
+     makes a report misleading; this one lets two fleets interleave edits in one tree, which is the
+     exact lost-update the lock exists to prevent, arriving through the lock's own failure path.
+     WHY A BLOCKER AND NOT A REFUSAL: the engine already decided to proceed here and that is a
+     defensible call — a flaky lock agent should not throw away a run's work. What is NOT defensible
+     is the result then being SHIPPABLE. Nobody can say whether another fleet was editing the same
+     files, so the one thing that must not happen automatically is the push. A human can still push
+     by hand after looking; the verdict now tells them what they are deciding.
+     ⚠ Deliberately NOT raised under {ignoreLock:true} — that flag IS the human saying "proceed
+     without a lock, I know what I am doing", and blocking a run for doing what it was told would
+     make the flag useless. */
+  if (!lock) {
+    globalThis.__lockUnestablished = true
+    log(`⚠ Preflight lock could not be established — proceeding UNLOCKED (no tree is protected).`)
+    if (!IGNORE_LOCK) {
+      blocker('WROTE TO A SHARED TREE WITH NO WORKSPACE LOCK',
+        'the lock agent never returned (it died, or the agent ceiling refused the seat) — spawn() ' +
+        'returns null in both cases WITHOUT throwing, so nothing refused and this run edited the ' +
+        'tree unprotected. No claim can be made that another fleet was not editing the same files ' +
+        'at the same time, so this must not ship automatically. Check `git log`/`git status` for ' +
+        'interleaved work, then push by hand if it is clean. Pass {ignoreLock:true} if you know no ' +
+        'other run was live and want this to stop blocking.')
+    } else {
+      log(`   ({ignoreLock:true} was passed, so this is not raised as a blocker — you asked for it.)`)
+    }
+  }
 } else {
   log('Preflight: dry-run writes nothing, so no workspace lock is needed.')
 }
@@ -3876,8 +3910,15 @@ return emit({
   // v20.1 — the tree that was locked, and whether it matches the paths the task named. The key is
   // the lock agent's shell cwd: nobody declares it, so the payload must show it or a lock on the
   // WRONG tree is indistinguishable from a lock on the right one.
+  /* v40 §D5 — `null` used to mean BOTH "a dry run needs no lock" and "the lock attempt failed and
+     we wrote anyway". Those are opposite facts and a caller could not branch on either. */
   lock: lock ? { acquired: !!lock.acquired, key: lock.key, tree: lock.cwd || lock.key || null,
-                 tree_check: globalThis.__lockCheck || null, released: didRelease } : null,
+                 tree_check: globalThis.__lockCheck || null, released: didRelease }
+    : { acquired: false, key: null, tree: null, tree_check: null, released: false,
+        why: globalThis.__lockUnestablished
+          ? 'THE LOCK AGENT NEVER RETURNED and this run wrote to the tree anyway — unprotected. Not the same as a free tree.'
+          : 'no lock was attempted (dry-run writes nothing, so none is needed)',
+        unestablished: !!globalThis.__lockUnestablished },
   triage: globalThis.__triage || null,   // what this run was sized at, and why — visible after the fact
   rounds: round,
   rework: { rounds: round, maxRounds: MAXROUNDS, stopped_because: reworkStop },

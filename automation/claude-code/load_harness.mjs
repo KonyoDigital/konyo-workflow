@@ -14,6 +14,9 @@
 //     architectItems: [] | [...],     // force architect/judge plan items (v27 empty-plan proof)
 //     architectSummary: string,       // summary when forcing empty items
 //     triage: { ... },                // override triage fields
+//     nullAgents: ['lock:acquire'],   // labels (substring) whose spawn() returns null — proves the
+//                                     // "agent died / ceiling refused" branches, which return null
+//                                     // WITHOUT throwing and are therefore silent by construction
 //     exitOnThrow: true,              // default true — process.exit(1) if the script throws
 //   }
 //
@@ -121,6 +124,14 @@ globalThis.agent = async (prompt, opts = {}) => {
     prompt: prompt || '',
   }
   calls.push(rec)
+  /* v40 — FORCE A SPECIFIC AGENT TO RETURN NULL, which is what the engine sees when an agent DIES
+     or the ceiling refuses the seat. spawn() returns null WITHOUT throwing in both cases, so every
+     `if (result && ...)` branch is skipped silently — the engine's most-repeated defect shape, and
+     until now the harness had no way to exercise it. `__harness.nullAgents: ['lock:acquire']`
+     matches on a substring of the agent LABEL. */
+  if (Array.isArray(H.nullAgents) && H.nullAgents.some(n => String(rec.label || '').includes(n))) {
+    return null
+  }
   if (opts.schema) {
     let v = fake(opts.schema, '', rec.label)
     // triage drives the whole run — force the expensive path so every phase is exercised,
