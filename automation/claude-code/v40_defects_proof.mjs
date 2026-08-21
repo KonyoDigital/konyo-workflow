@@ -138,6 +138,33 @@ const CHECKS = [
     ok: d => !(d?.result?.blockers || []).some(b => /NO WORKSPACE LOCK/i.test(b.what || ''))
              && d?.result?.lock?.unestablished === true },
 
+  /* ── D6: a dead TRIAGE agent silently disarmed two spend safeguards and logged nothing.
+     Found only because the sweep was re-run against a baseline that could actually SHIP —
+     the first pass used the default fixture, which is already unshippable (thin panel), so every
+     nulled agent "looked" safely blocked. A fixture whose two sides cannot disagree, again. */
+  { id: 'D6.1', what: 'a dead TRIAGE agent is announced and named in the payload (it was totally silent)',
+    args: { task: 't', apply: true, thirdEye: false, __harness: { nullAgents: ['triage'] } },
+    ok: d => d?.result?.triage?.ran === false
+             && (d?.result?.triage?.safeguards_skipped || []).length === 2
+             && (d?.logs || []).some(l => /TRIAGE DID NOT RETURN/.test(l)) },
+
+  { id: 'D6.2', control: true, what: 'a HEALTHY triage run is NOT marked failed (the fix must not fire on correct runs)',
+    args: { task: 't', apply: true, thirdEye: false },
+    ok: d => d?.result?.triage && d.result.triage.ran !== false
+             && !(d?.logs || []).some(l => /TRIAGE DID NOT RETURN/.test(l)) },
+
+  { id: 'D6.3', control: true, what: 'the null-agent instrument reports WHAT IT MATCHED — a pattern matching nothing must not read as a harmless absence',
+    args: { task: 't', apply: true, thirdEye: false, __harness: { nullAgents: ['architect:judge'] } },
+    // lean buys no judge, so this pattern matches NOTHING. Without the denominator this run looked
+    // like "nulling the judge is harmless" — it nulled nothing at all. Three such fake findings
+    // were caught this way before they were reported.
+    ok: d => Array.isArray(d?.nulledAgents) && d.nulledAgents.length === 0 },
+
+  { id: 'D6.4', control: true, what: 'the instrument DOES match when the agent exists (the other half — else D6.3 passes vacuously)',
+    args: { task: 't', apply: true, thirdEye: false, __harness: { nullAgents: ['triage'] } },
+    ok: d => Array.isArray(d?.nulledAgents) && d.nulledAgents.length === 1
+             && d.nulledAgents[0].label === 'triage' },
+
   { id: 'D3.1', what: 'BUILD_SCHEMA carries provides/consumes so a seam is a declared fact',
     args: TRIM_ARGS,
     ok: d => (d?.calls || []).some(c => /build:/.test(c.label || '')) && d?.result?.seams !== undefined },
@@ -212,11 +239,27 @@ if (!boot || !boot.ok || !boot.result) {
 }
 console.log('✅ engine loads and runs to a payload\n')
 
-let pass = 0, fail = 0
+/* ── CONTROLS vs PROOFS, LABELLED, BECAUSE THEY NEED DIFFERENT BARS ──────────────────────────────
+   A PROOF asserts new behaviour, so "green on the old engine too" means it proves nothing and is a
+   FAILURE — that rule is the whole point of this suite and is not relaxed.
+   A CONTROL is a check that is SUPPOSED to be green everywhere, and there are exactly two kinds
+   here: NEGATIVE CONTROLS ("the fix must NOT fire on a correct run" — trivially true before the fix
+   existed) and INSTRUMENT SELF-TESTS (they exercise load_harness.mjs, which is shared by both
+   engines, so both must agree by construction).
+   They are marked, counted and PRINTED separately rather than quietly folded in with the proofs,
+   because a control silently counted as a proof would inflate the number that is supposed to mean
+   "this many behaviours were demonstrated to be new" — the same defect this whole engine is being
+   fixed for, in the scoreboard of its own test suite. */
+let pass = 0, fail = 0, controls = 0
 for (const c of CHECKS) {
   let redOK = false, greenOK = false, err = ''
   try { redOK = !c.ok(get(cacheOld, OLD, c.args, 'old')) } catch { redOK = true }
   try { greenOK = !!c.ok(get(cacheNew, NEW, c.args, 'new')) } catch (e) { err = e.message }
+  if (c.control) {
+    if (greenOK) { controls++; console.log(`🔵 ${c.id} [CONTROL — green on both engines by design] ${c.what}`) }
+    else { fail++; console.log(`❌ ${c.id} [CONTROL FAILED on the fixed engine] ${c.what}${err ? ' — ' + err : ''}`) }
+    continue
+  }
   const verdict = greenOK && redOK ? 'PASS' : greenOK && !redOK ? 'NOT-A-PROOF (green on the OLD engine too)' : 'FAIL'
   if (verdict === 'PASS') pass++; else fail++
   console.log(`${verdict === 'PASS' ? '✅' : '❌'} ${c.id} [old=${redOK ? 'RED' : 'green'} new=${greenOK ? 'GREEN' : 'red'}] ${c.what}${err ? ' — ' + err : ''}`)
@@ -266,5 +309,6 @@ for (const [label, rec, want] of CLS_TABLE) {
   console.log(`${green && red ? '✅' : '❌'} CLS  [old=${oldGot === null ? 'RED (no classifier)' : oldGot === want ? 'green' : 'RED (' + oldGot + ')'} new=${got}] ${label} → expected ${want}`)
 }
 
-console.log(`\n${fail === 0 ? '✅ ALL GREEN' : '❌ ' + fail + ' FAILED'} — ${pass} passed, ${fail} failed`)
+console.log(`\n${fail === 0 ? '✅ ALL GREEN' : '❌ ' + fail + ' FAILED'} — ${pass} PROOF(S) (each verified RED on the pre-fix engine), ` +
+  `${controls} control(s) (green on both by design), ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)

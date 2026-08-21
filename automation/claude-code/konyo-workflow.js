@@ -1959,6 +1959,34 @@ if (triage) {
   const skEff = activeLenses().length
   log(`  \u2248${triage.est_agents} agents, ${skEff} skeptic(s) per item` +
       (skEff !== sk ? ` (triage asked for ${skAsked})` : '') + ` \u2014 ${triage.why}`)
+} else {
+  /* ── v40.2 — A DEAD TRIAGE AGENT SILENTLY DISARMED TWO SPEND SAFEGUARDS ──────────────────────
+     Found with __harness.nullAgents against a baseline that could actually SHIP: nulling the triage
+     agent left `shippable: true`, `verdict: OK`, zero blockers, and NOT ONE LOG LINE saying triage
+     had failed. `if (triage) {` had no else, so a null simply fell through everything.
+     WHAT SILENTLY DID NOT HAPPEN:
+       · THE DIRECT-WORK REFUSAL. Inside the block above, `triage.tier === 'direct'` bails the whole
+         run with "TRIAGE SAYS DO THIS DIRECTLY — spawning nothing". That is the one safeguard that
+         can stop a fleet being bought for a job one process does better, and a dead agent removes
+         it — the run fans out regardless, and nobody is told the question was never answered.
+       · THE TRIAGE CAP. `if (globalThis.__triage && globalThis.__triage.est_agents)` at the plan
+         trims an architect that returned 23 items for a job sized at 6. With __triage unset that
+         `&&` is false and the cap does not apply. (The plan is still bounded by MAX_ITEMS_CAP and
+         the ceiling trim, so this is a widened bound, not an unbounded one — stated precisely
+         because overstating it would be its own version of the defect.)
+     THIS DOES NOT BLOCK, AND THAT IS DELIBERATE. Every gate still ran and the work is as verified
+     as any other run's; refusing to ship fully-gated work because a SIZING agent flaked would spend
+     more than the flake cost. What was wrong was never the shipping — it was that the run reported
+     a sizing decision it never made. So this is loud, and it is in the payload, and it stops there.
+     ⚠ Cannot fire at quality=tiny: TINY_TRIAGE is a real object, so `if (triage)` is true there and
+     this branch is only reachable when the spawn genuinely returned null. */
+  globalThis.__triageFailed = true
+  log(`⚠⚠ TRIAGE DID NOT RETURN — the agent died or the ceiling refused it. This run was NEVER SIZED.`)
+  log(`   Two safeguards did not run, and neither would have said so:`)
+  log(`   · the DIRECT-WORK refusal — nothing could tell this run "do it in the main loop, spawn nothing".`)
+  log(`   · the TRIAGE CAP on plan size — the architect's item count is bounded only by the quality`)
+  log(`     item cap (${MAX_ITEMS_CAP}) and the agent ceiling, not by a judgement about this task.`)
+  log(`   The run continues at its DEFAULTS. Everything below is fully gated; only the sizing is unmeasured.`)
 }
 
 // 1) ARCHITECT — one Opus architect at standard, a 3-angle panel + judge at max.
@@ -3919,7 +3947,14 @@ return emit({
           ? 'THE LOCK AGENT NEVER RETURNED and this run wrote to the tree anyway — unprotected. Not the same as a free tree.'
           : 'no lock was attempted (dry-run writes nothing, so none is needed)',
         unestablished: !!globalThis.__lockUnestablished },
-  triage: globalThis.__triage || null,   // what this run was sized at, and why — visible after the fact
+  /* v40.2 — `null` meant BOTH "sized fine, nothing to report" and "the triage agent died and this
+     run was never sized at all". Those are opposite facts; only one of them means two spend
+     safeguards did not run. */
+  triage: globalThis.__triage
+    || (globalThis.__triageFailed
+      ? { ran: false, why: 'the triage agent never returned (it died, or the ceiling refused it) — THIS RUN WAS NEVER SIZED. The direct-work refusal and the triage cap on plan size both did not run.',
+          safeguards_skipped: ['direct-work refusal', 'triage cap on plan size'] }
+      : null),
   rounds: round,
   rework: { rounds: round, maxRounds: MAXROUNDS, stopped_because: reworkStop },
   // v20.1 — `ceiling_pinned` is the ceiling-aware sizer's decision: null = it never fired, a number =

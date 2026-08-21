@@ -38,6 +38,7 @@ let src = readFileSync(SCRIPT, 'utf8')
 src = src.replace(/^export const meta/m, 'const meta')
 
 const calls = []
+const nulledAgents = []     // v40 — what __harness.nullAgents actually matched (see the note at the match site)
 const phases = []
 const logs = []
 
@@ -129,8 +130,18 @@ globalThis.agent = async (prompt, opts = {}) => {
      `if (result && ...)` branch is skipped silently — the engine's most-repeated defect shape, and
      until now the harness had no way to exercise it. `__harness.nullAgents: ['lock:acquire']`
      matches on a substring of the agent LABEL. */
-  if (Array.isArray(H.nullAgents) && H.nullAgents.some(n => String(rec.label || '').includes(n))) {
-    return null
+  /* ⚠ COUNT WHAT WAS ACTUALLY NULLED. A pattern that matches NO agent nulls nothing, and the run
+     then looks exactly like a run whose missing agent did no harm — "this safeguard's absence is
+     harmless" and "this agent does not exist in this configuration" are opposite facts producing
+     identical output. Measured while sweeping: nulling 'architect:judge' at quality=lean, which
+     buys no judge at all, reported a clean shippable run and read as a silent safeguard bypass.
+     nulledAgents is the denominator; a sweep that does not check it is proving nothing. */
+  if (Array.isArray(H.nullAgents)) {
+    const hit = H.nullAgents.find(n =>
+      String(n).startsWith('phase:')
+        ? String(rec.phase || '') === String(n).slice(6)
+        : String(rec.label || '').includes(n))
+    if (hit) { nulledAgents.push({ pattern: hit, label: rec.label || null, phase: rec.phase || null }); return null }
   }
   if (opts.schema) {
     let v = fake(opts.schema, '', rec.label)
@@ -258,7 +269,7 @@ if (process.env.HARNESS_DUMP) {
     const { writeFileSync } = await import('node:fs')
     writeFileSync(process.env.HARNESS_DUMP, JSON.stringify({
       ok: !err, error: err ? String(err && err.message || err) : null,
-      result: result ?? null, logs, phases,
+      result: result ?? null, logs, phases, nulledAgents,
       calls: calls.map(c => ({ label: c.label, phase: c.phase, model: c.model, prompt: c.prompt })),
     }))
   } catch (e) { say('HARNESS_DUMP FAILED: ' + e.message) }
