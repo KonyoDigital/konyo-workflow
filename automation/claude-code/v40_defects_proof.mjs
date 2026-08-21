@@ -459,7 +459,11 @@ const CHECKS = [
     args: { task: 't', apply: true, thirdEye: false, maxAgents: 3 },
     /* bail()'s own comment: "Fixing it at the 13 call sites would be 13 chances to forget the
        14th; it belongs HERE, once." I fixed the 14th and forgot the other 13. */
-    ok: d => d?.result?.complete === false && Array.isArray(d?.result?.not_swept) },
+    /* v40.13 §V5 — PIN THE EXIT THE DESCRIPTION NAMES. This asserted only complete===false, so any
+       future change that made {maxAgents:3} leave via `no plan` or `architect_empty` would keep it
+       green while its text named an exit it no longer reached. U1.2 pins its exit; this now does too. */
+    ok: d => d?.result?.complete === false && Array.isArray(d?.result?.not_swept)
+             && d?.result?.error === 'ceiling' },
 
   { id: 'S6.1', what: "ceiling.hitDuringCompleteness reports the completeness loop's OWN exit, not a plain alias of `hit`",
     args: { task: 't', apply: true, thirdEye: false, maxAgents: 12 },
@@ -575,6 +579,37 @@ const CHECKS = [
     ok: d => d?.result?.ceiling?.hit === false
              && d?.result?.carved?.refused_by_ceiling === 0
              && d?.result?.carved?.unknown_cause === 1 },
+
+  /* ── V-series: fifth post-ship review (5 findings, no HIGH — the severity finally dropped). */
+  { id: 'V1.1', what: 'a carve loss is blamed on the ceiling ONLY if the ceiling was hit DURING carve (carve seats are reserved, so the run-wide flag is the wrong term)',
+    args: { task: 't', apply: true, thirdEye: false, quality: 'max', maxRounds: 5, maxAgents: 40,
+      __harness: { agentPatch: [{ match: 'skeptic', patch: { refuted: true, severity: 'blocking', reason: 'broken' } }],
+                   nullAgents: ['carve:'] } },
+    /* §U6 gated on run-wide CEILING_HIT — but carve spawns are `reserved` and draw against
+       MAX_AGENTS while ordinary spawns cap at MAX_AGENTS-2, so a run can end with CEILING_HIT true
+       and a reserved carve seat still GRANTED. The misattribution §U6 fixed survived in that case. */
+    ok: d => d?.result?.carved?.unknown_cause === 1 && d?.result?.carved?.refused_by_ceiling === 0 },
+
+  { id: 'V2.1', what: 'the carve log ACCOUNTS FOR ITS OWN NUMBER — it printed "1 NEVER RETURNED … 0 DIED, 0 REFUSED" and named none of it',
+    args: { task: 't', apply: true, thirdEye: false, quality: 'max', maxRounds: 5, maxAgents: 40,
+      __harness: { agentPatch: [{ match: 'skeptic', patch: { refuted: true, severity: 'blocking', reason: 'broken' } }],
+                   nullAgents: ['carve:'] } },
+    ok: d => (d?.logs || []).some(l => /NEVER RETURNED/.test(l) && /unmeasured reason/.test(l))
+             && !(d?.logs || []).some(l => /NEVER RETURNED/.test(l) && /0 DIED/.test(l)) },
+
+  { id: 'V3.1', what: "a grokTimeoutSeconds the engine REJECTS is announced and recorded — it was silently replaced, and the payload then confirmed a budget the caller never asked for",
+    args: { task: 't', apply: true, grokTimeoutSeconds: '12m' },
+    /* §U3 closed the `alarm NaN` hole by coercing, silently. The seat then times out at 420 and the
+       engine advises "re-run with {grokTimeoutSeconds:840}" derived from the same coerced constant,
+       so a units-suffixed value loops forever while every surface says the budget is fine. */
+    ok: d => d?.result?.thirdEye?.timeout_budget_s === 420
+             && d?.result?.thirdEye?.timeout_request_rejected?.given === '12m'
+             && (d?.logs || []).some(l => /is not a usable number/.test(l)) },
+
+  { id: 'V3.2', control: true, what: 'a VALID grokTimeoutSeconds is honoured and NOT reported as rejected',
+    args: { task: 't', apply: true, grokTimeoutSeconds: 840 },
+    ok: d => d?.result?.thirdEye?.timeout_budget_s === 840
+             && d?.result?.thirdEye?.timeout_request_rejected === null },
 
   { id: 'D3.1', what: 'BUILD_SCHEMA carries provides/consumes so a seam is a declared fact',
     args: TRIM_ARGS,

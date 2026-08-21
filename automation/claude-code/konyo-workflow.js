@@ -638,6 +638,25 @@ const GROK_MCP_PREFIX = 'mcp__grok-mcp__'
    §T9 hardened the documentation for. agent-army.js was hardened in §T1 and this copy was not —
    the fix landed in one engine only, which is the same one-copy failure as §T1 itself. */
 const GROK_TIMEOUT_S = Math.max(30, Number((A && A.grokTimeoutSeconds) || 420) || 420)
+/* v40.13 §V3 — SAY WHEN THE CALLER'S VALUE WAS THROWN AWAY. §U3 closed the `alarm NaN` hole by
+   coercing, and coercing SILENTLY: {grokTimeoutSeconds:"12m"} became 420 with no log, no field and
+   no blocker, so the payload reported `timeout_budget_s: 420` — confirming a budget the caller
+   never asked for. The seat then times out at 420 and the engine advises "re-run with
+   {grokTimeoutSeconds:840}", derived from the same coerced constant, so a units-suffixed value
+   loops forever while every surface says the budget is fine. Rejecting an input is a decision; a
+   decision nobody is told about is this arc's whole subject. */
+/* ⚠ RESET HERE, NOT IN THE RUN BLOCK ~950 LINES BELOW. This flag is set at MODULE INIT; the
+   per-run reset executes later and wiped it every time, so the log fired and the payload field
+   stayed null — a fact true in the run and absent from the report, which is this arc's subject,
+   in the fix for a variant of it. Caught by verifying the fix rather than by assuming it. */
+globalThis.__grokTimeoutRejected = null
+if (A && A.grokTimeoutSeconds !== undefined &&
+    Math.max(30, Number(A.grokTimeoutSeconds) || 0) !== Math.max(30, Number(A.grokTimeoutSeconds) || 420)) {
+  globalThis.__grokTimeoutRejected = { given: A.grokTimeoutSeconds, used: GROK_TIMEOUT_S }
+  log(`⚠ {grokTimeoutSeconds:${JSON.stringify(A.grokTimeoutSeconds)}} is not a usable number — ` +
+      `IGNORED, using ${GROK_TIMEOUT_S}s. Pass SECONDS as a plain number (e.g. 840), not a string ` +
+      `with units. Every third-eye surface below reports ${GROK_TIMEOUT_S}, which is NOT what you asked for.`)
+}
 const perlAlarm = (secs) => `perl -e 'my $t=shift; my $p=fork; die unless defined $p; if(!$p){exec @ARGV; exit 127} ` +
   `$SIG{ALRM}=sub{kill "TERM",$p; waitpid($p,0); exit 142}; alarm $t; waitpid($p,0); ` +
   `my $st=$?; alarm 0; exit(($st & 127) ? 128+($st & 127) : ($st >> 8));' ${secs}`
@@ -4291,17 +4310,26 @@ if (SCARS.length) {
        inside the fix whose own comment cites v19.4 for not conflating causes. It is only a ceiling
        refusal if the ceiling was actually hit; the rest is an UNKNOWN cause, and says so. */
     const _carveUnaccounted = Math.max(0, _carveLost - _carveDied)
-    const _carveRefused = CEILING_HIT ? _carveUnaccounted : 0
-    const _carveUnknown = CEILING_HIT ? 0 : _carveUnaccounted
+    /* v40.13 §V1 — THE RUN-WIDE CEILING IS THE WRONG TERM, and using it left §U6's misattribution
+       alive in the COMMON case. Carve spawns are `reserved`, so they draw against MAX_AGENTS while
+       ordinary spawns cap at MAX_AGENTS-2. A run can therefore finish with CEILING_HIT already true
+       and a reserved carve seat still GRANTED — measured at {quality:'max', maxAgents:28}:
+       ceiling.hit=true, spent=27, a reserved seat still available. If that granted seat then
+       resolves null without throwing (the exact case §U6 exists for), `CEILING_HIT ? …` blamed the
+       ceiling again. The precise term already existed 170 lines below as `carve_hit_ceiling`: the
+       ceiling must have been hit DURING carve, not merely at some point in the run. */
+    const _ceilingBitCarve = !!(CARVE_FENCE && CEILING_HIT && !CARVE_FENCE.ceilingHit)
+    const _carveRefused = _ceilingBitCarve ? _carveUnaccounted : 0
+    const _carveUnknown = _ceilingBitCarve ? 0 : _carveUnaccounted
     const written = carveResults.filter(Boolean).filter(r => r.wrote)
     CARVED = {
       ran: true,
       reason: _carveLost
         ? `${_carveLost} of ${picked.length} carve agent(s) never returned — NOT declined. ` +
-          `${_carveDied} DIED (see agent_errors); ${_carveRefused} were REFUSED BY THE CEILING ` +
-          `(nothing was wrong with them — the run could not afford the seat)` +
-          (_carveUnknown ? `; ${_carveUnknown} returned NOTHING for an unmeasured reason — the ceiling ` +
-                           `was NOT hit, so do not chase it there.` : '.')
+          [ _carveDied && `${_carveDied} DIED (see agent_errors)`,
+            _carveRefused && `${_carveRefused} were REFUSED BY THE CEILING during carve (nothing was wrong with them — the run could not afford the seat)`,
+            _carveUnknown && `${_carveUnknown} returned NOTHING for an unmeasured reason — the ceiling was NOT hit during carve, so do not chase it there`,
+          ].filter(Boolean).join('; ') + '.'
         : '',
       lost: _carveLost,
       died: _carveDied,
@@ -4313,9 +4341,17 @@ if (SCARS.length) {
         .map(r => ({ action: r.action, summary: r.summary })),
     }
     if (_carveLost) {
+      /* v40.13 §V2 — THE LOG MUST ACCOUNT FOR ITS OWN NUMBER. §U6 added `unknown_cause` to the JSON
+         reason and not to this line, so it printed "1 … NEVER RETURNED … 0 DIED, 0 were REFUSED BY
+         THE CEILING" — one lost, none explained — and then pointed the reader at three fields that
+         all read 0 while the field carrying the answer went unnamed. Zero-count clauses are dropped
+         now rather than printed as facts. */
       log(`🪓⚠ ${_carveLost} of ${picked.length} carve agent(s) NEVER RETURNED — they did not decline. ` +
-          `${_carveDied} DIED, ${_carveRefused} were REFUSED BY THE CEILING (§T7 — the engine can tell ` +
-          `these apart, so it says which). Recorded as carved.lost/died/refused_by_ceiling; the verdict is ` +
+          [ _carveDied && `${_carveDied} DIED (see agent_errors)`,
+            _carveRefused && `${_carveRefused} were REFUSED BY THE CEILING during carve`,
+            _carveUnknown && `${_carveUnknown} returned NOTHING for an unmeasured reason — the ceiling was NOT hit during carve, so do not chase it there`,
+          ].filter(Boolean).join('; ') +
+          `. Recorded as carved.lost/died/refused_by_ceiling/unknown_cause; the verdict is ` +
           `deliberately NOT flipped (see §R4), because this is post-report bookkeeping about a ` +
           `SKILL FILE, not about the work that already shipped.`)
     }
@@ -4562,6 +4598,8 @@ return emit({
        that as a top-level count means the next reader does not have to re-derive it from prose. */
     timed_out_seats: TE_SILENT.filter(s => (s.silence_kind || classifySilence(s)) === 'timed_out_mid_work').length,
     timeout_budget_s: GROK_TIMEOUT_S,
+    // v40.13 §V3 — non-null when the caller's grokTimeoutSeconds was rejected as unusable.
+    timeout_request_rejected: globalThis.__grokTimeoutRejected || null,
     transports: [...new Set(TE_SPOKE.map(s => s.transport))],
     // v36 §C5 — was `TE_SPOKE.length === 0`: only ALL-silent counted as degraded, so 1-of-4 read clean.
     degraded: TE_DEGRADED,

@@ -395,9 +395,12 @@ const GROK_CLI = '"${AGENT_ARMY_GROK_CLI:-$(command -v grok || echo "$HOME/.grok
    the derived copy, did nothing at runtime, and the next sync would have silently reverted it.
    [[copy-drift]]: author UPSTREAM. I applied that correctly to konyo-workflow.js (edited the live
    path first, then synced) and got the direction backwards for its neighbour, in the same session.
-   ⚠ parity.sh CONTRADICTS ITSELF about this file: its header says `agent-army.js public -> install`
-   while the pair() call that actually RUNS says `install -> repo`. Two directions for one file, in
-   the script whose job is detecting exactly that. The running check is the one obeyed here. */
+   ⚠ parity.sh's header USED TO CONTRADICT its own pair() call about this file (header said
+   `public -> install`, the running check said `install -> repo`) and I followed the comment rather
+   than the code, which is how the fix landed in the wrong copy. §T1b corrected the header in the
+   same commit, so THE CONTRADICTION IS GONE — this note is history, not a live warning. Do not
+   "restore" the header to `public -> install` on the strength of it: that is the direction
+   parity.sh warns destroys work, and the one that already cost a v40.11 fix. */
 const GROK_TIMEOUT_S = Math.max(30, Number((A && A.grokTimeoutSeconds) || 420) || 420)
 // The Bash tool's own timeout caps at 600000ms; a backstop above it is clamped and would then be
 // SHORTER than the perl alarm it backs — the exact strangling this fix exists to prevent.
