@@ -1,7 +1,7 @@
 export const meta = {
   name: 'konyo-workflow',
-  description: 'KONYO WORKFLOW — ONE door. You set stakes (reversible | costly | irreversible); the engine derives the cost shape. Unstated = costly. Every ship gate always runs — skeptic panel, render+vision, LAW17, LAW19, lock, ceiling. {stakes:"reversible"} is the cheap ladder. {stakes:"irreversible"} buys the judge panel, Opus everywhere and the completeness critic. items[] skips the architect (a plan, not a door). There is no max/lean/tiny door. Pass {thirdEye:false} to drop the independent reviewer. A stakes flag buys model tier, panel size and extra phases, NEVER a gate. The render gate is a LOOP — narrow AND wide, each failure handed to a fixer, and the FINAL pass is what blocks.',
-  whenToUse: 'ANY multi-step task you want orchestrated. It TRIAGES itself first, so a serial diagnosis is sent back to be done directly instead of spawning a fleet. Pass {stakes:"reversible"} when cheap to be wrong (copy edits, contained CSS, mechanical rename). Pass {stakes:"irreversible"} for money, security, trading, migrations, live ships. Omit stakes for the default costly shape. items:[{file,instruction}] skips the architect at any stakes. v38: stakes is the public dial; quality remains the internal shape. v30 meter routing still applies to the derived shape. `grok:false` still works as the old name for thirdEye:false.',
+  description: 'KONYO WORKFLOW — ONE door. You set stakes (reversible | costly | irreversible); the engine derives the cost shape. Unstated = costly. Every ship gate always runs — skeptic panel, render+vision, LAW17, LAW19, lock, ceiling. {stakes:"reversible"} is the cheap ladder. {stakes:"irreversible"} buys the judge panel, Opus everywhere and the completeness critic. items[] skips the architect (a plan, not a door). There is no max/lean/tiny door. Pass {thirdEye:false} to drop the independent reviewer. A stakes flag buys model tier, panel size and extra phases, NEVER a gate. The render gate is a LOOP — narrow AND wide, each failure handed to a fixer, and the FINAL pass is what blocks. v40: an INCOMPLETE run can no longer read as a complete one — a trimmed plan raises a blocker, the verdict string itself carries what was never swept, and top-level complete/not_swept/planned_items say so.',
+  whenToUse: 'ANY multi-step task you want orchestrated. It TRIAGES itself first, so a serial diagnosis is sent back to be done directly instead of spawning a fleet. Pass {stakes:"reversible"} when cheap to be wrong (copy edits, contained CSS, mechanical rename). Pass {stakes:"irreversible"} for money, security, trading, migrations, live ships. Omit stakes for the default costly shape. items:[{file,instruction}] skips the architect at any stakes. v38: stakes is the public dial; quality remains the internal shape. v30 meter routing still applies to the derived shape. `grok:false` still works as the old name for thirdEye:false. v40 dials: {strictScope:true} REFUSES a plan that does not fit the cap instead of dropping its tail; {grokTimeoutSeconds:N} sets the third eye\'s budget (default 420 — 180 was killing live, mid-review Grok seats).',
   phases: [
     { title: 'Preflight',   detail: 'workspace lock — refuse to start if another run is already editing this tree' },
     { title: 'Triage',      detail: 'right-size the run BEFORE spending: shape · parallelism · cost-of-wrong. SKIPPED at quality:"tiny" — the caller supplied the work list', model: 'opus' },
@@ -17,6 +17,12 @@ export const meta = {
     { title: 'Reachability',   detail: 'LAW19 — every symbol the change added has a caller AND a writer; added tests proven to have RUN; failure BLOCKS', model: 'opus' },
     { title: 'Ship',       detail: 'v23 — the ONLY thing that pushes. Opens ONLY when every gate passed and the verdict is shippable; pushes, never commits, never --no-verify/--force, and proves the remote actually moved. A refusal is reported with its reason.', model: 'opus' },
     { title: 'Synthesize',  detail: 'NOT OPENED at quality:"tiny" (tiny writes its own report in-script). Opus integrates all passing work into ONE final report' },
+    /* v40 — DECLARED, BECAUSE IT WAS ALREADY BEING USED. phase_parity_check.mjs has been failing on
+       this since the carve phase was added: `phase('Carve')` runs, meta.phases never mentioned it,
+       so its agents appeared in a progress group the caller was never told about. Found while
+       regression-testing an unrelated fix; it is the engine's own house rule (a thing that happens
+       and is not declared) and it was living in the declaration OF the phases. */
+    { title: 'Carve',       detail: 'v31 — LAST agent of the arc, after every round is finished: graduates a cluster of repeated failures into a durable skill. Only runs when a territory crossed the carve floor' },
   ],
 }
 
@@ -229,6 +235,9 @@ const LOOKS_LIKE_VOLUME_ARC = (
    through the trim and then declared infeasible twelve lines later. */
 const GATE_COST    = 5    // completeness critic + render gate + fat version bar + reachability + merge
 const RESERVE_COST = 2    // synthesis + one spare, mirroring spawn()'s reserve
+/* v40 §D1b — OPT-IN: refuse a partial sweep rather than silently choosing which items die.
+   Default false, so nothing about an existing call changes. See the §D1b block at the plan. */
+const STRICT_SCOPE = !!(A && A.strictScope)
 /* ── THE WORKSPACE LOCK (ported from max, 2026-08-03) ────────────────────────────────────────────
    A lock only ONE of the two workflows respects is not a lock. The collision that prompted this was
    max-vs-max on site/index.html, but a cost-scaled run editing the same tree as a max run loses work
@@ -524,8 +533,9 @@ const PROOF = '\n\nVERIFY THE THING, NOT A PROXY FOR IT. Before you assert somet
        my $st=$?; alarm 0; exit(($st & 127) ? 128+($st & 127) : ($st >> 8));' 180 \
        /Users/konyo/.grok/bin/grok --cwd ... --prompt-file ...
    Exit 142 means the seat TIMED OUT, which is a real verdict — report it as unreachable, never as
-   agreement. And run `reap` (~/.local/bin/reap) if a run ends oddly; it lists agent processes that
-   outlived their parent and `reap -f` kills them.
+   agreement. Kill the grok PID you spawned; never `MAXMIN=0 reap -f` (that matches the live TUI).
+   `reap` (~/.local/bin/reap) with no `-f` lists true orphans after a run ends oddly; `reap -f`
+   kills only that list, and refuses a registered / TTY grok.
    THE RULE THAT MAKES IT WORTH HAVING: a Claude agent may NEVER fill a Grok seat. If the transport
    is down the seat is reported EMPTY — panel 3 becomes 2, named in the payload — because a panel
    that looks diverse while being an echo is worse than a panel that is honestly short.
@@ -553,10 +563,79 @@ const GROK_MCP_PREFIX = 'mcp__grok-mcp__'
    So the wrapper now lives in a constant that the prompt interpolates: there is no way to write the
    command without it. Exit 142 = the alarm fired = TIMED OUT, which is a real verdict (unreachable),
    never agreement. Measured 2026-08-13: `perl … 60 grok --version` exits 0 and prints 1.0.3. */
-const GROK_TIMEOUT_S = 180
-const PERL_ALARM = `perl -e 'my $t=shift; my $p=fork; die unless defined $p; if(!$p){exec @ARGV; exit 127} ` +
+/* ── v40 §D2 — THE SEAT DID NOT FAIL. WE HUNG UP ON IT. ─────────────────────────────
+   MEASURED on run wf_7ad48f08-5dc (2026-08-21), from its journal.jsonl, 5 third-eye seats:
+     4 of 5 returned reached:false / verdict:'unreachable', EVERY ONE of them with the reason
+     "grok timed out after 180s (perl alarm, exit 142)" — and every one of them carrying partial
+     output proving grok was ALIVE AND MID-REVIEW when our own alarm killed it: "reading
+     tv/conftest.py, diffing working tree vs HEAD, hunting for callers", "independently scanning
+     source", "had reached 'measure the skip paths'". The ONE seat that beat the clock is the seat
+     that caught a real defect Konyo had shipped hours earlier.
+   The handoff that commissioned this fix offered two candidate causes — "grok is unreachable" and
+   "the ceiling was exhausted before the seat could spawn" — and said, correctly, do not fix the
+   symptom until it is measured. Measured, it is NEITHER. It is a third fact the engine had no way
+   to express, because 180 was ONE FLAT NUMBER for every seat regardless of how much reading that
+   seat was told to do. The skeptic seat is told "you may read the files in this directory ... do
+   not take the summary's word for what the code does". That is a research task on a 62k-line tree,
+   and it was being handed the same clock as a paste-only question.
+   THERE ARE THREE FACTS HERE, NOT TWO, AND THEY POINT OPPOSITE WAYS: "we could not afford to ask",
+   "we asked and nothing answered", and "we asked, it was working, and we cut it off". Only the
+   third is fixed by waiting longer; only the second is a reason to go and look at an API key. They
+   were all being written down as the same word.
+   WHY RAISING THE BUDGET IS CHEAP: the alarm only ever fires on a seat that would otherwise return
+   NOTHING. A seat that answers in 40s is completely unaffected — this is a ceiling, not a wait.
+   The cost is wall-clock on exactly the seats whose current yield is zero, and that run spent
+   4.37M tokens and lost its entire independent review to a 180-second clock.
+   ⚠ THE BASH BACKSTOP MOVES WITH IT. The courier prompt below told the agent to set the Bash
+   tool's own timeout to a HARDCODED 180000ms "as a backstop". A backstop shorter than the thing it
+   backs is a second, tighter clock: raising the perl alarm alone would have changed nothing,
+   because bash would still have been killed at 180s. Both now derive from ONE number. */
+const GROK_TIMEOUT_S = (A && A.grokTimeoutSeconds) || 420
+const perlAlarm = (secs) => `perl -e 'my $t=shift; my $p=fork; die unless defined $p; if(!$p){exec @ARGV; exit 127} ` +
   `$SIG{ALRM}=sub{kill "TERM",$p; waitpid($p,0); exit 142}; alarm $t; waitpid($p,0); ` +
-  `my $st=$?; alarm 0; exit(($st & 127) ? 128+($st & 127) : ($st >> 8));' ${GROK_TIMEOUT_S}`
+  `my $st=$?; alarm 0; exit(($st & 127) ? 128+($st & 127) : ($st >> 8));' ${secs}`
+// Kept under its old name AND derived from the same function: it is quoted in prompts, in SCARS.md
+// and in the courier instructions, and two spellings of one command is how a safeguard drifts.
+const PERL_ALARM = perlAlarm(GROK_TIMEOUT_S)
+/* v40 §D2b — WHY A SEAT WAS SILENT IS A DIFFERENT FACT FROM THAT IT WAS SILENT, and until now
+   only the second one reached the payload. `silent_seats` carried a 200-char prose `reason`, which
+   a human can read and no caller can branch on. These kinds are that same fact, typed. */
+const SILENCE_KINDS = {
+  never_asked_ceiling: 'the agent ceiling refused the seat — it was NEVER contacted, so this says nothing at all about whether the third eye is reachable. Re-run with a higher {maxAgents}.',
+  timed_out_mid_work:  'the transport was reached and was STILL WORKING when our own alarm killed it. This is NOT a dead API and NOT agreement — it is our clock being shorter than the question. Buy it more time with {grokTimeoutSeconds:N}.',
+  no_evidence:         'it answered, but could not evidence the transport it claimed, so it is recorded as no review (an unprovable independent review is not one).',
+  transport_down:      'it was contacted and nothing answered. THIS is the one that means go and look at the transport.',
+  standin:             'a Claude stand-in was requested — same model family, so it is never counted as independent whatever it reports.',
+  not_asked_off:       'thirdEye:false — the caller turned the third eye off. Nothing was attempted.',
+}
+/* ⚠ THE ORDER AND THE NARROWNESS ARE BOTH LOAD-BEARING. Both were wrong in the first cut and both
+   were caught by the third eye (Grok) reviewing this very change — the cross-family seat earning
+   its seat on the diff that widened its budget.
+   1. `no_evidence` MUST SIT ABOVE THE TIMEOUT TEST. The evidence downgrade above PREPENDS its
+      sentence to whatever the courier originally said, so a seat demoted for unprovable provenance
+      still carries the courier's original tail — and if that tail mentioned a timeout, the seat was
+      filed as "we cut it off" when what actually happened is "it answered and could not prove who
+      answered". Those license opposite responses: one says buy more time, the other says distrust
+      the courier. The MORE SPECIFIC determination — we downgraded it ourselves, on purpose — wins.
+   2. THE TIMEOUT TEST NOW REQUIRES **OUR OWN ALARM'S** SIGNATURE. It used to accept a bare
+      `timeout`, which a genuine transport error says all the time: "connection timeout to
+      api.x.ai" is a DEAD API and was being reported as a live model we hung up on — the precise
+      conflation this whole classifier exists to end, reintroduced by the loosest token in its own
+      regex. Only exit 142, the perl alarm, or our own "timed out after Ns" sentence count now.
+      Anything else falls through to transport_down, which is the CONSERVATIVE answer: it sends a
+      reader to look at the transport, and being wrongly told to look is cheaper than being wrongly
+      told the transport is fine and just needs more seconds. */
+function classifySilence(rec) {
+  if (!rec) return 'transport_down'
+  if (rec.ran === false) return 'not_asked_off'
+  const why = String(rec.reason || '')
+  // The ceiling refusal writes its own sentence, and it must never be read as a timeout.
+  if (/ceiling refused this seat/i.test(why)) return 'never_asked_ceiling'
+  if (rec.transport === 'claude-standin') return 'standin'
+  if (/produced no command|does not name|not evidence of independence|unverifiable/i.test(why)) return 'no_evidence'
+  if (/exit 142|perl alarm|timed out after \d+\s*s/i.test(why)) return 'timed_out_mid_work'
+  return 'transport_down'
+}
 const THIRD_EYE_SEATS = []            // every consult attempted, reached or not — the ledger IS the report
 const THIRD_EYE_SCHEMA = {
   type: 'object', additionalProperties: false,
@@ -588,21 +667,26 @@ const THIRD_EYE_SCHEMA = {
 // How every seat talks to Grok. Written once so four seats cannot drift apart.
 function grokHow(question, opts = {}) {
   const cwd = opts.cwd || '.'
+  // v40 §D2 — the seat's own budget. ONE number drives the perl alarm, the Bash backstop and the
+  // sentence that tells the courier what exit 142 means, so they cannot disagree again.
+  const tmo = Math.max(30, opts.timeoutS || GROK_TIMEOUT_S)
   return (
     `TRANSPORT — do this literally, in this order, and report which one answered.\n` +
     `1. CLI FIRST (this is the working path). Write the question below to a temp file with the Write ` +
     `tool (e.g. /tmp/te_$$.txt), then run this with the Bash tool — COPY IT WHOLE, the perl prefix is ` +
     `part of the command, not decoration:\n` +
-    `   ${PERL_ALARM} \\\n` +
+    `   ${perlAlarm(tmo)} \\\n` +
     `     ${GROK_CLI} --cwd ${cwd} --prompt-file <file> --no-memory --disable-web-search --output-format plain\n` +
     `   Why the perl: the Bash tool's timeout kills BASH, not bash's GRANDCHILDREN, so a hung grok is ` +
     `reparented to init and burns a core forever — two were found alive at 3 and 10 days. The perl ` +
     `forks, alarms and SIGTERMs the child, so nothing can outlive the call. Do NOT use the \`timeout\` ` +
     `binary: it is not installed on this Mac and the command would die with command-not-found.\n` +
-    `   Also set the Bash tool's OWN timeout parameter to 180000 as a backstop — belt and braces, not ` +
-    `a replacement for the wrapper.\n` +
+    `   Also set the Bash tool's OWN timeout parameter to ${(tmo + 30) * 1000} as a backstop — belt and ` +
+    `braces, not a replacement for the wrapper. ⚠ It is DERIVED from the alarm above (+30s) on purpose: ` +
+    `this line used to say a hardcoded 180000, so a longer alarm would have been strangled by a shorter ` +
+    `backstop and the fix would have changed nothing.\n` +
     `   EXIT 142 MEANS THE ALARM FIRED — grok TIMED OUT. That is a real verdict: report it as ` +
-    `reached:false / verdict:'unreachable' with reason 'grok timed out after ${GROK_TIMEOUT_S}s ` +
+    `reached:false / verdict:'unreachable' with reason 'grok timed out after ${tmo}s ` +
     `(perl alarm, exit 142)'. It is NEVER agreement and never "no concerns".\n` +
     `2. Only if the CLI errors or returns empty, try the MCP fallback: ToolSearch for ` +
     `mcp__grok-mcp__chat and call it. If it fails, put the ACTUAL error text you received in ` +
@@ -629,6 +713,7 @@ function grokHow(question, opts = {}) {
 async function thirdEyeAsk(seat, question, phaseName, opts = {}) {
   if (THIRD_EYE === 'off') {
     THIRD_EYE_SEATS.push({ seat, ran: false, reached: false, transport: 'none',
+      silence_kind: 'not_asked_off',
       reason: 'thirdEye:false — the caller turned the third eye off' })
     return null
   }
@@ -660,6 +745,7 @@ async function thirdEyeAsk(seat, question, phaseName, opts = {}) {
         reason: 'the agent ceiling refused this seat — the run could not afford to ask. This is NOT ' +
                 'a transport failure: the third eye was never contacted, so nothing here says whether ' +
                 'it is reachable. Re-run with a higher {maxAgents} to buy the seat.' }
+      rec.silence_kind = 'never_asked_ceiling'
       THIRD_EYE_SEATS.push(rec)
       log(`👁 THIRD EYE [${seat}] NEVER ASKED — the agent ceiling refused the seat (not a transport failure).`)
       return rec
@@ -726,11 +812,20 @@ async function thirdEyeAsk(seat, question, phaseName, opts = {}) {
   }
   // A stand-in is never counted as the real thing, whatever it reports about itself.
   if (standin) { rec.reached = false; rec.transport = 'claude-standin' }
+  /* v40 §D2b — CLASSIFIED HERE, BELOW EVERY DOWNGRADE, NOT AT THE POINT THE COURIER ANSWERED.
+     The evidence checks above can turn a reached:true seat into a silent one; classifying earlier
+     would file such a seat under whatever its original reason said, which is the "a fact computed
+     before the decision that changes it" shape this file keeps paying for, mirrored. */
+  if (!rec.reached) rec.silence_kind = classifySilence(rec)
   THIRD_EYE_SEATS.push(rec)
   log(rec.reached
     ? `👁 THIRD EYE [${seat}] via ${rec.transport}: ${rec.verdict}` +
       (rec.concerns.length ? ` — ${rec.concerns.slice(0, 2).join(' | ').slice(0, 220)}` : '')
-    : `👁 THIRD EYE [${seat}] DID NOT SPEAK (${rec.transport}) — ${String(rec.reason).slice(0, 180)}`)
+    : `👁 THIRD EYE [${seat}] DID NOT SPEAK (${rec.transport}) [${rec.silence_kind}] — ` +
+      `${String(rec.reason).slice(0, 180)}` +
+      (rec.silence_kind === 'timed_out_mid_work'
+        ? `\n   ⏱ THAT IS OUR CLOCK, NOT ITS SILENCE — it was still working at ${GROK_TIMEOUT_S}s. Re-run with {grokTimeoutSeconds:${GROK_TIMEOUT_S * 2}} to buy the answer.`
+        : ''))
   return rec
 }
 
@@ -923,6 +1018,23 @@ const BUILD_SCHEMA = {
        the repo. In isolate mode this IS the work: the worktree may be cleaned up the moment the
        agent returns, so a patch that only exists on disk is a patch that can evaporate. */
     patch: { type: 'string', description: 'ISOLATE MODE ONLY: the complete unified diff of your change (git diff output), applyable with `git apply` from the repo root. Empty string when not in isolate mode.' },
+    /* ── v40 §D3 — THE SEAM, DECLARED BY THE AGENT THAT OPENS IT ────────────────────────────────
+       MEASURED on run wf_7ad48f08-5dc: one agent wrote `redirect_module_path` / `redirect_path`
+       into tv/conftest.py; a second agent's tests PRESCRIBED that helper; and neither of them
+       CALLED it — the tests used mock.patch.object instead. LAW19 caught it honestly ("zero call
+       sites anywhere in the repo") and the fleet had produced it in the first place, because a
+       fan-out gives every builder its own file and no knowledge of what its siblings are building.
+       Two halves, each built correctly, that never meet — [[the-unjoined-end]], manufactured by
+       the topology rather than found by it.
+       This does not add a coordination protocol (agents still cannot talk mid-run, and inventing a
+       channel between them is how a fan-out becomes a distributed system). It makes the seam a
+       DECLARED, CHECKABLE fact: the provider names what it exposed and who should call it, the
+       consumer names what it expected to find. A provides with no matching consumes is the exact
+       shape LAW19 later fails on — now visible before the gate, and handed TO the gate. */
+    provides: { type: 'array', maxItems: 12, items: { type: 'string' },
+      description: 'Symbols/fixtures/endpoints you CREATED that something OUTSIDE this file is meant to call. Name each as `symbol — who should call it`. [] if your change is self-contained. Do not list internal helpers only your own file uses.' },
+    consumes: { type: 'array', maxItems: 12, items: { type: 'string' },
+      description: 'Symbols/fixtures/endpoints your change CALLS that another item in this same run is creating. Name each as `symbol — which file provides it`. [] if none.' },
   },
 }
 const GATE_SCHEMA = {
@@ -978,6 +1090,31 @@ const CRAFT_RULES =
   `An unrequested improvement is indistinguishable from a regression to every reviewer ` +
   `downstream, and it is why a one-line fix arrives as a forty-line diff that nobody can gate.`
 
+/* v40 §D3 — WHAT THE OTHER BUILDERS ARE DOING, WHICH UNTIL NOW NO BUILDER WAS TOLD.
+   A builder knew its own file, its own instruction and (since v31) what its siblings had FAILED at.
+   It was never told what they were BUILDING. So a builder told "add a redirect fixture" had no way
+   to know another item was told "write tests that use the redirect fixture", and vice versa — each
+   made a locally reasonable choice and the two never met.
+   This is deliberately READ-ONLY context, not a channel: the one-owner-per-file rule is the thing
+   that makes a parallel fan-out safe over a shared tree, and it is restated here rather than
+   softened. What changes is that a builder can now name the seam instead of guessing across it. */
+function siblingBrief(item) {
+  const sibs = (globalThis.__planSiblings || []).filter(x => x.file !== item.file)
+  if (!sibs.length) return ''
+  return `\nOTHER AGENTS ARE EDITING THESE FILES IN PARALLEL, IN THIS SAME RUN — you may NOT touch ` +
+    `them, and they do not exist in their finished form yet:\n` +
+    sibs.slice(0, 12).map(x => `  · ${x.file} — ${String(x.instruction || '').slice(0, 160)}`).join('\n') +
+    `\n${sibs.length > 12 ? `  · (+${sibs.length - 12} more)\n` : ''}` +
+    `WHY YOU ARE BEING TOLD: a fan-out's characteristic failure is two halves that are each correct ` +
+    `and never meet. MEASURED on run wf_7ad48f08-5dc — one agent wrote a redirect_path fixture, ` +
+    `another agent's tests prescribed that fixture, and NEITHER CALLED IT; the tests used ` +
+    `mock.patch.object instead, and the helper shipped with zero call sites in the entire repo.\n` +
+    `SO: if your instruction has you CREATE something a sibling is meant to call, list it in ` +
+    `\`provides\` and WRITE IT UNDER THE NAME THE PLAN USES — do not rename it to taste. If your ` +
+    `instruction has you USE something a sibling is creating, list it in \`consumes\` and CALL IT ` +
+    `BY THAT NAME — do not quietly invent your own private equivalent because it does not exist on ` +
+    `disk yet, and do not skip it. An unjoined seam is a FAILED item, not a stylistic difference.\n`
+}
 function buildAgent(item, reworkNote) {
   const tier = tierFor(item.tier, item.risk)   // standard: the plan's tier. max: Opus always. fast: Opus unless risk=low.
   const rw = reworkNote
@@ -1016,7 +1153,7 @@ function buildAgent(item, reworkNote) {
     // v20 — a lean builder was told it was a "MAX-QUALITY build agent". Name the quality that ran.
     `${MAXQ ? `${QUALITY.toUpperCase()}-QUALITY` : 'KONYO WORKFLOW'} build agent (tier=${tier}). Task context: ${TASK}\n` +
     `You own exactly ONE file: ${item.file}${item.kind ? ` (kind=${item.kind})` : ''}.\n` +
-    `Instruction: ${item.instruction}\n${act}${rw}\n` +
+    `Instruction: ${item.instruction}\n${act}${rw}\n` + siblingBrief(item) +
     `Be rigorous: trace the exact failure you are fixing, handle edge cases, match surrounding style, ` +
     `and in self_check state what you verified (compile/syntax/logic-trace). Return the structured result.` + CRAFT_RULES,
     Object.assign(
@@ -1144,20 +1281,38 @@ function activeLenses() {
    treatment an agent that died already gets, because that is exactly what an empty seat is.
    PREVENTION: one ledger, written at the ONLY place votes are counted, so a future surface cannot
    re-derive "how many reviewed this" from the seat count again. */
+/* v40 §D2c — WHY EACH SEAT WAS EMPTY, RECORDED WHERE THE SEAT EMPTIED, NOT INFERRED LATER.
+   THIN_PANELS knew the ARITHMETIC (1 of 2 voted) and nothing about the CAUSE, because by the time
+   tallyVotes runs, an empty seat is a `null` in an array and a null carries no story. So the
+   payload could say "3 thin panels" and a reader had no way to tell a run that could not afford
+   its seats from one whose seats were killed mid-sentence by our own alarm — which, measured on
+   wf_7ad48f08-5dc, is exactly what had happened on all four of them.
+   ⚠ THIS IS A SIDE LEDGER ON PURPOSE, AND IT MUST STAY ONE. The obvious implementation is to
+   return a reason OBJECT from the empty seat instead of null. That would be a live safeguard bug:
+   tallyVotes counts `votes.filter(Boolean)`, so any truthy object lands in the tally as a vote
+   with `refuted: undefined` — falsy — and an EMPTY SEAT WOULD BE COUNTED AS AN APPROVAL. The vote
+   array is left exactly as it was; only the commentary is new. */
+const EMPTY_SEATS = []
 const THIN_PANELS = []
 function tallyVotes(votes, panel, file) {
+  const _seen = new Set()
+  const _why = EMPTY_SEATS.filter(e => e.file === file)
+    .filter(e => { const k = e.seat + '|' + e.kind; if (_seen.has(k)) return false; _seen.add(k); return true })
+  const _whyFor = () => ({ empty_seats: _why.map(e => ({ seat: e.seat, kind: e.kind, reason: e.reason })),
+    empty_seat_kinds: [...new Set(_why.map(e => e.kind))] })
   const v = votes.filter(Boolean)
   const cast = v.length
   if (cast === 0) {
     log(`SKEPTIC PANEL PRODUCED NO VOTES for ${file} (refused or died) — not approved.`)
-    THIN_PANELS.push({ file, cast: 0, panel })
+    THIN_PANELS.push({ file, cast: 0, panel, ..._whyFor() })
     return { verdict: 'rework', refutedN: 0, votes: 0, panel,
       reasons: ['the skeptic panel produced no votes (refused or died) — unreviewed is not approved'] }
   }
   if (cast < panel) {
-    THIN_PANELS.push({ file, cast, panel })
+    THIN_PANELS.push({ file, cast, panel, ..._whyFor() })
     log(`⚠ THIN SKEPTIC PANEL on ${file}: ${cast}/${panel} vote(s) cast — the seats bought are NOT ` +
-        `the reviews received; this is recorded and forces a DEGRADED verdict.`)
+        `the reviews received; this is recorded and forces a DEGRADED verdict.` +
+        (_why.length ? `\n   EMPTY BECAUSE: ${_why.map(e => `${e.seat} → ${e.kind}`).join('; ')}` : ''))
   }
   const kills = v.filter(x => x.refuted)
   const refutedN = kills.length
@@ -1202,7 +1357,12 @@ function runSkeptics(built, phaseName) {
     `complete, refute it — being agreeable here has no value.`,
     phaseName, { cwd: '.' })
     .then(rec => {
-      if (!rec || !rec.reached) return null      // an empty seat, honestly empty — never a Claude vote
+      if (!rec || !rec.reached) {
+        const kind = rec ? (rec.silence_kind || classifySilence(rec)) : 'transport_down'
+        EMPTY_SEATS.push({ file: built.item.file, seat: `thirdEye(${lens})`, kind,
+          reason: String((rec && rec.reason) || '').slice(0, 200) })
+        return null                              // an empty seat, honestly empty — never a Claude vote
+      }
       const refuted = rec.verdict === 'refuted' ||
         (rec.concerns.length > 0 && (rec.severity === 'major' || rec.severity === 'blocking'))
       return { refuted, severity: rec.severity || (refuted ? 'major' : 'none'),
@@ -1233,6 +1393,12 @@ function runSkeptics(built, phaseName) {
     { model: 'opus', effort: MAXONLY ? 'xhigh' : 'high', phase: phaseName,
       label: `skeptic${i + 1}:${built.item.file}`, schema: SKEPTIC_SCHEMA }
   ).catch(() => ({ refuted: true, severity: 'major', reason: 'skeptic errored — an unverified change is refuted by default' }))
+   /* v40 §D2c — A CLAUDE SEAT CAN EMPTY SILENTLY TOO, and only the grok one was being explained.
+      spawn() returns null on a ceiling refusal WITHOUT throwing, so the .catch above never fires
+      and there is no error anywhere — the seat simply is not in the tally. That is the v19.4 bug
+      (a null from a ceiling refusal read as a verdict) at the panel instead of at the third eye. */
+   .then(v => { if (!v) EMPTY_SEATS.push({ file: built.item.file, seat: `skeptic${i + 1}(${lens})`,
+       kind: 'never_asked_ceiling', reason: 'the agent ceiling refused this seat — it was never asked' }); return v })
   )).then(votes => tallyVotes(votes, lenses.length, built.item.file))
 }
 
@@ -1998,6 +2164,30 @@ if (!items.length) {
 // Saying it out loud in the LOG is not saying it in the SUMMARY: a trimmed plan used to return
 // ceiling.complete=true, so a run that dropped planned work read as a run that finished it.
 const trimmedFromPlan = []
+/* v40 §D1a — THE FEASIBILITY GATE WAS BLIND BY CONSTRUCTION, AND THIS IS THE NUMBER IT NEEDED.
+   The FEASIBILITY block ~90 lines below exists to warn, BEFORE the money is spent, that a plan
+   cannot finish inside the ceiling. It computed its worst case from `items.length` — and every
+   trim above it had already shortened `items` to something that fits. So the one input that could
+   have made it fire was removed before it read it: the two sides of the comparison were made equal
+   by the very trim the warning is about. It could still fire on the rework MULTIPLIER, which is
+   why it was not obviously dead, and never on the trim itself.
+   That is [[gate_blind_to_unexercised_input]] in the engine's own safeguards — a gate whose two
+   sides cannot disagree — and it is why run wf_7ad48f08-5dc dropped a third of its brief without
+   the warning written to catch exactly that ever printing a word.
+   PLANNED_N / PLANNED_FILES are captured HERE, above every trim, and the feasibility block reads
+   them. Nothing else uses them, and no trim may ever be moved above this line. */
+const PLANNED_N = items.length
+const PLANNED_FILES = items.map(i => i.file)
+/* ⚠ THE SUMMARY READS THIS MIRROR, NOT THE CONST. PLANNED_N is a top-level `const`, so on any path
+   that reaches the summary without executing this line it sits in its TEMPORAL DEAD ZONE — and a
+   `typeof` guard would THROW there rather than yield 'undefined', because typeof only protects
+   UNDECLARED identifiers, not un-initialised ones. A summary that throws is a run with no verdict
+   at all, which is strictly worse than the reporting bug this section is fixing.
+   (The first cut of this comment named the identifier and the `typeof` operator in one phrase, and
+   the assertion proving the rewrite was complete then matched ITS OWN PROSE — source-reading-guard,
+   caught in the act of writing the fix for it.) */
+globalThis.__plannedN = items.length
+globalThis.__plannedFiles = PLANNED_FILES.slice()
 if (globalThis.__triage && globalThis.__triage.est_agents) {
   const cap = Math.max(1, Math.min(24, globalThis.__triage.est_agents))
   if (items.length > cap) {
@@ -2075,6 +2265,28 @@ if (items.length > MAX_ITEMS_CAP) {
   for (const dropped of items.slice(MAX_ITEMS_CAP)) trimmedFromPlan.push(dropped.file)
   items = items.slice(0, MAX_ITEMS_CAP)
 }
+/* v40 §D1b — "SILENTLY DROPPING THE LAST N ITEMS IS THE ONE OPTION THAT SHOULD NOT EXIST."
+   That is the handoff's sentence, and after §D1a/§D1c the drop is no longer silent — it is warned
+   at the plan, blocked at the verdict and named in the headline. But loud is not the same as
+   CHOSEN: the engine still decides WHICH items die, and it decides by array order, so the tail of
+   the architect's list falls off. On wf_7ad48f08-5dc the tail happened to be defect classes 3 and
+   4 of 6, and nothing about "last in the list" made them the right two to lose.
+   {strictScope:true} refuses instead, and names the number that would let it run. It is OPT-IN
+   because a truncated run is very often exactly what is wanted — this refuses to let the engine
+   make that call on the caller's behalf when the caller has said not to. */
+if (STRICT_SCOPE && trimmedFromPlan.length) {
+  const _need = SPENT + PLANNED_N * (1 + (MAXQ ? 0 : 1) + activeLenses().length) * MAXROUNDS + GATE_COST + RESERVE_COST
+  log(`⛔ STRICT SCOPE — REFUSING A PARTIAL SWEEP. The plan had ${PLANNED_N} item(s); only ` +
+      `${items.length} fit under the ${MAX_AGENTS}-agent cap, and {strictScope:true} says do not ` +
+      `choose for you.`)
+  log(`  NOT SWEPT: ${trimmedFromPlan.join(', ')}`)
+  log(`  Re-run with {maxAgents:${_need}} to sweep all ${PLANNED_N}, or narrow the brief yourself.`)
+  return bail({ error: 'strict-scope',
+    verdict: `REFUSED — the plan needs ~${_need} agents and the cap is ${MAX_AGENTS}; ` +
+             `{strictScope:true} refuses to pick which ${trimmedFromPlan.length} item(s) to drop`,
+    planned: PLANNED_N, would_run: items.length, not_swept: trimmedFromPlan.slice(),
+    need_max_agents: _need })
+}
 /* v21.1 — COUNT THE TIERS THAT WILL ACTUALLY BE BOUGHT, NOT THE ONES THAT WERE ASKED FOR.
    v20 fixed the GATING of the parenthetical (it no longer claims quality=max on a lean run) and
    left the halves of the line contradicting each other anyway: the counts came straight off
@@ -2084,6 +2296,9 @@ if (items.length > MAX_ITEMS_CAP) {
    alvl on a TZ card, and as the four MAXQ strings v20 fixed, one layer down. Found by the round-2
    audit critic; the fix is to route the counts through tierFor(), the SAME function the spawn uses,
    so the log cannot drift from the spend. One function, one answer. */
+/* v40 §D3 — set AFTER every trim above, so a builder is never told a sibling is coming that the
+   ceiling already dropped. A promised collaborator who never spawns is a worse seam than none. */
+globalThis.__planSiblings = items.map(i => ({ file: i.file, instruction: i.instruction }))
 const _effTier = it => tierFor(it.tier, it.risk)
 const _tierN   = t  => items.filter(i => _effTier(i) === t).length
 log(`Plan "${plan.version_label}": ${items.length} items — ` +
@@ -2115,9 +2330,22 @@ if (LOOKS_LIKE_VOLUME_ARC && MAXONLY) {
   const FABLE    = MAXQ ? 0 : 1            // standard buys a Fable merge gate per item; max's panel IS the gate
   const GATES    = GATE_COST               // v18.3 — the SAME number the trim reserved, not a second copy
   const RESERVE2 = RESERVE_COST
-  const worst    = SPENT + items.length * (1 + FABLE + skeptN) * MAXROUNDS + GATES + RESERVE2
+  const perAgent = (1 + FABLE + skeptN) * MAXROUNDS
+  const worst    = SPENT + items.length * perAgent + GATES + RESERVE2
+  // v40 §D1a — the worst case for what was PLANNED, which is the question this block is asking.
+  const worstPlanned = SPENT + PLANNED_N * perAgent + GATES + RESERVE2
   log(`FEASIBILITY → ${items.length} item(s) x (1 build${FABLE ? ' + 1 Fable gate' : ''} + ${skeptN} skeptic(s)) x up to ${MAXROUNDS} round(s) ` +
       `+ ${GATES} gates + ${RESERVE2} reserved ≈ ${worst} agents worst-case, against a ceiling of ${MAX_AGENTS}.`)
+  if (trimmedFromPlan.length) {
+    log(`⚠ THE PLAN WAS ${PLANNED_N} ITEM(S); ${items.length} SURVIVED THE CEILING. The line above ` +
+        `describes what will RUN, not what was ASKED FOR. As planned it needed ≈${worstPlanned} agents ` +
+        `against a cap of ${MAX_AGENTS}.`)
+    log(`  NOT SWEPT (${trimmedFromPlan.length}): ${trimmedFromPlan.join(', ')}`)
+    log(`  To sweep all ${PLANNED_N}, re-run with {maxAgents:${worstPlanned}}. To choose what goes ` +
+        `rather than letting the tail fall off, re-run with {strictScope:true} — it refuses instead of trimming.`)
+    globalThis.__infeasible = { worst: worstPlanned, cap: MAX_AGENTS, items: PLANNED_N,
+      skeptics: skeptN, trimmed: trimmedFromPlan.slice(), survived: items.length }
+  }
   if (worst > MAX_AGENTS) {
     log(`⚠ THIS PLAN CANNOT FULLY FINISH inside the ceiling. It will do the most valuable work first ` +
         `and report what it could not reach — it will NOT quietly claim completeness.`)
@@ -2487,6 +2715,44 @@ if (MAXONLY) {
 //
 // This is a BLOCKER, not a note. A feature that does nothing is worse than a missing feature: the
 // commit message says it exists, so nobody looks again.
+/* ── v40 §D3 — THE UNJOINED SEAM, NAMED BEFORE THE GATE GOES LOOKING FOR IT ────────────────────
+   Every builder now declares what it PROVIDED for a sibling and what it CONSUMED from one. Those
+   two lists are the same seam seen from its two ends, so a provide with no matching consume is an
+   end that was built and never joined — the exact defect LAW19 found by hand on wf_7ad48f08-5dc,
+   available here from the run's own bookkeeping.
+   THIS DOES NOT REPLACE LAW19 AND MUST NOT. It is the fleet's SELF-REPORT, and a builder that
+   forgot to declare a seam is precisely the builder whose seam is most likely dead — so this is
+   handed to LAW19 as a LEAD, and LAW19 still does its own independent sweep of the diff. A
+   self-report treated as a verdict would be the proxy that PROOF exists to refuse. */
+const SEAMS = { provided: [], consumed: [], unjoined: [] }
+for (const r of (results || [])) {
+  const b = r && r.build; if (!b) continue
+  for (const x of (b.provides || [])) SEAMS.provided.push({ file: r.item.file, decl: String(x).slice(0, 200) })
+  for (const x of (b.consumes || [])) SEAMS.consumed.push({ file: r.item.file, decl: String(x).slice(0, 200) })
+}
+// A crude symbol key: the first identifier-ish token of the declaration, which is how both ends
+// were asked to write it ("symbol — who should call it"). Deliberately loose; it produces LEADS.
+const _sym = d => (String(d).match(/[A-Za-z_][\w.]*/) || [''])[0].toLowerCase()
+const _consumedSyms = new Set(SEAMS.consumed.map(c => _sym(c.decl)))
+for (const p of SEAMS.provided) {
+  if (p.decl && !_consumedSyms.has(_sym(p.decl))) SEAMS.unjoined.push(p)
+}
+if (SEAMS.provided.length || SEAMS.consumed.length) {
+  log(`🔌 SEAMS declared by the fleet: ${SEAMS.provided.length} provided, ${SEAMS.consumed.length} consumed.`)
+  if (SEAMS.unjoined.length) {
+    log(`⚠ ${SEAMS.unjoined.length} PROVIDED SEAM(S) THAT NO SIBLING CLAIMED TO CONSUME — handing to LAW19 as leads, ` +
+        `NOT as a verdict:`)
+    for (const u of SEAMS.unjoined) log(`   · ${u.file} provides: ${u.decl}`)
+  }
+}
+const SEAM_LEADS = SEAMS.unjoined.length
+  ? `\n\nLEADS FROM THE FLEET'S OWN BOOKKEEPING — treat as SUSPECTS, not findings, and verify each ` +
+    `yourself exactly as you would any other symbol. In this run a builder declared it CREATED the ` +
+    `following for something else to call, and NO other builder declared it calls them:\n` +
+    SEAMS.unjoined.map(u => `  · ${u.file} provides: ${u.decl}`).join('\n') +
+    `\nIf one of these has no caller in the repo, that is a seam the FAN-OUT ITSELF created — one ` +
+    `agent wrote it, another was supposed to call it, and neither did. Say so explicitly in notes.\n`
+  : ''
 phase('Reachability')
 /* v22 — REACHABILITY AND THE RENDER GATE NOW RUN CONCURRENTLY. They were two separate serial phases
    costing a full agent round-trip each, and they share NOTHING: LAW19 reads the diff, the render
@@ -2511,7 +2777,7 @@ const reachP = spawn(
   `the new tests in verbose output. "The suite is green" is not evidence that your tests are in it.\n` +
   `5. Report only seams you actually verified as dead, with the evidence. A false positive here ` +
   `sends someone deleting live code, so if you cannot prove it is dead, do not list it.\n` +
-  `Do NOT fix anything. Report.`,
+  `Do NOT fix anything. Report.` + SEAM_LEADS,
   { model: 'opus', effort: 'high', phase: 'Reachability', schema: {
       type: 'object', additionalProperties: false,
       required: ['checked', 'dead', 'tests_added', 'tests_proven_run', 'notes'],
@@ -3112,6 +3378,7 @@ const final = TINYQ ? _tinyFinal() : await spawn(
   `BLOCKERS (${BLOCKERS.length}): ` + (BLOCKERS.length ? '\n' + BLOCKERS.map(b => `  - ${b.what}: ${b.why}`).join('\n') : 'none') + `\n` +
   `AGENTS THAT DIED (${SPAWN_ERRORS.length}): ` + (SPAWN_ERRORS.length ? SPAWN_ERRORS.slice(0, 5).join(' | ') : 'none') + `\n` +
   `AGENT CEILING: ${SPENT}/${MAX_AGENTS} spent, hit=${CEILING_HIT}\n` +
+  `PLAN SIZE: ${globalThis.__plannedN ?? '?'} item(s) planned, ${items.length} actually run\n` +
   `TRIMMED FROM THE PLAN (${trimmedFromPlan.length}): ` + (trimmedFromPlan.length ? trimmedFromPlan.slice(0, 8).join(', ') : 'none') + `\n` +
   `REWORK: ${round}/${MAXROUNDS} round(s), stopped_because=${reworkStop}\n` +
   `SKEPTICS: ${SKEPTICS} per item (source: ${SKEPTICS_SOURCE})\n` +
@@ -3134,10 +3401,23 @@ const final = TINYQ ? _tinyFinal() : await spawn(
   `MERGE: ` + (merge ? `${(merge.applied || []).length} applied, ${(merge.failed || []).length} failed`
     : ISOLATE ? 'isolate mode was on but no merge result came back' : 'not run (no {isolate:true})') + `\n` +
   `RULES, not suggestions: a NON-EMPTY blockers list forces the headline to LEAD with "BLOCKED" and ` +
-  `name the blocker. A HIT CEILING forces "UNVERIFIED". A NON-EMPTY trimmed list forces "PARTIAL" and ` +
-  `the headline must say planned work was dropped. A dead agent means planned work silently did not ` +
-  `happen — say so. You may NEVER report success over a blocker, and you may never describe work that ` +
-  `was trimmed, refused or never gated as done.\n` +
+  `name the blocker. A HIT CEILING forces "UNVERIFIED". A dead agent means planned work silently did ` +
+  `not happen — say so. You may NEVER report success over a blocker, and you may never describe work ` +
+  `that was trimmed, refused or never gated as done.\n` +
+  /* v40 §D1c — BLOCKED AND INCOMPLETE ARE NOT ALTERNATIVES, and this prompt used to make them one:
+     it said a trimmed list "forces PARTIAL" while the line above forces BLOCKED, so on a run that
+     was both — which is exactly wf_7ad48f08-5dc — the synthesiser had two rules and could satisfy
+     only one. It chose BLOCKED, correctly, and the four never-swept files left the headline. The
+     rule is now ADDITIVE, and it is stated as a sentence the headline must CONTAIN rather than a
+     word it must start with, because the leading word is already spoken for. */
+  `⚠ INCOMPLETENESS IS ADDITIVE TO THE HEADLINE, NEVER AN ALTERNATIVE TO IT. If the trimmed list ` +
+  `above is NON-EMPTY, the headline must ALSO carry — in the same line, whatever else it leads with — ` +
+  `how many planned items were never run and that this was therefore NOT a complete sweep. "BLOCKED" ` +
+  `and "4 of 6 classes swept" are both true and the reader needs both; a headline that reports only ` +
+  `the blocker reads as a finished sweep that found problems, which is a DIFFERENT AND BETTER RUN ` +
+  `than the one that happened.\n` +
+  `Anything you write of the form "no issues found in X" is FORBIDDEN for any trimmed file: nothing ` +
+  `looked at it. Absence of a finding where nothing searched is not evidence of absence.\n` +
   `\nWrite the single final report: headline is the ONE-line ping Konyo reads.`,
   { model: 'opus', effort: 'high', phase: 'Synthesize', schema: FINAL_SCHEMA },
   true                                // reserved: a run that cannot afford its own report reports nothing
@@ -3245,6 +3525,53 @@ if (USE_GROK && APPLY) {
    read it CAN, and a reader of this region no longer has to scroll 90 lines past the verdict to
    find out whether anything independent ever answered. A fact computed after the decision it
    describes is the shape this file keeps having to fix; this removes the shape, not a live bug. */
+/* ── v40 §D1c — MAKE AN INCOMPLETE RUN IMPOSSIBLE TO MISTAKE FOR A COMPLETE ONE ─────────────────
+   This is the handoff's one-line ask, and it is the same defect the run it came from was
+   commissioned to hunt: a trimmed plan, a thin panel and a dead seam each produced output that
+   READS FINISHED.
+   WHAT WAS ALREADY RIGHT, so that none of it is "fixed" away: `trimmedFromPlan` and `CEILING_HIT`
+   already suppressed SHIPPABLE, and the verdict LADDER already had a `PARTIAL — N item(s) were
+   trimmed` rung. Nothing here loosens either.
+   WHAT WAS WRONG IS THE SHAPE OF THE LADDER. It is a chain of ternaries, so it emits EXACTLY ONE
+   rung — the first that matches — and `BLOCKERS.length ? 'BLOCKED'` sits at the top. So on any run
+   that had a blocker for ANY unrelated reason, the PARTIAL rung was unreachable and the fact that a
+   third of the brief was never swept vanished from the one string every reader reads. That is
+   precisely what happened on wf_7ad48f08-5dc: verdict `BLOCKED`, four files never swept, two of the
+   six named defect classes never looked at, and the word "trimmed" nowhere in the verdict.
+   Meanwhile `complete: false` sat in a NESTED key under `ceiling`, which is where the handoff found
+   it and where nobody looks: "make complete:false a blocker, not a field".
+   THE FIX IS TWO THINGS, AND BOTH ARE MONOTONE — a run can only become MORE blocked, never less:
+     1. Incompleteness raises a REAL blocker, so it is in blockers[] with a name and a reason like
+        every other refusal, instead of being a boolean a reader has to go and look for.
+     2. The suffix is CONCATENATED onto whatever rung the ladder chose, so BLOCKED and PARTIAL can
+        be true in the same sentence. A ternary can only pick one fact; incompleteness is not an
+        alternative to being blocked, it is an additional thing that is true.
+   ⚠ SHIPPABLE IS NOT RECOMPUTED HERE. It already reads `!CEILING_HIT && !trimmedFromPlan.length`
+   and is computed once, below; raising a blocker for the same facts cannot make it more permissive.
+   Two formulas for one decision is the v18.3 bug and this deliberately is not one — the blocker
+   changes what is REPORTED, not what is ALLOWED. */
+const NOT_SWEPT = trimmedFromPlan.slice()
+const RUN_COMPLETE = !CEILING_HIT && !NOT_SWEPT.length
+if (NOT_SWEPT.length) {
+  blocker('THE SWEEP WAS NOT COMPLETE — ' + NOT_SWEPT.length + ' PLANNED ITEM(S) WERE NEVER RUN',
+    `the plan had ${globalThis.__plannedN ?? '?'} item(s) and ${NOT_SWEPT.length} ` +
+    `were trimmed to fit the ${MAX_AGENTS}-agent cap, so THIS RUN DID NOT COVER ITS OWN BRIEF. ` +
+    `Never swept: ${NOT_SWEPT.join(', ')}. Any conclusion of the form "nothing was found in X" is ` +
+    `unsupported for these files — nothing looked. Re-run with a higher {maxAgents}, or with ` +
+    `{strictScope:true} to be refused up front rather than trimmed from the back.`)
+}
+if (CEILING_HIT && !NOT_SWEPT.length) {
+  blocker('THE AGENT CEILING STOPPED THIS RUN EARLY',
+    `${SPENT}/${MAX_AGENTS} agents were spent and further spawns were refused, so an unknown amount ` +
+    `of the closing work — gates included — never ran. What is reported is what fitted, not what was asked.`)
+}
+const INCOMPLETE_SUFFIX = NOT_SWEPT.length
+  ? ` · ⚠ INCOMPLETE: ${NOT_SWEPT.length} of ${globalThis.__plannedN ?? '?'} ` +
+    `planned item(s) were NEVER SWEPT (${NOT_SWEPT.slice(0, 6).join(', ')}` +
+    `${NOT_SWEPT.length > 6 ? `, +${NOT_SWEPT.length - 6} more` : ''}) — this is NOT a clean sweep with findings`
+  : CEILING_HIT
+  ? ` · ⚠ INCOMPLETE: the agent ceiling (${SPENT}/${MAX_AGENTS}) stopped the run early — closing gates may never have run`
+  : ''
 const TE_ASKED_FOR = THIRD_EYE !== 'off'
 const TE_SPOKE = THIRD_EYE_SEATS.filter(s => s.reached)
 const TE_SILENT = THIRD_EYE_SEATS.filter(s => s.ran && !s.reached)
@@ -3590,7 +3917,7 @@ return emit({
   // could raise still forces a non-OK verdict here. The completeness clause is MAXQ-guarded because a
   // standard run must not be marked unshippable for a loop it never bought — but `completeness.ran`
   // above says so out loud, so it cannot be mistaken for a loop that ran and went dry.
-  verdict: BLOCKERS.length ? 'BLOCKED — see blockers[]'
+  verdict: (BLOCKERS.length ? 'BLOCKED — see blockers[]'
     : CEILING_HIT ? 'UNVERIFIED — the agent ceiling stopped the run early'
     : (MAXONLY && (dry < DRYROUNDS || unbuiltGaps.length)) ? 'UNVERIFIED — the completeness critic never went dry (' + (critStop || 'gaps raised but never built') + ')'
     : trimmedFromPlan.length ? 'PARTIAL — ' + trimmedFromPlan.length + ' item(s) were trimmed from the plan to fit the ceiling'
@@ -3604,7 +3931,10 @@ return emit({
         THIN_PANELS.slice(0, 3).map(t => `${t.file}: ${t.cast}/${t.panel} vote(s) cast`).join('; ') +
         ') — fewer eyes reviewed this than the seat count claims'
     : (results.length === 0 || passed.length === 0) ? 'EMPTY — no item passed a gate (vacuous green is forbidden)'
-    : 'OK',
+    : 'OK') + INCOMPLETE_SUFFIX,   // v40 §D1c — a ternary picks ONE rung; incompleteness is not an alternative to being blocked
+  complete: RUN_COMPLETE,          // v40 §D1c — top-level, because nested under `ceiling` is where nobody looked
+  not_swept: NOT_SWEPT,
+  planned_items: (globalThis.__plannedN ?? null),
   /* v32 §(c2) — THE ONE AUDIT ITEM I COULD NOT REPRODUCE UNTIL I LOOKED AT THE ORDERING.
      `SHIPPABLE` is computed ONCE, well above, and that is correct: it is the precondition the Ship
      phase gates on, and two formulas for one decision is the v18.3 bug. But THREE blockers are
@@ -3633,6 +3963,9 @@ return emit({
     v30_tip_honesty_and_thrash: true,
     v39_log_pass: true,
   },
+  /* v40 §D3 — the seam ledger. `unjoined` is a LEAD LIST the fleet produced about itself, not a
+     verdict; LAW19's `dead` is the verdict. Both are reported so they can be compared. */
+  seams: SEAMS,
   render_gate: renderGate,
   /* v26 — the loop, reported rather than inferred. `converged:true` means a render came back clean;
      anything else names WHY it stopped, so "2 passes" never has to be read as "it worked". */
@@ -3654,7 +3987,19 @@ return emit({
        pushes a ran:false record). `attempted` counts only the seats that were actually put to a
        courier, which is the honest denominator for "how much of this run was independently seen". */
     attempted: TE_ATTEMPTED,
-    silent_seats: TE_SILENT.map(s => ({ seat: s.seat, reason: String(s.reason || '').slice(0, 200) })),
+    /* v40 §D2b — THE KIND RIDES WITH THE PROSE. `reason` is 200 characters a human reads; nothing
+       could branch on it, so every silence looked alike to a caller and "unreachable" was doing the
+       work of three opposite facts. See SILENCE_KINDS for what each one licenses you to conclude. */
+    silent_seats: TE_SILENT.map(s => ({ seat: s.seat, kind: s.silence_kind || classifySilence(s),
+      means: SILENCE_KINDS[s.silence_kind || classifySilence(s)] || null,
+      reason: String(s.reason || '').slice(0, 200) })),
+    silence_kinds: TE_SILENT.reduce((acc, s) => {
+      const k = s.silence_kind || classifySilence(s); acc[k] = (acc[k] || 0) + 1; return acc }, {}),
+    /* THE FIELD THAT ANSWERS THE QUESTION THE HANDOFF ASKED. A run whose seats all timed out mid-
+       work has NOT measured the third eye as unreachable — it has measured its own clock. Keeping
+       that as a top-level count means the next reader does not have to re-derive it from prose. */
+    timed_out_seats: TE_SILENT.filter(s => (s.silence_kind || classifySilence(s)) === 'timed_out_mid_work').length,
+    timeout_budget_s: GROK_TIMEOUT_S,
     transports: [...new Set(TE_SPOKE.map(s => s.transport))],
     // v36 §C5 — was `TE_SPOKE.length === 0`: only ALL-silent counted as degraded, so 1-of-4 read clean.
     degraded: TE_DEGRADED,

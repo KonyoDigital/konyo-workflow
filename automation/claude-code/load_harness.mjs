@@ -236,6 +236,23 @@ if (result && typeof result === 'object') {
   }))
 }
 
+/* v40 — FULL, UNTRIMMED DUMP FOR PROOF SCRIPTS. The pretty payload above is clipped at 3000 chars
+   and every long string at 300, which is right for a human and useless for an assertion: a proof
+   that greps the trimmed view is asserting on the FORMATTER, not on the run. Env-gated so nothing
+   about the normal output changes. HARNESS_DUMP=<path> writes {calls, logs, result} verbatim —
+   calls[] carries every prompt, which is the only way to prove a prompt-level safeguard reaches
+   the agent that needs it. */
+if (process.env.HARNESS_DUMP) {
+  try {
+    const { writeFileSync } = await import('node:fs')
+    writeFileSync(process.env.HARNESS_DUMP, JSON.stringify({
+      ok: !err, error: err ? String(err && err.message || err) : null,
+      result: result ?? null, logs, phases,
+      calls: calls.map(c => ({ label: c.label, phase: c.phase, model: c.model, prompt: c.prompt })),
+    }))
+  } catch (e) { say('HARNESS_DUMP FAILED: ' + e.message) }
+}
+
 const exitOnThrow = H.exitOnThrow !== false
 if (err && exitOnThrow) process.exit(1)
 process.exit(0)
