@@ -435,7 +435,13 @@ const CHECKS = [
        logged that the agent had declined. It had crashed. */
     ok: d => d?.result?.carved?.lost === 1
              && /never returned/.test(d?.result?.carved?.reason || '')
-             && !(d?.logs || []).some(l => /declined every candidate/.test(l)) },
+             /* ⚠ MATCH THE LIE, NOT ITS QUOTATION. This grepped /declined every candidate/ — and
+                the §T2 correction line legitimately QUOTES that phrase to say it is not what
+                happened ("this is NOT \"the agent declined every candidate\""). So the guard
+                failed on correct output: my own explanatory prose defeating my own assertion,
+                which is [[source-reading-guard]] for the third time in this session. Anchor on the
+                original sentence, which continues "That is a legal outcome, not a failure". */
+             && !(d?.logs || []).some(l => /declined every candidate\. That is a legal/.test(l)) },
 
   { id: 'S1.2', control: true, what: 'the §R4 fence still holds — a dead carve agent does not flip an already-graded verdict to DEGRADED',
     args: { task: 't', apply: true, thirdEye: false, quality: 'max', maxRounds: 5, maxAgents: 40,
@@ -461,6 +467,61 @@ const CHECKS = [
     args: { task: 't', apply: true, thirdEye: false, __harness: { throwAgents: ['law19:reach'] } },
     ok: d => (d?.thrownAgents || []).length === 1
              && (d?.result?.agent_errors || []).length === 1 },
+
+  /* ── T-series: third post-ship review. §T1 is the one that mattered — the previous commit's fix
+     landed in a copy that does not run. */
+
+  { id: 'T2.1', what: 'the "declined every candidate" lie is gone in the MIXED case too (one died, the rest declined)',
+    args: { task: 't', apply: true, thirdEye: false, quality: 'max', maxRounds: 5, maxAgents: 40,
+      __harness: { agentPatch: [{ match: 'skeptic', patch: { refuted: true, severity: 'blocking', reason: 'broken' } }],
+                   throwAgents: ['carve:'] } },
+    /* v40.11's first cut gated the correction on `_carveLost === picked.length`, so a mix of one
+       death and one genuine decline still logged the lie — four lines under its own NEVER RETURNED
+       warning. The S1.1 proof used ONE candidate and therefore could not exercise the mixed case:
+       a fixture that cannot reach a state cannot refuse it. */
+    ok: d => !(d?.logs || []).some(l => /declined every candidate\. That is a legal/.test(l))
+             && d?.result?.carved?.died === 1 },
+
+  { id: 'T7.1', what: 'carved.lost SPLITS a death from a ceiling refusal — v19.4 says they are opposite facts',
+    args: { task: 't', apply: true, thirdEye: false, quality: 'max', maxRounds: 5, maxAgents: 40,
+      __harness: { agentPatch: [{ match: 'skeptic', patch: { refuted: true, severity: 'blocking', reason: 'broken' } }],
+                   throwAgents: ['carve:'] } },
+    ok: d => d?.result?.carved?.died === 1 && d?.result?.carved?.refused_by_ceiling === 0
+             && /DIED/.test(d?.result?.carved?.reason || '') },
+
+  { id: 'T3.1', what: 'a NOOP run (architect found nothing to do) reports complete:TRUE — the blanket false contradicted its own verdict',
+    args: { task: 't', apply: true, thirdEye: false, __harness: { architectItems: [], architectSummary: 'work already complete' } },
+    ok: d => d?.result?.complete === true && /ALREADY COMPLETE OR NOOP/.test(d?.result?.verdict || '') },
+
+  { id: 'T3.2', control: true, what: 'an empty plan with NO summary is still complete:false — a failed architect is not a finished codebase',
+    args: { task: 't', apply: true, thirdEye: false, __harness: { architectItems: [], architectSummary: '' } },
+    ok: d => d?.result?.complete === false },
+
+  { id: 'T5.1', what: 'the courier backstop is CLAMPED to the Bash tool ceiling and warns when the clamp binds',
+    /* ⚠ thirdEye MUST BE ON. The first cut of this check passed {thirdEye:false}, which spawns NO
+       courier seat at all — so there was no prompt to inspect and the check could only ever fail.
+       A test that cannot reach the thing it tests, inside the suite for exactly that defect. */
+    args: { task: 't', apply: true, grokTimeoutSeconds: 840 },
+    /* The engine itself suggests {grokTimeoutSeconds:840} when a seat times out, which asked for
+       870000ms — above the Bash tool's 600000 cap, so it clamps and the backstop becomes SHORTER
+       than the alarm it backs: the exact strangling §D2 was written to kill, re-entering through
+       the escape hatch §D2 added. */
+    ok: d => (d?.calls || []).some(c => /timeout parameter to 600000/.test(c.prompt || '')
+                                     && /the backstop is CLAMPED/.test(c.prompt || '')) },
+
+  { id: 'T9.1', control: true, what: 'the documented perl command carries a NUMBER, not a shell variable that expands to no timeout at all',
+    args: { task: 't', apply: true, thirdEye: false },
+    /* v40.10 replaced a stale literal 180 with `$GROK_TIMEOUT_S` — an undefined SHELL variable in a
+       copyable command. Pasted, it expands to nothing, perl's shift yields undef, and `alarm undef`
+       is `alarm 0`: NO TIMEOUT, the reparented-grok-burns-forever failure the block warns about.
+       A fix that makes the documented command silently unbounded is worse than the stale number. */
+    /* Marked a CONTROL because it reads the engine SOURCE rather than a run's output, so it gives
+       the same answer whichever engine the harness was pointed at — it can never be "red on the
+       old one" and claiming otherwise would be a vacuous proof. */
+    ok: () => {
+      const src = readFileSync(NEW, 'utf8')
+      return !/\(\$st >> 8\)\);' \$GROK_TIMEOUT_S/.test(src) && /\(\$st >> 8\)\);' 420/.test(src)
+    } },
 
   { id: 'D3.1', what: 'BUILD_SCHEMA carries provides/consumes so a seam is a declared fact',
     args: TRIM_ARGS,

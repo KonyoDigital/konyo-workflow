@@ -348,9 +348,12 @@ const PROOF = '\n\nVERIFY THE THING, NOT A PROXY FOR IT. Before you assert somet
    alarms, and SIGTERMs the child, so nothing can outlive the call:
      perl -e 'my $t=shift; my $p=fork; die unless defined $p; if(!$p){exec @ARGV; exit 127}
        $SIG{ALRM}=sub{kill "TERM",$p; waitpid($p,0); exit 142}; alarm $t; waitpid($p,0);
-       my $st=$?; alarm 0; exit(($st & 127) ? 128+($st & 127) : ($st >> 8));' $GROK_TIMEOUT_S \
-     ⚠ v40.11 — that was a literal 180 until a post-ship review found it. A reader copying the
-     documented command reproduced the exact cut-off this change exists to remove.
+       my $st=$?; alarm 0; exit(($st & 127) ? 128+($st & 127) : ($st >> 8));' 420 \
+     ⚠ THE `420` IS THE DEFAULT OF GROK_TIMEOUT_S — substitute yours if you overrode it. Do NOT
+     write `$GROK_TIMEOUT_S` here: that is a SHELL variable in a copyable command, undefined in the
+     reader's shell, so it expands to nothing, perl's `shift` yields undef, and `alarm undef` is
+     `alarm 0` — NO TIMEOUT AT ALL, i.e. the reparented-grok-burns-a-core-forever failure described
+     just above. v40.11 made exactly that mistake in the sibling engine before catching it.
        $GROK_CLI --cwd ... --prompt-file ...
    Exit 142 means the seat TIMED OUT, which is a real verdict — report it as unreachable, never as
    agreement. Kill the grok PID you spawned; never `MAXMIN=0 reap -f` (that matches the live TUI).
@@ -381,17 +384,25 @@ const GROK_CLI = '"${AGENT_ARMY_GROK_CLI:-$(command -v grok || echo "$HOME/.grok
    `node --check` PASSES on a file that references an undefined const — the error is a runtime
    ReferenceError, which is precisely what load_harness.mjs exists to catch and what caught it here.
    Kept dependency-free (perl ships with macOS) so it stays portable, like GROK_CLI above. */
-/* v40.11 §S3 — THE SAME 180s CUT-OFF konyo-workflow.js §D2 removed, still live in this engine.
-   MEASURED there, on run wf_7ad48f08-5dc: 4 of 5 third-eye seats returned
-   "grok timed out after 180s (perl alarm, exit 142)" and every one carried partial output proving
-   grok was ALIVE and MID-REVIEW when our own alarm killed it. The one seat that beat the clock is
-   the one that caught a real defect. A skeptic seat is told to READ THE TREE; that is a research
-   task on a 62k-line repo and it was being handed a paste-question's clock.
-   agent-army registers the name `agent-army`, NOT `konyo-workflow` — a post-ship review claimed
-   otherwise and it is wrong, checked — so this is a sibling engine, not the same door. It is fixed
-   anyway because it is the identical defect in the identical seat: sweep the class, do not fix only
-   the site in front of you. */
-const GROK_TIMEOUT_S = (A && A.grokTimeoutSeconds) || 420
+/* v40.11 §T1 — THE SAME 180s CUT-OFF konyo-workflow.js §D2 removed, still live in this engine.
+   MEASURED there, on run wf_7ad48f08-5dc: 4 of 5 third-eye seats returned "grok timed out after
+   180s (perl alarm, exit 142)" and every one carried partial output proving grok was ALIVE and
+   MID-REVIEW when our own alarm killed it. A skeptic seat is told to READ THE TREE — a research
+   task on a 62k-line repo, handed a paste-question's clock.
+   ⚠ AUTHORED HERE, AT THE INSTALL, AND THAT IS THE WHOLE POINT OF THIS REVISION. v40.11 first put
+   this fix in the REPO copy only. parity.sh's own pair() call marks this pair
+   `install -> repo (live install is authored)` and was reporting ⚠ DRIFT on it — so the fix sat in
+   the derived copy, did nothing at runtime, and the next sync would have silently reverted it.
+   [[copy-drift]]: author UPSTREAM. I applied that correctly to konyo-workflow.js (edited the live
+   path first, then synced) and got the direction backwards for its neighbour, in the same session.
+   ⚠ parity.sh CONTRADICTS ITSELF about this file: its header says `agent-army.js public -> install`
+   while the pair() call that actually RUNS says `install -> repo`. Two directions for one file, in
+   the script whose job is detecting exactly that. The running check is the one obeyed here. */
+const GROK_TIMEOUT_S = Math.max(30, Number((A && A.grokTimeoutSeconds) || 420) || 420)
+// The Bash tool's own timeout caps at 600000ms; a backstop above it is clamped and would then be
+// SHORTER than the perl alarm it backs — the exact strangling this fix exists to prevent.
+const BASH_TIMEOUT_MAX = 600000
+const GROK_BACKSTOP_MS = Math.min(BASH_TIMEOUT_MAX, (GROK_TIMEOUT_S + 30) * 1000)
 const PERL_ALARM = `perl -e 'my $t=shift; my $p=fork; die unless defined $p; if(!$p){exec @ARGV; exit 127} ` +
   `$SIG{ALRM}=sub{kill "TERM",$p; waitpid($p,0); exit 142}; alarm $t; waitpid($p,0); ` +
   `my $st=$?; alarm 0; exit(($st & 127) ? 128+($st & 127) : ($st >> 8));' ${GROK_TIMEOUT_S}`
@@ -434,9 +445,8 @@ function grokHow(question, opts = {}) {
     `reparented to init and burns a core forever — two were found alive at 3 and 10 days. The perl ` +
     `forks, alarms and SIGTERMs the child. Do NOT use the \`timeout\` binary: it is not installed on ` +
     `this Mac and the command would die with command-not-found.\n` +
-    `   Also set the Bash tool's OWN timeout parameter to ${(GROK_TIMEOUT_S + 30) * 1000} as a backstop, ` +
-    `not a replacement. ⚠ DERIVED from the alarm (+30s): a hardcoded backstop shorter than the alarm ` +
-    `strangles it, which made the same fix a no-op in the sibling engine until it was caught.\n` +
+    `   Also set the Bash tool's OWN timeout parameter to ${GROK_BACKSTOP_MS} as a backstop, not a ` +
+    `replacement — it is DERIVED from the alarm (+30s, capped at ${BASH_TIMEOUT_MAX}ms).\n` +
     `   EXIT 142 MEANS THE ALARM FIRED — grok TIMED OUT. Report that as reached:false / ` +
     `verdict:'unreachable'. It is NEVER agreement and never "no concerns".\n` +
     `   ⚠ Put the COMPLETE command in \`command\` — do NOT clip it. The perl prefix is ~243 characters, ` +

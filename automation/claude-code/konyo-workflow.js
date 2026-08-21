@@ -416,8 +416,15 @@ async function bail(o) {
        forget the 14th; it belongs HERE, once." I fixed the 14th and forgot the other 13.
        EVERY bail() IS an incomplete run BY DEFINITION — it is the exit taken when the run stopped
        before finishing — so `false` is the correct default, and `o` still overrides it. */
-    complete: false,
-    not_swept: [],
+    /* v40.11 §T3 — NOT A BLANKET false. §S2 defaulted every bail to `complete:false`, which then
+       contradicted the engine's own noop verdict: an architect that returns no work items exits
+       with `ALREADY COMPLETE OR NOOP` beside `complete:false`, and on the success path `complete`
+       means `!ceilingHit && !NOT_SWEPT.length` — which is TRUE for a run that planned nothing and
+       trimmed nothing. A caller on the v40 contract reported an incomplete sweep it could not name,
+       for a run the engine had just called already-complete. Derived from the same facts the
+       success path uses, so the two agree; `o` still overrides for exits that know better. */
+    complete: !CEILING_HIT && !((globalThis.__plannedFiles || []).length) && !o.refused,
+    not_swept: (globalThis.__plannedFiles || []).slice(),
     planned_items: (globalThis.__plannedN ?? null),
   }, o))
 }
@@ -542,12 +549,16 @@ const PROOF = '\n\nVERIFY THE THING, NOT A PROXY FOR IT. Before you assert somet
    alarms, and SIGTERMs the child, so nothing can outlive the call:
      perl -e 'my $t=shift; my $p=fork; die unless defined $p; if(!$p){exec @ARGV; exit 127}
        $SIG{ALRM}=sub{kill "TERM",$p; waitpid($p,0); exit 142}; alarm $t; waitpid($p,0);
-       my $st=$?; alarm 0; exit(($st & 127) ? 128+($st & 127) : ($st >> 8));' $GROK_TIMEOUT_S \
+       my $st=$?; alarm 0; exit(($st & 127) ? 128+($st & 127) : ($st >> 8));' 420 \
        /Users/konyo/.grok/bin/grok --cwd ... --prompt-file ...
-     ⚠ v40.10 — THAT NUMBER WAS A LITERAL 180 UNTIL THE POST-SHIP REVIEW FOUND IT, two lines above
-     the lines §D2 edited. The whole point of §D2 is that 180s was killing live, mid-review Grok
-     seats; a reader copying the documented command reproduced the exact cut-off the change exists
-     to remove. The real value is GROK_TIMEOUT_S (default 420, {grokTimeoutSeconds:N} overrides).
+     ⚠ THE `420` IS THE DEFAULT OF GROK_TIMEOUT_S — substitute your own if you overrode it with
+     {grokTimeoutSeconds:N}. It read a literal 180 until v40.10, which reproduced the exact cut-off
+     §D2 exists to remove; v40.10 then replaced it with `$GROK_TIMEOUT_S`, which is WORSE and is why
+     it is a literal again: that is a SHELL variable in a copyable command, it is undefined in the
+     reader's shell, it expands to nothing, perl's `shift` yields undef, and `alarm undef` is
+     `alarm 0` — NO TIMEOUT AT ALL, i.e. precisely the reparented-grok-burns-a-core-forever failure
+     described ten lines above. A fix that makes the documented command silently unbounded is worse
+     than the stale number it replaced. Found by the third post-ship review.
    Exit 142 means the seat TIMED OUT, which is a real verdict — report it as unreachable, never as
    agreement. Kill the grok PID you spawned; never `MAXMIN=0 reap -f` (that matches the live TUI).
    `reap` (~/.local/bin/reap) with no `-f` lists true orphans after a run ends oddly; `reap -f`
@@ -689,7 +700,17 @@ function grokHow(question, opts = {}) {
   const cwd = opts.cwd || '.'
   // v40 §D2 — the seat's own budget. ONE number drives the perl alarm, the Bash backstop and the
   // sentence that tells the courier what exit 142 means, so they cannot disagree again.
-  const tmo = Math.max(30, opts.timeoutS || GROK_TIMEOUT_S)
+  const tmo = Math.max(30, Number(opts.timeoutS || GROK_TIMEOUT_S) || GROK_TIMEOUT_S)
+  /* v40.11 §T5 — THE BASH TOOL'S OWN TIMEOUT MAXES OUT AT 600000ms, and this backstop is derived
+     from an alarm the caller can raise without limit. The engine itself suggests
+     {grokTimeoutSeconds:840} when a seat times out mid-review (see the courier log below), which
+     would ask for 870000 — above the cap, so the tool rejects or clamps it and the backstop becomes
+     SHORTER than the alarm it is backing. That is the exact "a backstop shorter than the thing it
+     backs strangles it" defect §D2 was written to kill, re-entering through the escape hatch §D2
+     added. Clamped, and the courier is told when the clamp binds so a silent 600s cap on an 840s
+     alarm is not a surprise. */
+  const BASH_TIMEOUT_MAX = 600000
+  const backstopMs = Math.min(BASH_TIMEOUT_MAX, (tmo + 30) * 1000)
   return (
     `TRANSPORT — do this literally, in this order, and report which one answered.\n` +
     `1. CLI FIRST (this is the working path). Write the question below to a temp file with the Write ` +
@@ -701,7 +722,12 @@ function grokHow(question, opts = {}) {
     `reparented to init and burns a core forever — two were found alive at 3 and 10 days. The perl ` +
     `forks, alarms and SIGTERMs the child, so nothing can outlive the call. Do NOT use the \`timeout\` ` +
     `binary: it is not installed on this Mac and the command would die with command-not-found.\n` +
-    `   Also set the Bash tool's OWN timeout parameter to ${(tmo + 30) * 1000} as a backstop — belt and ` +
+    `   Also set the Bash tool's OWN timeout parameter to ${backstopMs} as a backstop — belt and ` +
+    ((tmo + 30) * 1000 > BASH_TIMEOUT_MAX
+      ? `⚠ NOTE: your ${tmo}s alarm would need ${(tmo + 30) * 1000}ms, but the Bash tool caps at ` +
+        `${BASH_TIMEOUT_MAX}ms — the backstop is CLAMPED and is shorter than the perl alarm. The perl ` +
+        `wrapper is still the real bound; do not treat the Bash timeout as the limit here. `
+      : '') +
     `braces, not a replacement for the wrapper. ⚠ It is DERIVED from the alarm above (+30s) on purpose: ` +
     `this line used to say a hardcoded 180000, so a longer alarm would have been strangled by a shorter ` +
     `backstop and the fix would have changed nothing.\n` +
@@ -1619,6 +1645,7 @@ globalThis.__law19Vacuous = false
 globalThis.__renderExcusals = null
 globalThis.__plannedN = null
 globalThis.__planSiblings = null
+globalThis.__plannedFiles = null
 globalThis.__lockCheck = null
 /* v40.11 §S4 — the v40.10 sweep for these stopped two symbols short, and one of the two is the
    worst of the set. `__v30CallerTrimmed` is set at the plan and cleared only INSIDE
@@ -1628,6 +1655,7 @@ globalThis.__lockCheck = null
    RUN" blocker naming files this run never planned, with complete:false and a PARTIAL verdict
    attached. A stale value does not just misreport here; it fabricates a defect. */
 globalThis.__v30CallerTrimmed = null
+globalThis.__ceilingHitInCompleteness = false
 /* ── v40.7 §B2 — A BUDGET AT OR BELOW THE FLOOR BUYS NOTHING, AND NOBODY WAS TOLD ───────────────
    budgetOK() is `!budget.total || budget.remaining() > FLOOR`, and FLOOR is 120k at max/lean.
    So a caller passing {budget:{total:50000}} has a floor they can NEVER clear: budgetOK() is false
@@ -2354,6 +2382,14 @@ if (plan.items.length === 0) {
       ? 'force:true got you past triage, not past an empty plan. Pass items:[{file,instruction}] or give the architect real remaining work.'
       : 'Pass items:[{file,instruction}] at any quality to skip the architect, or re-run with a task that still has work.',
     verdict: sum ? 'ALREADY COMPLETE OR NOOP — architect returned no work items' : 'BLOCKED — architect returned an empty plan',
+    /* v40.11 §T3 — THIS EXIT KNOWS BETTER THAN THE DEFAULT, so it says so. bail() defaults
+       `complete:false` (and treats a `refused` as not-complete), which is right for the exits that
+       stopped short. This one did not stop short: an architect that returns NO WORK ITEMS with a
+       summary has answered the brief — there was nothing to sweep, so nothing went unswept, and on
+       the success path the same facts (`!ceilingHit && !NOT_SWEPT.length`) would read TRUE. The
+       empty-plan-WITHOUT-a-summary case is a different animal and stays false: that is an architect
+       that failed to plan, not a codebase with nothing to do. */
+    complete: !!sum && !CEILING_HIT,
   })
 }
 
@@ -2401,10 +2437,15 @@ const PLANNED_FILES = items.map(i => i.file)
    the assertion proving the rewrite was complete then matched ITS OWN PROSE — source-reading-guard,
    caught in the act of writing the fix for it.) */
 globalThis.__plannedN = items.length
-/* v40.11 §S5 — `__plannedFiles` was written here and read NOWHERE, and the comment above it said
-   "Nothing else uses them" out loud. That is the provided-with-no-consumer shape §R6 deleted
-   PERL_ALARM for in the previous commit: the sweep for it stopped one symbol short of its twin.
-   PLANNED_FILES itself stays — it is the local the trim compares against. */
+/* v40.11 §T4 — RESTORED, WITH A REAL CONSUMER THIS TIME. §S5 deleted this as an unread symbol,
+   which was correct THEN and left two things wrong: PLANNED_FILES itself was then unread too (the
+   comment claiming "it is the local the trim compares against" was simply false — every trim
+   compares items.length and pushes dropped.file), and bail()'s new `not_swept: []` default broke
+   the ledger invariant D15.1 exists to prove. A bail AFTER the plan exists — the plan-seat veto is
+   one — reported `planned_items: N, not_swept: []`, which says N items were planned and none went
+   unswept on a run that swept none of them. bail() now defaults not_swept to the planned files, so
+   the arithmetic holds on the exits too, and this global has the consumer it lacked. */
+globalThis.__plannedFiles = PLANNED_FILES.slice()
 if (globalThis.__triage && globalThis.__triage.est_agents) {
   const cap = Math.max(1, Math.min(24, globalThis.__triage.est_agents))
   if (items.length > cap) {
@@ -2873,6 +2914,9 @@ const CRIT_MAX = 12
    hunt. Reported as not-run, exactly like lean, so nobody reads silence as 'nothing was missing'. */
 if (MAXONLY) {
   phase('Completeness')
+  // v40.11 §T8 — remember whether the ceiling went from not-hit to hit ANYWHERE inside this phase,
+  // not only at the loop-top guard (builders inside a round can exhaust it too).
+  const _ceilBefore = CEILING_HIT
   while (dry < DRYROUNDS && critRound < CRIT_MAX && budgetOK()) {
     // the critic can always find one more thing, and each gap costs a builder plus its skeptics —
     // so the loop asks the REAL counter, not an estimate of it
@@ -2919,6 +2963,7 @@ if (MAXONLY) {
   }
   // v14 — name the exit. Without this, "stopped at the cap with gaps outstanding" and "went dry"
   // were the same silent outcome.
+  if (!_ceilBefore && CEILING_HIT) globalThis.__ceilingHitInCompleteness = true
   if (dry < DRYROUNDS && !critStop) {
     critStop = !budgetOK() ? 'budget floor reached'
       : critRound >= CRIT_MAX ? `hard ${CRIT_MAX}-round backstop`
@@ -4207,21 +4252,32 @@ if (SCARS.length) {
        replacing it. The ceiling half of that fence got `ceiling.carve_hit_ceiling` precisely so the
        difference is named instead of hidden; the death half needs the same, and now has it. */
     const _carveLost = carveResults.filter(x => !x).length
+    /* v40.11 §T7 — SPLIT THE TWO, because the engine CAN tell them apart and the comment above
+       cites v19.4 for exactly this distinction ("a dead agent and a ceiling-refused one are
+       different facts") while the reason string said "died, or the ceiling refused them". A reader
+       seeing lost:2 still had to guess which failure to chase. Found by the third post-ship review. */
+    const _carveDied = Math.max(0, SPAWN_ERRORS.length - (CARVE_FENCE ? CARVE_FENCE.errors : 0))
+    const _carveRefused = Math.max(0, _carveLost - _carveDied)
     const written = carveResults.filter(Boolean).filter(r => r.wrote)
     CARVED = {
       ran: true,
       reason: _carveLost
-        ? `${_carveLost} of ${picked.length} carve agent(s) never returned (died, or the ceiling refused them) — NOT declined`
+        ? `${_carveLost} of ${picked.length} carve agent(s) never returned — NOT declined. ` +
+          `${_carveDied} DIED (see agent_errors); ${_carveRefused} were REFUSED BY THE CEILING ` +
+          `(nothing was wrong with them — the run could not afford the seat).`
         : '',
       lost: _carveLost,
+      died: _carveDied,
+      refused_by_ceiling: _carveRefused,
       written: written.map(r => ({ path: r.path, action: r.action, summary: r.summary,
                                    archived: !!r.archived })),
       declined: carveResults.filter(Boolean).filter(r => !r.wrote)
         .map(r => ({ action: r.action, summary: r.summary })),
     }
     if (_carveLost) {
-      log(`🪓⚠ ${_carveLost} of ${picked.length} carve agent(s) NEVER RETURNED — they did not decline, ` +
-          `they died or were refused by the ceiling. Recorded as carved.lost; the verdict is ` +
+      log(`🪓⚠ ${_carveLost} of ${picked.length} carve agent(s) NEVER RETURNED — they did not decline. ` +
+          `${_carveDied} DIED, ${_carveRefused} were REFUSED BY THE CEILING (§T7 — the engine can tell ` +
+          `these apart, so it says which). Recorded as carved.lost/died/refused_by_ceiling; the verdict is ` +
           `deliberately NOT flipped (see §R4), because this is post-report bookkeeping about a ` +
           `SKILL FILE, not about the work that already shipped.`)
     }
@@ -4229,9 +4285,16 @@ if (SCARS.length) {
       log(`🪓 CARVED ${written.length} skill(s) — ` +
           written.map(r => `${r.path} (${r.action})`).join(' · ') +
           `. Evidence archived, not deleted. Loads at the START of your next session.`)
-    } else if (_carveLost === picked.length) {
-      log(`🪓⚠ Carve wrote nothing because NONE of its ${picked.length} agent(s) returned. This is ` +
-          `not a decline and must not be read as one.`)
+    } else if (_carveLost) {
+      /* v40.11 §T2 — GATED ON `_carveLost` AT ALL, NOT ON "ALL OF THEM". The v40.11 fix only
+         covered `_carveLost === picked.length`, so with 2+ candidates where one agent DIED and the
+         rest genuinely declined, the run still logged "the agent declined every candidate" — four
+         lines below its own "NEVER RETURNED" warning, contradicting it. The S1.1 proof used a
+         SINGLE candidate and therefore could not catch it: a fixture that cannot exercise the
+         mixed case cannot refuse it. Found by the third post-ship review. */
+      log(`🪓⚠ Carve wrote nothing. ${_carveLost} of ${picked.length} agent(s) NEVER RETURNED and ` +
+          `${picked.length - _carveLost} declined — this is NOT "the agent declined every candidate", ` +
+          `and it must not be read as one.`)
     } else {
       log('🪓 Carve ran and wrote nothing — the agent declined every candidate. That is a legal ' +
           'outcome, not a failure; a rule that could only read as permission to skip a gate is ' +
@@ -4354,7 +4417,12 @@ return emit({
      lean/standard/tiny never runs at all. [[label_outlived_referent]]. It is kept (callers may read
      it) but now carries the truth: the completeness loop's OWN ceiling exit, not a copy of `hit`. */
   ceiling: { cap: MAX_AGENTS, spent: SPENT, hit: CEILING_HIT,
-             hitDuringCompleteness: critStop === 'ceiling',
+             /* v40.11 §T8 — `critStop === 'ceiling'` only catches the loop-TOP guard. If the
+                ceiling is exhausted by BUILDERS inside a completeness round and the loop then
+                exits for another reason (budget floor, CRIT_MAX, or going dry), critStop holds
+                that other string and this reported false for a run whose ceiling genuinely was hit
+                during completeness. Tracked as a transition instead. */
+             hitDuringCompleteness: critStop === 'ceiling' || !!globalThis.__ceilingHitInCompleteness,
              carve_hit_ceiling: !!(CARVE_FENCE && CEILING_HIT && !CARVE_FENCE.ceilingHit),
              trimmedFromPlan, complete: incompletenessNow().complete },
   // v13 — the one field that answers "is this safe to have shipped". Every fact below was already
