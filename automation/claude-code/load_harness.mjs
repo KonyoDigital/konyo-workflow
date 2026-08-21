@@ -91,7 +91,22 @@ function fake(schema, key = '', label = '') {
   if (/parallel/.test(k)) return 'parallel'
   if (/cost_of_wrong|cost/.test(k)) return 'high'
   if (/model/.test(k)) return 'opus'
-  if (/file|path/.test(k)) return '/Users/konyo/.claude/workflows/konyo-workflow.js'
+  /* v40.5 — A HAPPY FIXTURE MUST BE A **COHERENT** ONE. Every file/path field used to return one
+     hardcoded path regardless of which agent was asking, so a builder told "you own a.js" returned
+     files_touched:['/Users/konyo/.claude/workflows/konyo-workflow.js'] — a build result that
+     contradicts its own brief. That went unnoticed for as long as nothing compared the two; the
+     moment the engine gained a real ownership check (v40.5 §B) it correctly failed the FIXTURE,
+     and the tiny baseline stopped shipping. The engine was right and the fixture was nonsense.
+     A fixture that is internally inconsistent makes every proof built on it accidental: it can
+     fail a correct engine, and it can pass a broken one for the same reason.
+     Build/rework labels carry their file as `build:<tier>:<file>` / `rework:<tier>:<file>`, so the
+     coherent answer is available — use it, and fall back to the old constant only when the label
+     names no file. */
+  if (/file|path/.test(k)) {
+    const m = String(label || '').match(/^(?:build|rework):[^:]*:(.+)$/)
+    if (m && m[1]) return m[1]
+    return '/Users/konyo/.claude/workflows/konyo-workflow.js'
+  }
   return `[fake:${key || 'str'}]`
 }
 

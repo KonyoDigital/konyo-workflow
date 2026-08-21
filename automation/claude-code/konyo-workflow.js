@@ -1292,6 +1292,34 @@ function activeLenses() {
    tallyVotes counts `votes.filter(Boolean)`, so any truthy object lands in the tally as a vote
    with `refuted: undefined` — falsy — and an EMPTY SEAT WOULD BE COUNTED AS AN APPROVAL. The vote
    array is left exactly as it was; only the commentary is new. */
+/* ── v40.5 §A — "NOT REFUTED, SEVERITY: BLOCKING" WAS COUNTED AS AN APPROVAL ────────────────────
+   SKEPTIC_SCHEMA carries `refuted` and `severity` as INDEPENDENT fields, and tallyVotes read only
+   `refuted`. So a seat returning {refuted:false, severity:'blocking', reason:'this is badly
+   broken'} was tallied as a vote FOR the change. Measured with agentPatch: the run shipped, verdict
+   OK, zero blockers.
+   IT IS ALSO AN ASYMMETRY BETWEEN THE TWO SEAT TYPES, which is the worse half. The third-eye seat
+   already derives its vote as `verdict === 'refuted' || (concerns.length && severity is major or
+   blocking)` — it has ALWAYS read severity. The Claude seats never did. One schema, two readings,
+   and the panel's arithmetic silently depended on which kind of seat happened to fill it.
+   THE CONTRADICTION IS THE FINDING — this file's own standing rule — so it is not resolved in the
+   change's favour and it is not resolved silently: the vote counts as a refusal (the conservative
+   half: a seat that graded something BLOCKING has not approved it), the contradiction is logged,
+   and it is carried in the payload so a reader sees that a seat contradicted itself rather than
+   just seeing a refusal appear. 'minor' is deliberately NOT included — a minor nit alongside
+   refuted:false is a coherent answer, not a contradiction. */
+const VOTE_CONTRADICTIONS = []
+function normalizeVote(v, seat, file) {
+  if (!v || typeof v !== 'object') return v
+  const sev = String(v.severity || 'none').toLowerCase()
+  if (!v.refuted && (sev === 'blocking' || sev === 'major')) {
+    VOTE_CONTRADICTIONS.push({ file, seat, severity: sev, reason: String(v.reason || '').slice(0, 200) })
+    log(`⚠ CONTRADICTORY SKEPTIC VOTE on ${file} [${seat}]: refuted:false but severity:'${sev}'. ` +
+        `A seat that grades a change ${sev.toUpperCase()} has not approved it — counting it as a REFUSAL ` +
+        `and reporting the contradiction rather than resolving it in the change's favour.`)
+    return { ...v, refuted: true, contradiction: `refuted:false with severity:'${sev}'` }
+  }
+  return v
+}
 const EMPTY_SEATS = []
 const THIN_PANELS = []
 function tallyVotes(votes, panel, file) {
@@ -1365,8 +1393,9 @@ function runSkeptics(built, phaseName) {
       }
       const refuted = rec.verdict === 'refuted' ||
         (rec.concerns.length > 0 && (rec.severity === 'major' || rec.severity === 'blocking'))
-      return { refuted, severity: rec.severity || (refuted ? 'major' : 'none'),
-        reason: `[third eye / ${rec.transport}] ${(rec.concerns[0] || rec.reason || 'no concern raised')}` }
+      return normalizeVote({ refuted, severity: rec.severity || (refuted ? 'major' : 'none'),
+        reason: `[third eye / ${rec.transport}] ${(rec.concerns[0] || rec.reason || 'no concern raised')}` },
+        `thirdEye(${lens})`, built.item.file)
     }) : () => spawn(
     `ADVERSARIAL SKEPTIC ${i + 1} of ${lenses.length} — lens: ${lens}\nTask: ${TASK}\nFile: ${built.item.file}\n` +
     `Instruction it was meant to satisfy: ${built.item.instruction}\n` +
@@ -1399,6 +1428,7 @@ function runSkeptics(built, phaseName) {
       (a null from a ceiling refusal read as a verdict) at the panel instead of at the third eye. */
    .then(v => { if (!v) EMPTY_SEATS.push({ file: built.item.file, seat: `skeptic${i + 1}(${lens})`,
        kind: 'never_asked_ceiling', reason: 'the agent ceiling refused this seat — it was never asked' }); return v })
+   .then(v => normalizeVote(v, `skeptic${i + 1}(${lens})`, built.item.file))
   )).then(votes => tallyVotes(votes, lenses.length, built.item.file))
 }
 
@@ -1428,8 +1458,57 @@ function skepticStage(gated) {
   })
 }
 
+/* ── v40.5 §B — "OWNERSHIP: CHECK IT, DO NOT ASSUME IT" WAS ASKED OF A MODEL AND NEVER OF THE CODE
+   Both gate prompts tell their agent to run `git status --porcelain` and refuse a builder that went
+   outside its one file. That is the right instruction and it is the ONLY enforcement — so whether
+   the rule holds depends on an agent choosing to run a command and read it correctly, which is a
+   suggestion, not a safeguard (the same lesson the lock key and the builder push-rule already
+   taught this file).
+   Meanwhile the engine holds both halves of a check it can do for FREE and deterministically: the
+   brief says the builder owns `item.file`, and the builder DECLARES `files_touched`. Measured with
+   agentPatch: a builder returning files_touched:['some/other/file.js'] — naming a file it does not
+   own and NOT naming the one it does — passed every gate and shipped, verdict OK.
+   NARROW ON PURPOSE, because over-blocking a builder is expensive:
+     · files_touched: []  is LEGITIMATE and untouched — "I looked and no change was needed" is a
+       real answer, and a dry-run writes nothing by design.
+     · A declaration that names files but NOT the file it owns is the unambiguous case: it either
+       edited the wrong thing or its declaration is wrong, and both are rework.
+     · Extra files BEYOND its own are recorded and handed on rather than auto-failed — path spellings
+       vary (absolute vs relative, symlinked trees) and a false rework here costs a whole rebuild.
+   This does not replace the git check in the prompts; it is the half that cannot be talked out of.
+   ONE WRAPPER, BOTH QUALITIES — deliberately not copied into adversarialGate and gateAgent, which
+   would be two implementations of one rule, the v18.3 shape this file already carries a scar for. */
+const OWNERSHIP_VIOLATIONS = []
+const _sameFile = (a, b) => {
+  const norm = x => String(x || '').replace(/\\/g, '/').replace(/^\.\//, '')
+  const A = norm(a), B = norm(b)
+  return A === B || A.endsWith('/' + B) || B.endsWith('/' + A)
+}
+function ownershipViolation(built) {
+  if (!built || !built.build || !built.item) return null
+  const owned = built.item.file
+  const declared = Array.isArray(built.build.files_touched) ? built.build.files_touched.filter(Boolean) : []
+  if (!declared.length) return null                     // "nothing needed changing" is a real answer
+  if (!declared.some(f => _sameFile(f, owned))) {
+    return `the builder declared it edited ${JSON.stringify(declared.slice(0, 6))} and NOT the one file ` +
+           `it owns (${owned}). Either it edited the wrong file or its declaration is wrong; both are rework. ` +
+           `This is checked in code, not asked of an agent.`
+  }
+  const extra = declared.filter(f => !_sameFile(f, owned))
+  if (extra.length) OWNERSHIP_VIOLATIONS.push({ file: owned, extra: extra.slice(0, 8), blocked: false })
+  return null
+}
 // THE GATE, CHOSEN ONCE. Not a ternary scattered through the pipeline.
-const gateFor = MAXQ ? adversarialGate : gateAgent
+const _gateImpl = MAXQ ? adversarialGate : gateAgent
+const gateFor = (built) => {
+  const v = ownershipViolation(built)
+  if (v) {
+    OWNERSHIP_VIOLATIONS.push({ file: built.item.file, declared: built.build.files_touched, blocked: true })
+    log(`⛔ OWNERSHIP: ${v}`)
+    return Promise.resolve({ ...built, gate: { verdict: 'rework', severity: 'blocking', reason: v, reasons: [v] } })
+  }
+  return _gateImpl(built)
+}
 
 /* ONE build+gate+rework body, used by the main Build phase AND by the max completeness loop. Before
    the merge these were two loops in two files with two sets of blocker wiring; a rework round added
@@ -3395,6 +3474,20 @@ if (reach && (reach.dead || []).length) {
 } else if (!reach) {
   blocker('LAW19 REACHABILITY DID NOT RUN',
     'no symbol added by this run was traced to a caller and a writer')
+} else if (reach && !Number(reach.checked)) {
+  /* v40.5 §C — A GATE THAT TRACED ZERO SYMBOLS IS NOT A GATE THAT PASSED. This branch printed
+     "✅ Reachability: 0 symbol(s) traced to a caller and a writer" — a green tick over a check that
+     examined nothing, which is precisely the vacuous green this engine forbids everywhere else
+     ("no item passed a gate (vacuous green is forbidden)"; "a fleet that built nothing used to be
+     SHIPPABLE").
+     It is NOT a blocker, and that is deliberate: checked:0 is legitimate when a change genuinely
+     introduces no new symbol — a copy edit, a CSS value, a comment. What is not legitimate is
+     reporting it in the same words, with the same tick, as a run where LAW19 traced twelve symbols
+     and found every one reachable. So it says what happened instead. */
+  log(`➖ Reachability: LAW19 ran and traced ZERO symbols. That is not a pass — nothing was verified. ` +
+      `Legitimate if this change introduced no new symbol (copy, CSS, comments); otherwise the gate ` +
+      `did not find what it was looking for.`)
+  globalThis.__law19Vacuous = true
 } else if (reach) {
   log(`✅ Reachability: ${reach.checked} symbol(s) traced to a caller and a writer.`)
 }
@@ -4111,6 +4204,10 @@ return emit({
   /* v40.4 — WHAT THE RENDER GATE EXCUSED ITSELF FOR, and what was refused. A subtraction that
      decides whether a UI defect blocks a ship belongs in the payload, not only in a log line. */
   render_excusals: globalThis.__renderExcusals || { accepted: [], rejected: [] },
+  // v40.5 — three facts that used to resolve themselves silently in the change's favour.
+  vote_contradictions: VOTE_CONTRADICTIONS,
+  ownership: { violations: OWNERSHIP_VIOLATIONS, checked_in_code: true },
+  law19_traced_nothing: !!globalThis.__law19Vacuous,
   seams: SEAMS,
   render_gate: renderGate,
   /* v26 — the loop, reported rather than inferred. `converged:true` means a render came back clean;

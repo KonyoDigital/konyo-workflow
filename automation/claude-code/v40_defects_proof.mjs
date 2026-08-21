@@ -248,6 +248,57 @@ const CHECKS = [
     ok: d => d?.result?.refused === 'triage says direct'
              && (d?.patchedAgents || []).every(x => JSON.stringify(x.applied) === JSON.stringify(x.effective)) },
 
+  /* ── D10/D11/D12: MALFORMED & CONTRADICTORY agent output — the shape a real agent degrades into,
+     which neither the dead-agent nor the failing-gate sweep touched. */
+
+  { id: 'D10.1', what: "2 seats voting refuted:false WITH severity:'blocking' now kill the change (they were 2 APPROVALS and shipped)",
+    args: { task: 't', apply: true, thirdEye: false, __harness: { agentPatch: [
+      { match: 'skeptic1', patch: { refuted: false, severity: 'blocking', reason: 'badly broken' } },
+      { match: 'skeptic2', patch: { refuted: false, severity: 'blocking', reason: 'badly broken' } }] } },
+    ok: d => d?.result?.shippable === false && (d?.result?.vote_contradictions || []).length === 2 },
+
+  { id: 'D10.2', what: 'the contradiction is REPORTED, not silently resolved into a refusal',
+    args: { task: 't', apply: true, thirdEye: false, __harness: { agentPatch: [
+      { match: 'skeptic1', patch: { refuted: false, severity: 'major', reason: 'leaks on retry' } }] } },
+    ok: d => (d?.result?.vote_contradictions || []).length === 1
+             && /severity/.test((d.result.vote_contradictions[0] || {}).severity ? 'severity' : '')
+             && (d?.logs || []).some(l => /CONTRADICTORY SKEPTIC VOTE/.test(l)) },
+
+  { id: 'D10.3', control: true, what: "refuted:false with severity:'minor' is a COHERENT answer and must NOT be flagged",
+    args: { task: 't', apply: true, thirdEye: false, __harness: { agentPatch: [
+      { match: 'skeptic1', patch: { refuted: false, severity: 'minor', reason: 'nit: naming' } }] } },
+    ok: d => (d?.result?.vote_contradictions || []).length === 0 && d?.result?.shippable === true },
+
+  { id: 'D11.1', what: 'a builder declaring edits to another file and NOT its own is reworked — checked in CODE, not asked of an agent',
+    args: { task: 't', apply: true, thirdEye: false, __harness: { agentPatch: [
+      { match: 'build:', patch: { files_touched: ['some/other/file.js'] } }] } },
+    ok: d => d?.result?.shippable === false
+             && (d?.result?.ownership?.violations || []).some(v => v.blocked === true) },
+
+  { id: 'D11.2', control: true, what: 'files_touched:[] is a REAL answer ("nothing needed changing") and must not block',
+    args: { task: 't', apply: true, thirdEye: false, __harness: { agentPatch: [
+      { match: 'build:', patch: { files_touched: [] } }] } },
+    ok: d => d?.result?.shippable === true
+             && (d?.result?.ownership?.violations || []).length === 0 },
+
+  { id: 'D11.3', control: true, what: 'its own file PLUS an extra is recorded but not auto-failed (path spellings vary; a false rework costs a rebuild)',
+    args: { task: 't', apply: true, thirdEye: false, __harness: { agentPatch: [
+      { match: 'build:', patch: { files_touched: ['/Users/konyo/.claude/workflows/konyo-workflow.js', 'extra.js'] } }] } },
+    ok: d => d?.result?.shippable === true
+             && (d?.result?.ownership?.violations || []).some(v => v.blocked === false) },
+
+  { id: 'D12.1', what: 'LAW19 tracing ZERO symbols no longer prints a green tick as if it had verified something',
+    args: { task: 't', apply: true, thirdEye: false, __harness: { agentPatch: [
+      { match: 'law19:reach', patch: { checked: 0, dead: [], tests_added: 0, tests_proven_run: true } }] } },
+    ok: d => d?.result?.law19_traced_nothing === true
+             && (d?.logs || []).some(l => /traced ZERO symbols. That is not a pass/.test(l))
+             && !(d?.logs || []).some(l => /✅ Reachability: 0 symbol/.test(l)) },
+
+  { id: 'D12.2', control: true, what: 'LAW19 that really traced symbols is NOT flagged as vacuous',
+    args: { task: 't', apply: true, thirdEye: false, __harness: { agentPatch: [
+      { match: 'law19:reach', patch: { checked: 12, dead: [], tests_added: 0, tests_proven_run: true } }] } },
+    ok: d => d?.result?.law19_traced_nothing === false && d?.result?.shippable === true },
+
   { id: 'D3.1', what: 'BUILD_SCHEMA carries provides/consumes so a seam is a declared fact',
     args: TRIM_ARGS,
     ok: d => (d?.calls || []).some(c => /build:/.test(c.label || '')) && d?.result?.seams !== undefined },
@@ -339,7 +390,12 @@ for (const c of CHECKS) {
   try { redOK = !c.ok(get(cacheOld, OLD, c.args, 'old')) } catch { redOK = true }
   try { greenOK = !!c.ok(get(cacheNew, NEW, c.args, 'new')) } catch (e) { err = e.message }
   if (c.control) {
-    if (greenOK) { controls++; console.log(`🔵 ${c.id} [CONTROL — green on both engines by design] ${c.what}`) }
+    /* ⚠ THE LABEL MUST NOT ASSERT WHAT WAS NOT CHECKED. This printed "green on both engines by
+       design" for every control — but a control's old-engine result is deliberately NOT a
+       requirement, and some of them ARE red there (D11.3 reads a payload field the old engine does
+       not have). Claiming both were green was a statement nobody had verified, inside the suite
+       whose entire subject is claims that outrun their evidence. It now reports what it observed. */
+    if (greenOK) { controls++; console.log(`🔵 ${c.id} [CONTROL — green on the fixed engine; old=${redOK ? 'red' : 'green'}, not required either way] ${c.what}`) }
     else { fail++; console.log(`❌ ${c.id} [CONTROL FAILED on the fixed engine] ${c.what}${err ? ' — ' + err : ''}`) }
     continue
   }
@@ -393,5 +449,5 @@ for (const [label, rec, want] of CLS_TABLE) {
 }
 
 console.log(`\n${fail === 0 ? '✅ ALL GREEN' : '❌ ' + fail + ' FAILED'} — ${pass} PROOF(S) (each verified RED on the pre-fix engine), ` +
-  `${controls} control(s) (green on both by design), ${fail} failed`)
+  `${controls} control(s) (green on the fixed engine; old-engine result not required), ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)
