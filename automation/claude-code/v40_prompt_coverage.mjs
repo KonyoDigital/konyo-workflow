@@ -23,13 +23,14 @@
 
    Usage: node v40_prompt_coverage.mjs [pathToEngine]                                             */
 import { execFileSync } from 'node:child_process'
-import { readFileSync, unlinkSync } from 'node:fs'
+import { readFileSync, unlinkSync, mkdtempSync } from 'node:fs'
 import { join, dirname } from 'node:path'
+import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ENGINE = process.argv[2] || join(HERE, 'konyo-workflow.js')
-const TMP = '/Users/konyo/.claude/jobs/c756f6f9/tmp'
+const TMP = process.env.PROOF_TMP || mkdtempSync(join(tmpdir(), 'konyo-proof-'))
 
 let n = 0
 function run(args) {

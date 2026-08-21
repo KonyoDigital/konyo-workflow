@@ -6,8 +6,9 @@
    agreeing with itself, which is the failure this whole repo's SCARS file keeps recording.
    Usage: node v40_defects_proof.mjs [pathToOldEngine]                                          */
 import { execFileSync } from 'node:child_process'
-import { readFileSync, readdirSync, unlinkSync, statSync } from 'node:fs'
+import { readFileSync, readdirSync, unlinkSync, statSync, mkdtempSync } from 'node:fs'
 import { join, dirname } from 'node:path'
+import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -32,7 +33,7 @@ function findBaseline() {
   return ''
 }
 const OLD = process.argv[2] || findBaseline()
-const TMP = process.env.TMPDIR_PROOF || '/Users/konyo/.claude/jobs/c756f6f9/tmp'
+const TMP = process.env.PROOF_TMP || mkdtempSync(join(tmpdir(), 'konyo-proof-'))
 
 // 12 items at quality=lean, whose MAX_ITEMS_CAP is 8 → the engine MUST drop 4.
 const ITEMS = Array.from({ length: 12 }, (_, i) => ({
